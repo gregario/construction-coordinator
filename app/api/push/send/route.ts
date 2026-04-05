@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import webpush from 'web-push'
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
-
 export async function POST(request: Request) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
+  )
   // Verify internal request (simple shared secret pattern)
   const authHeader = request.headers.get('Authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -29,5 +28,6 @@ export async function POST(request: Request) {
   const failed = results.filter(r => r.status === 'rejected').length
   const sent = results.filter(r => r.status === 'fulfilled').length
 
+  console.log(JSON.stringify({ event: 'push.send', sent, failed, total: subscriptions.length }))
   return NextResponse.json({ sent, failed })
 }
