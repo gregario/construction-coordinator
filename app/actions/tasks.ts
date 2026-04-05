@@ -7,6 +7,7 @@ import {
   computePlannedDates,
   type TaskDateRecord,
 } from '@/lib/tasks/operations'
+import { validateDelayDate } from '@/lib/tasks/delay'
 import { buildCascadeSummary, type CascadeSummary } from '@/lib/cascade/engine'
 import type { CascadeResult } from '@/types/database'
 
@@ -67,6 +68,20 @@ export type UpdateTaskDurationResult =
   | { ok: false; error: string; field?: TaskFieldError }
 
 export type DeleteTaskResult = { ok: true } | { ok: false; error: string }
+
+export type LogTaskDelayInput = {
+  projectId: string
+  taskId: string
+  newPlannedEnd: string // ISO YYYY-MM-DD
+}
+
+export type LogTaskDelayResult =
+  | {
+      ok: true
+      cascade_summary: CascadeSummary
+      materials_moved: number
+    }
+  | { ok: false; error: string }
 
 async function verifyProjectOwnership(
   supabase: LooseClient,
@@ -340,6 +355,100 @@ export async function updateTaskDuration(
     cascade_changes: changes,
     cascade_summary,
   }
+}
+
+// AC-DL-1/2/3: log a delay against a task. Moves the task's planned_end to a
+// strictly later user-picked date, runs cascade_task_dates() to propagate the
+// delta to every downstream task + material order-by date, and returns the
+// unified cascade summary plus the count of materials whose order_by_date
+// shifted (the PG function updates them via the same transaction).
+//
+// Offline-first (AC-DL-4): the client UI queues the action when offline; that
+// queueing lives in the client component. This server action is the authoritative
+// write path and is safe to replay — the cascade RPC is transactional and
+// idempotent on identical input.
+export async function logTaskDelay(
+  input: LogTaskDelayInput
+): Promise<LogTaskDelayResult> {
+  if (!input.projectId || !input.taskId) {
+    return { ok: false, error: 'Project and task required' }
+  }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const owned = await verifyProjectOwnership(supabase, input.projectId, user.id)
+  if (!owned.ok) return owned
+
+  const taskRes = await supabase
+    .from('tasks')
+    .select('id, project_id, stage_id, name, planned_start, planned_end')
+    .eq('id', input.taskId)
+    .single()
+  if (taskRes.error || !taskRes.data) {
+    return { ok: false, error: 'Task not found' }
+  }
+  const task = taskRes.data as {
+    id: string
+    project_id: string
+    stage_id: string
+    name: string
+    planned_start: string
+    planned_end: string
+  }
+  if (task.project_id !== input.projectId) {
+    return { ok: false, error: 'Task not found' }
+  }
+
+  const validated = validateDelayDate(task.planned_end, input.newPlannedEnd)
+  if (!validated.ok) {
+    return { ok: false, error: validated.error }
+  }
+
+  // cascade_task_dates holds planned_start and shifts planned_end forward. The
+  // SQL function recalculates downstream dates + material order_by_dates in a
+  // single transaction.
+  const cascadeRes = await supabase.rpc('cascade_task_dates', {
+    p_task_id: input.taskId,
+    p_new_planned_start: task.planned_start,
+    p_new_planned_end: input.newPlannedEnd,
+  })
+  if (cascadeRes.error) {
+    return { ok: false, error: `Cascade failed: ${cascadeRes.error.message}` }
+  }
+
+  const changes = (cascadeRes.data as CascadeResult[] | null) ?? []
+
+  // Count materials whose order_by_date moved. The cascade SQL recalculates
+  // order_by_date for materials attached to the trigger task + every downstream
+  // task touched. So the count is the number of materials attached to any of
+  // those task ids.
+  const affectedTaskIds = [input.taskId, ...changes.map(c => c.task_id)]
+  const matRes = await supabase
+    .from('materials')
+    .select('id', { count: 'exact', head: true })
+    .in('task_id', affectedTaskIds)
+  const materials_moved = matRes.error ? 0 : matRes.count ?? 0
+
+  revalidatePath('/schedule')
+  revalidatePath('/briefing')
+  revalidatePath(`/stages/${task.stage_id}`)
+  revalidatePath(`/tasks/${input.taskId}`)
+
+  const cascade_summary = buildCascadeSummary(
+    {
+      task_id: input.taskId,
+      task_name: task.name,
+      old_planned_start: task.planned_start,
+      old_planned_end: task.planned_end,
+      new_planned_start: task.planned_start,
+      new_planned_end: input.newPlannedEnd,
+    },
+    changes
+  )
+
+  return { ok: true, cascade_summary, materials_moved }
 }
 
 // AC-TM-6: delete a task. ON DELETE CASCADE on tasks(id) removes materials
