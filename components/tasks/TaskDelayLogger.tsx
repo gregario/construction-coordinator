@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { logTaskDelay } from '@/app/actions/tasks'
 import { validateDelayDate, formatCascadeSummaryMessage } from '@/lib/tasks/delay'
-import type { CascadeSummary } from '@/lib/cascade/engine'
+import type { CascadeSummary, MaterialMovement } from '@/lib/cascade/engine'
 
 type Props = {
   projectId: string
@@ -14,6 +14,7 @@ type Props = {
 type Overlay = {
   summary: CascadeSummary
   materialsMoved: number
+  materialMovements: MaterialMovement[]
 }
 
 // AC-DL-1: 'Log Delay' opens a date picker prefilled with the current
@@ -52,7 +53,11 @@ export function TaskDelayLogger({ projectId, taskId, currentPlannedEnd }: Props)
         return
       }
       setOpen(false)
-      setOverlay({ summary: res.cascade_summary, materialsMoved: res.materials_moved })
+      setOverlay({
+        summary: res.cascade_summary,
+        materialsMoved: res.materials_moved,
+        materialMovements: res.material_movements,
+      })
     })
   }
 
@@ -176,6 +181,42 @@ export function TaskDelayLogger({ projectId, taskId, currentPlannedEnd }: Props)
                 </li>
               ))}
             </ul>
+            {overlay.materialMovements.some(
+              m => m.delta_days !== 0 && m.delta_days !== null
+            ) && (
+              <>
+                <h4 className="mt-4 text-xs font-semibold text-[#2B1F17]">
+                  Material order-by dates moved
+                </h4>
+                <ul
+                  className="mt-2 space-y-1.5"
+                  data-testid="cascade-material-list"
+                >
+                  {overlay.materialMovements
+                    .filter(m => m.delta_days !== 0 && m.delta_days !== null)
+                    .map(m => (
+                      <li
+                        key={m.material_id}
+                        className="rounded-md border border-[#EFE8DD] bg-[#FAF7F2] p-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-medium text-[#2B1F17]">
+                            {m.material_name}
+                          </span>
+                          <span className="shrink-0 text-[#6B5D52]">
+                            {(m.delta_days ?? 0) > 0 ? '+' : ''}
+                            {m.delta_days}d
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-[#6B5D52]">
+                          {m.old_order_by_date ?? '—'} →{' '}
+                          {m.new_order_by_date ?? '—'} · {m.task_name}
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setOverlay(null)}

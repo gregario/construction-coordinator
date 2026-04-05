@@ -8,6 +8,7 @@
 // Pure functions only — no Supabase, no I/O. Unit-testable without mocks.
 
 import { diffDays, addDays } from '@/lib/tasks/operations'
+import { computeOrderByDate } from '@/lib/materials/operations'
 import type { CascadeResult } from '@/types/database'
 
 export type CascadeTrigger = {
@@ -95,3 +96,63 @@ export function buildCascadeSummary(
     movements,
   }
 }
+
+// AC-CMS-1: when a cascade runs, every material attached to the trigger task
+// or a downstream task has its order_by_date recomputed from the task's NEW
+// planned_start. The SQL cascade_task_dates() function already writes the new
+// value to the DB; this helper mirrors that math in TypeScript so callers can
+// build the UI-facing MaterialMovement list without a second round-trip.
+//
+// planned_start − lead_time_days, identical to computeOrderByDate() so the
+// client renders exactly what the DB stored.
+
+export type MaterialCascadeInput = {
+  material_id: string
+  material_name: string
+  task_id: string
+  task_name: string
+  lead_time_days: number
+  old_order_by_date: string | null
+}
+
+export type MaterialMovement = {
+  material_id: string
+  material_name: string
+  task_id: string
+  task_name: string
+  lead_time_days: number
+  old_order_by_date: string | null
+  new_order_by_date: string | null
+  delta_days: number | null
+}
+
+// taskNewStarts: task_id → new planned_start for every task the cascade touched
+// (trigger + downstream). Materials whose parent task is not in the map are
+// skipped — the cascade didn't touch them.
+export function computeMaterialMovements(
+  materials: MaterialCascadeInput[],
+  taskNewStarts: Record<string, string>
+): MaterialMovement[] {
+  const out: MaterialMovement[] = []
+  for (const m of materials) {
+    const newStart = taskNewStarts[m.task_id]
+    if (!newStart) continue
+    const new_order_by_date = computeOrderByDate(newStart, m.lead_time_days)
+    const delta_days =
+      m.old_order_by_date && new_order_by_date
+        ? diffDays(m.old_order_by_date, new_order_by_date)
+        : null
+    out.push({
+      material_id: m.material_id,
+      material_name: m.material_name,
+      task_id: m.task_id,
+      task_name: m.task_name,
+      lead_time_days: m.lead_time_days,
+      old_order_by_date: m.old_order_by_date,
+      new_order_by_date,
+      delta_days,
+    })
+  }
+  return out
+}
+

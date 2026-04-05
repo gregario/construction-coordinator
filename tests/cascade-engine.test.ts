@@ -3,7 +3,9 @@ import {
   computeCascadeDelta,
   shiftTaskDates,
   buildCascadeSummary,
+  computeMaterialMovements,
   type TaskMovement,
+  type MaterialCascadeInput,
 } from '@/lib/cascade/engine'
 import type { CascadeResult } from '@/types/database'
 
@@ -148,6 +150,126 @@ describe('buildCascadeSummary — AC-CE-3 & AC-CE-4', () => {
     const d2 = summary.movements.find(m => m.task_id === 'D2')!
     expect(d2.delta_days).toBe(5)
     expect(d2.new_planned_start).toBe('2026-06-18')
+  })
+})
+
+// @criterion: AC-CMS-1
+// AC-CMS-1: a cascade that moves a task's planned_start must sync every
+// material attached to that task — new order_by_date = new planned_start
+// − lead_time_days. Mirrors the SQL cascade_task_dates() UPDATE materials
+// branch. Client-side mirror so the post-cascade overlay can enumerate
+// exactly which materials moved.
+describe('computeMaterialMovements — AC-CMS-1', () => {
+  const materials: MaterialCascadeInput[] = [
+    {
+      material_id: 'm1',
+      material_name: 'Timber frame kit',
+      task_id: 't-frame',
+      task_name: 'Frame',
+      lead_time_days: 70,
+      old_order_by_date: '2026-04-02',
+    },
+    {
+      material_id: 'm2',
+      material_name: 'Bangor Blue slate',
+      task_id: 't-roof',
+      task_name: 'Roof',
+      lead_time_days: 21,
+      old_order_by_date: '2026-06-01',
+    },
+  ]
+
+  it('recomputes order_by_date as planned_start − lead_time_days', () => {
+    // Frame was planned_start 2026-06-11 → now 2026-06-16 (+5 days shift)
+    const moves = computeMaterialMovements(materials, {
+      't-frame': '2026-06-16',
+      't-roof': '2026-06-22',
+    })
+    const frame = moves.find(m => m.material_id === 'm1')!
+    expect(frame.new_order_by_date).toBe('2026-04-07')
+    expect(frame.old_order_by_date).toBe('2026-04-02')
+    expect(frame.delta_days).toBe(5)
+  })
+
+  it('surfaces every affected material with name, task name, lead time', () => {
+    const moves = computeMaterialMovements(materials, {
+      't-frame': '2026-06-16',
+      't-roof': '2026-06-22',
+    })
+    expect(moves).toHaveLength(2)
+    const roof = moves.find(m => m.material_id === 'm2')!
+    expect(roof.material_name).toBe('Bangor Blue slate')
+    expect(roof.task_name).toBe('Roof')
+    expect(roof.lead_time_days).toBe(21)
+    // 2026-06-22 − 21 = 2026-06-01 (no net change: trigger & roof both
+    // happen to yield the same date given inputs)
+    expect(roof.new_order_by_date).toBe('2026-06-01')
+    expect(roof.delta_days).toBe(0)
+  })
+
+  it('skips materials whose parent task was not touched by the cascade', () => {
+    const moves = computeMaterialMovements(materials, {
+      't-frame': '2026-06-16',
+      // t-roof intentionally absent — its task was not in the cascade
+    })
+    expect(moves).toHaveLength(1)
+    expect(moves[0].material_id).toBe('m1')
+  })
+
+  it('returns an empty list when no tasks were touched', () => {
+    expect(computeMaterialMovements(materials, {})).toEqual([])
+    expect(computeMaterialMovements([], { 't-frame': '2026-06-16' })).toEqual([])
+  })
+
+  it('handles a material whose prior order_by_date was null', () => {
+    const input: MaterialCascadeInput[] = [
+      {
+        material_id: 'm3',
+        material_name: 'Fresh material',
+        task_id: 't-frame',
+        task_name: 'Frame',
+        lead_time_days: 10,
+        old_order_by_date: null,
+      },
+    ]
+    const moves = computeMaterialMovements(input, { 't-frame': '2026-06-16' })
+    expect(moves).toHaveLength(1)
+    expect(moves[0].new_order_by_date).toBe('2026-06-06')
+    expect(moves[0].delta_days).toBeNull()
+  })
+
+  it('reports a negative delta when the cascade pulls a material in', () => {
+    const input: MaterialCascadeInput[] = [
+      {
+        material_id: 'm4',
+        material_name: 'Concrete',
+        task_id: 't-slab',
+        task_name: 'Slab',
+        lead_time_days: 3,
+        old_order_by_date: '2026-06-10',
+      },
+    ]
+    // Task pulled back by 4 days → 2026-06-13 → new order_by = 2026-06-10 ... wait need earlier
+    const moves = computeMaterialMovements(input, { 't-slab': '2026-06-09' })
+    // new = 2026-06-09 − 3 = 2026-06-06, delta = -4
+    expect(moves[0].new_order_by_date).toBe('2026-06-06')
+    expect(moves[0].delta_days).toBe(-4)
+  })
+
+  it('zero lead_time_days → order_by_date equals planned_start', () => {
+    const input: MaterialCascadeInput[] = [
+      {
+        material_id: 'm5',
+        material_name: 'On-demand',
+        task_id: 't-x',
+        task_name: 'X',
+        lead_time_days: 0,
+        old_order_by_date: '2026-06-10',
+      },
+    ]
+    const moves = computeMaterialMovements(input, { 't-x': '2026-06-15' })
+    expect(moves[0].new_order_by_date).toBe('2026-06-15')
+    expect(moves[0].delta_days).toBe(5)
   })
 })
 

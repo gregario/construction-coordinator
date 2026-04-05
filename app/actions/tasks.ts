@@ -8,7 +8,14 @@ import {
   type TaskDateRecord,
 } from '@/lib/tasks/operations'
 import { validateDelayDate } from '@/lib/tasks/delay'
-import { buildCascadeSummary, type CascadeSummary } from '@/lib/cascade/engine'
+import { computeOrderByDate } from '@/lib/materials/operations'
+import {
+  buildCascadeSummary,
+  computeMaterialMovements,
+  type CascadeSummary,
+  type MaterialCascadeInput,
+  type MaterialMovement,
+} from '@/lib/cascade/engine'
 import type { CascadeResult } from '@/types/database'
 
 // lib/supabase/types.ts lacks Relationships[] on every table (foundation-eval
@@ -64,6 +71,8 @@ export type UpdateTaskDurationResult =
       task: { id: string; planned_start: string; planned_end: string; duration_days: number }
       cascade_changes: CascadeChange[]
       cascade_summary: CascadeSummary
+      material_movements: MaterialMovement[]
+      materials_moved: number
     }
   | { ok: false; error: string; field?: TaskFieldError }
 
@@ -79,9 +88,65 @@ export type LogTaskDelayResult =
   | {
       ok: true
       cascade_summary: CascadeSummary
+      material_movements: MaterialMovement[]
       materials_moved: number
     }
   | { ok: false; error: string }
+
+// AC-CMS-2: Load material metadata (name, lead_time, parent task) for every
+// task the cascade touched. The order_by_date is derived from task starts
+// with computeOrderByDate() — mirroring the SQL UPDATE materials math — so
+// we can report both OLD and NEW values without a before/after read race.
+type MaterialLite = {
+  material_id: string
+  material_name: string
+  task_id: string
+  task_name: string
+  lead_time_days: number
+}
+
+async function loadCascadeMaterials(
+  supabase: LooseClient,
+  affectedTaskIds: string[],
+  taskNameById: Record<string, string>
+): Promise<MaterialLite[]> {
+  if (affectedTaskIds.length === 0) return []
+  const res = await supabase
+    .from('materials')
+    .select('id, name, lead_time_days, task_id')
+    .in('task_id', affectedTaskIds)
+  if (res.error || !res.data) return []
+  const rows = res.data as Array<{
+    id: string
+    name: string
+    lead_time_days: number
+    task_id: string
+  }>
+  return rows.map(r => ({
+    material_id: r.id,
+    material_name: r.name,
+    task_id: r.task_id,
+    task_name: taskNameById[r.task_id] ?? '',
+    lead_time_days: r.lead_time_days,
+  }))
+}
+
+// AC-CMS-1 + AC-CMS-2: Given task old/new starts and material metadata,
+// build the MaterialMovement list. Mirrors the SQL cascade's material math.
+function buildMaterialMovements(
+  materials: MaterialLite[],
+  taskOldStarts: Record<string, string>,
+  taskNewStarts: Record<string, string>
+): MaterialMovement[] {
+  const withOld: MaterialCascadeInput[] = materials.map(m => ({
+    ...m,
+    old_order_by_date: computeOrderByDate(
+      taskOldStarts[m.task_id] ?? null,
+      m.lead_time_days
+    ),
+  }))
+  return computeMaterialMovements(withOld, taskNewStarts)
+}
 
 async function verifyProjectOwnership(
   supabase: LooseClient,
@@ -324,11 +389,45 @@ export async function updateTaskDuration(
     return { ok: false, error: `Failed to save duration: ${durUpd.error.message}` }
   }
 
+  const changes = (cascadeRes.data as CascadeChange[] | null) ?? []
+
+  // AC-CMS-1/AC-CMS-2: compute material movements for every task the cascade
+  // touched so the duration-edit result shape matches logTaskDelay.
+  const affectedTaskIds = [input.taskId, ...changes.map(c => c.task_id)]
+  const taskOldStarts: Record<string, string> = {
+    [input.taskId]: task.planned_start,
+  }
+  const taskNewStarts: Record<string, string> = {
+    [input.taskId]: task.planned_start,
+  }
+  const taskNameById: Record<string, string> = { [input.taskId]: task.name }
+  for (const c of changes) {
+    taskOldStarts[c.task_id] = c.old_planned_start
+    taskNewStarts[c.task_id] = c.new_planned_start
+    taskNameById[c.task_id] = c.task_name
+  }
+  const materials = await loadCascadeMaterials(
+    supabase,
+    affectedTaskIds,
+    taskNameById
+  )
+  const material_movements = buildMaterialMovements(
+    materials,
+    taskOldStarts,
+    taskNewStarts
+  )
+  const materials_moved = material_movements.filter(
+    m => m.delta_days !== 0 && m.delta_days !== null
+  ).length
+
+  // AC-CMS-3/AC-CMS-4: /materials and /briefing both render material
+  // order_by_date — revalidate so the updated values appear immediately.
   revalidatePath('/schedule')
+  revalidatePath('/briefing')
+  revalidatePath('/materials')
   revalidatePath(`/stages/${task.stage_id}`)
   revalidatePath(`/tasks/${input.taskId}`)
 
-  const changes = (cascadeRes.data as CascadeChange[] | null) ?? []
   // AC-CE-3: assemble the unified cascade summary (trigger + downstream) so
   // callers have one list to render. cascade_task_dates() returns downstream
   // only — the trigger's before/after is known here from the original row +
@@ -354,6 +453,8 @@ export async function updateTaskDuration(
     },
     cascade_changes: changes,
     cascade_summary,
+    material_movements,
+    materials_moved,
   }
 }
 
@@ -420,19 +521,45 @@ export async function logTaskDelay(
 
   const changes = (cascadeRes.data as CascadeResult[] | null) ?? []
 
-  // Count materials whose order_by_date moved. The cascade SQL recalculates
-  // order_by_date for materials attached to the trigger task + every downstream
-  // task touched. So the count is the number of materials attached to any of
-  // those task ids.
+  // AC-CMS-1/AC-CMS-2: build the MaterialMovement list so the post-cascade
+  // overlay can enumerate which materials moved (not just a count). The SQL
+  // cascade already wrote the new order_by_date values; this mirrors that
+  // math in JS using each task's old/new planned_start.
   const affectedTaskIds = [input.taskId, ...changes.map(c => c.task_id)]
-  const matRes = await supabase
-    .from('materials')
-    .select('id', { count: 'exact', head: true })
-    .in('task_id', affectedTaskIds)
-  const materials_moved = matRes.error ? 0 : matRes.count ?? 0
+  const taskOldStarts: Record<string, string> = {
+    [input.taskId]: task.planned_start,
+  }
+  const taskNewStarts: Record<string, string> = {
+    [input.taskId]: task.planned_start,
+  }
+  const taskNameById: Record<string, string> = { [input.taskId]: task.name }
+  for (const c of changes) {
+    taskOldStarts[c.task_id] = c.old_planned_start
+    taskNewStarts[c.task_id] = c.new_planned_start
+    taskNameById[c.task_id] = c.task_name
+  }
+  const materials = await loadCascadeMaterials(
+    supabase,
+    affectedTaskIds,
+    taskNameById
+  )
+  const material_movements = buildMaterialMovements(
+    materials,
+    taskOldStarts,
+    taskNewStarts
+  )
+  // Count only materials whose order_by_date actually shifted — the trigger
+  // task's own materials are touched by the SQL UPDATE but their planned_start
+  // is unchanged, so they contribute delta_days === 0 and don't "move".
+  const materials_moved = material_movements.filter(
+    m => m.delta_days !== 0 && m.delta_days !== null
+  ).length
 
+  // AC-CMS-3/AC-CMS-4: /materials and /briefing both render material
+  // order_by_date — revalidate so the updated values appear immediately.
   revalidatePath('/schedule')
   revalidatePath('/briefing')
+  revalidatePath('/materials')
   revalidatePath(`/stages/${task.stage_id}`)
   revalidatePath(`/tasks/${input.taskId}`)
 
@@ -448,7 +575,7 @@ export async function logTaskDelay(
     changes
   )
 
-  return { ok: true, cascade_summary, materials_moved }
+  return { ok: true, cascade_summary, material_movements, materials_moved }
 }
 
 // AC-TM-6: delete a task. ON DELETE CASCADE on tasks(id) removes materials
