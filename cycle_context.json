@@ -17,7 +17,7 @@
       "tests_added": 4,
       "tests_passing": 4,
       "serves_feature_areas": ["project-setup", "task-tree", "material-tracking", "scheduling-engine", "daily-briefing", "notifications", "gantt-chart", "photo-storage", "document-storage", "project-export"],
-      "details": "11 tables: projects, stages, trades, tasks, task_dependencies, materials, photos, documents, push_subscriptions, notification_preferences, shift_alerts. RLS on all tables. cascade_task_dates() PostgreSQL function (recursive CTE). 14 performance indexes including partial index on materials.order_by_date WHERE order_status = 'not_ordered'. set_updated_at() trigger on all mutable tables. Storage buckets: photos (10MB, image/*) and documents (25MB, pdf/docx/xlsx). 3 migrations pushed to ***REMOVED*** (eu-west-1). Seed data: O'Brien Timber Frame House, 7 stages, 22 tasks, 10 materials, 3 trades."
+      "details": "12 tables: projects, stages, trades, tasks, task_dependencies, materials, photos, documents, push_subscriptions, notification_preferences, shift_alerts, templates. RLS on all tables. cascade_task_dates() PostgreSQL function (recursive CTE). 14 performance indexes including partial index on materials.order_by_date WHERE order_status = 'not_ordered'. set_updated_at() trigger on all mutable tables. Storage buckets: photos (10MB, image/*) and documents (25MB, pdf/docx/xlsx). 4 migrations pushed to ***REMOVED*** (eu-west-1). Templates seeded with 3 Irish residential builds (Standard Timber Frame 365d, Slab-on-Grade 280d, ICF Two-Storey 390d). Seed data: O'Brien Timber Frame House, 7 stages, 22 tasks, 10 materials, 3 trades."
     },
     {
       "task": "supabase-auth",
@@ -259,6 +259,15 @@
     "ui_scaffold_ready": true,
     "deploy_ready": true,
     "fixtures_ready": true,
-    "blocking_gaps": []
+    "blocking_gaps": [],
+    "tables_live": ["projects", "stages", "tasks", "task_dependencies", "materials", "trades", "photos", "documents", "push_subscriptions", "notification_preferences", "shift_alerts", "templates"],
+    "deployment_smoke_test": "HTTP 307 → /login confirmed on https://mtgordle.vercel.app",
+    "notes": [
+      "cascade_task_dates() SQL function is written but feature build must wire it to task update API routes via supabase.rpc('cascade_task_dates', {p_task_id, p_new_planned_end})",
+      "cascade_task_dates() does NOT yet write to shift_alerts — add that in the shift-alerts story",
+      "AI assist (template-customization story) requires ANTHROPIC_API_KEY — deferred to feature build",
+      "Supabase Auth email confirmation requires production URL in Supabase Redirect URLs config before signup emails work",
+      "Seed data requires real auth.users entry — run locally with supabase db seed after creating dev user"
+    ]
   }
 }
