@@ -18,6 +18,8 @@ const snapshot: CustomizationSnapshot = {
   ],
 }
 
+// @criterion: AC-TC-3
+// AC-TC-3: AI assist panel — user describes intent, system suggests task/material additions or substitutions with accept/reject
 describe('suggestFromMessage — AC-TC-3', () => {
   it('suggests an ICF substitution when user mentions ICF', () => {
     const s = suggestFromMessage('I am doing ICF foundation not traditional pour', snapshot)
@@ -53,6 +55,8 @@ describe('suggestFromMessage — AC-TC-3', () => {
   })
 })
 
+// @criterion: AC-TC-4
+// AC-TC-4: Accepting a suggestion updates the draft plan; rejecting dismisses it
 describe('applySuggestion — AC-TC-4', () => {
   it('adds tasks marked as add_task to the add set and preserves other changes', () => {
     const suggestion: AssistantSuggestion = {
