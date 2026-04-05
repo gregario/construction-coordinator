@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import {
   validateStageInput,
@@ -255,6 +256,13 @@ export function StageManager({ projectId, initialStages }: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <Link
+                  href={`/stages/${stage.id}`}
+                  aria-label={`Open ${stage.name}`}
+                  className="rounded px-2 py-1 text-xs text-[#2B1F17] hover:bg-[#FAF7F2]"
+                >
+                  Open
+                </Link>
                 <button
                   type="button"
                   aria-label={`Move ${stage.name} up`}
