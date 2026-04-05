@@ -9,6 +9,8 @@ import {
   maxDate,
 } from '@/lib/tasks/operations'
 
+// @criterion: AC-TM-1
+// AC-TM-1: Add Task within a stage — name required (max 120 chars), duration_days required (positive integer)
 describe('validateTaskInput — AC-TM-1', () => {
   it('accepts a valid form', () => {
     const r = validateTaskInput({ name: 'Pour concrete', duration_days: 2 })
@@ -71,6 +73,10 @@ describe('validateTaskInput — AC-TM-1', () => {
   })
 })
 
+// @criterion: AC-TM-2, AC-TM-3, AC-TM-4
+// AC-TM-2: planned_end = planned_start + (duration_days − 1) (inclusive day semantics)
+// AC-TM-3: No dependencies → planned_start = project.start_date
+// AC-TM-4: Dependencies → planned_start = max(dep.planned_end) + 1 day
 describe('computePlannedDates — AC-TM-2/3/4', () => {
   it('AC-TM-3: no dependencies → start = project.start_date', () => {
     const r = computePlannedDates({
@@ -161,6 +167,45 @@ describe('durationFromDates', () => {
   })
 })
 
+// @criterion: AC-TM-5
+// AC-TM-5: Editing duration_days → planned_end recalculates; cascade_task_dates() propagates to downstream tasks
+// Pure part: new planned_end = planned_start + (new_duration − 1). Cascade is SQL-side (cascade_task_dates RPC).
+describe('AC-TM-5: duration edit recalculates planned_end', () => {
+  it('editing from 5d to 3d shortens planned_end by 2 days', () => {
+    // Current: start=2026-06-01, duration=5 → end=2026-06-05
+    // Edited:  start=2026-06-01, duration=3 → end=2026-06-03
+    const updated = computePlannedDates({
+      durationDays: 3,
+      projectStartDate: '2026-06-01',
+      dependencies: [],
+    })
+    expect(updated.planned_start).toBe('2026-06-01')
+    expect(updated.planned_end).toBe('2026-06-03')
+  })
+
+  it('editing from 2d to 10d extends planned_end by 8 days', () => {
+    const updated = computePlannedDates({
+      durationDays: 10,
+      projectStartDate: '2026-06-01',
+      dependencies: [],
+    })
+    expect(updated.planned_start).toBe('2026-06-01')
+    expect(updated.planned_end).toBe('2026-06-10')
+  })
+
+  it('a 1-day task has planned_start === planned_end after edit', () => {
+    const updated = computePlannedDates({
+      durationDays: 1,
+      projectStartDate: '2026-07-15',
+      dependencies: [],
+    })
+    expect(updated.planned_start).toBe('2026-07-15')
+    expect(updated.planned_end).toBe('2026-07-15')
+  })
+})
+
+// @criterion: AC-TM-6
+// AC-TM-6: Deleting a task removes its rows from task_dependencies (ON DELETE CASCADE) and updates client state
 describe('removeFromDependencies — AC-TM-6', () => {
   it('removes rows where depends_on_task_id matches the deleted task', () => {
     const deps = [

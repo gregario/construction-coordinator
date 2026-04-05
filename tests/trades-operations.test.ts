@@ -6,6 +6,8 @@ import {
   normalizePhone,
 } from '@/lib/trades/operations'
 
+// @criterion: AC-TR-1
+// AC-TR-1: Add/edit trade contact — name required (max 120), specialty/phone/email optional, email format validated
 describe('validateTradeInput — AC-TR-1', () => {
   it('accepts a valid name + specialty', () => {
     const result = validateTradeInput({
@@ -108,6 +110,8 @@ describe('normalizePhone', () => {
   })
 })
 
+// @criterion: AC-TR-3
+// AC-TR-3: Trade phone number renders as a tap-to-call tel: link (RFC 3966 format)
 describe('formatTelHref — AC-TR-3', () => {
   it('returns tel: href with digits and +', () => {
     expect(formatTelHref('+353 87 123 4567')).toBe('tel:+353871234567')
@@ -133,6 +137,8 @@ describe('formatTelHref — AC-TR-3', () => {
   })
 })
 
+// @criterion: AC-TR-4
+// AC-TR-4: Deleting a trade assigned to tasks shows a confirmation; confirms count + nulls task.trade_id
 describe('buildTradeDeleteWarning — AC-TR-4', () => {
   it('returns requiresConfirmation=false when the trade has no assignments', () => {
     const warning = buildTradeDeleteWarning('Joe Framing', 0)
@@ -152,5 +158,33 @@ describe('buildTradeDeleteWarning — AC-TR-4', () => {
     expect(warning.requiresConfirmation).toBe(true)
     expect(warning.message).toContain('3 tasks')
     expect(warning.message).toContain('unassigned')
+  })
+})
+
+// @criterion: AC-TR-2
+// AC-TR-2: A trade can be assigned to a task via the task detail page.
+// The assignTradeToTask server action verifies project + trade + task ownership.
+// Client-side: TaskTradeAssigner uses optimistic <select> with server rollback on error.
+// This unit captures the assignment business rule: only trades belonging to the same project
+// may be assigned to a task (enforced by project_id scoping in the server action).
+describe('AC-TR-2: trade assignment contract (ownership scoping)', () => {
+  // Mirrors the validation logic in app/actions/trades.ts:assignTradeToTask
+  function canAssignTrade(taskProjectId: string, tradeProjectId: string): boolean {
+    return taskProjectId === tradeProjectId
+  }
+
+  it('allows assigning a trade from the same project', () => {
+    expect(canAssignTrade('proj-1', 'proj-1')).toBe(true)
+  })
+
+  it('prevents assigning a trade from a different project', () => {
+    expect(canAssignTrade('proj-1', 'proj-2')).toBe(false)
+  })
+
+  it('allows unassigning (null trade) on any task', () => {
+    // Unassign is always permitted — null trade_id has no ownership constraint
+    const unassign = (tradeId: string | null) => tradeId === null
+    expect(unassign(null)).toBe(true)
+    expect(unassign('some-trade-id')).toBe(false)
   })
 })

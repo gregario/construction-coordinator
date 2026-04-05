@@ -7,6 +7,8 @@ import {
   type StageRecord,
 } from '@/lib/stages/operations'
 
+// @criterion: AC-SM-1
+// AC-SM-1: Add Stage modal with name field (max 80 chars) and 6-swatch colour picker
 describe('validateStageInput — AC-SM-1', () => {
   it('accepts a valid name + color', () => {
     const result = validateStageInput({ name: 'Foundations', color: '#8B5E3C' })
@@ -58,6 +60,8 @@ describe('normalizeStageColor', () => {
   })
 })
 
+// @criterion: AC-SM-2
+// AC-SM-2: Drag-to-reorder stages; new ordering persists
 describe('reorderStages — AC-SM-2', () => {
   const base: StageRecord[] = [
     { id: 's1', name: 'Foundations', color: '#8B5E3C', order_index: 0 },
@@ -120,6 +124,9 @@ describe('reorderStages — AC-SM-2', () => {
   })
 })
 
+// @criterion: AC-SM-3, AC-SM-4
+// AC-SM-3: Confirmation dialog when deleting a stage with tasks
+// AC-SM-4: Direct delete (no dialog) for empty stages
 describe('buildDeleteWarning — AC-SM-3 / AC-SM-4', () => {
   it('returns requiresConfirmation=false when the stage is empty', () => {
     const warning = buildDeleteWarning('Frame', 0)
