@@ -1,22 +1,42 @@
 {
   "story_result": {
-    "story_id": "project-creation",
+    "story_id": "template-browser",
     "outcome": "pass",
     "files_changed": [
       "app/(app)/setup/page.tsx",
-      "app/actions/projects.ts",
-      "components/setup/ProjectCreationForm.tsx",
-      "lib/projects/validate.ts",
-      "tests/projects-validate.test.ts"
+      "app/actions/templates.ts",
+      "components/setup/TemplateBrowser.tsx",
+      "lib/templates/apply.ts",
+      "tests/templates-apply.test.ts"
     ],
-    "tests_added": 13,
-    "tests_passing": 34,
+    "tests_added": 12,
+    "tests_passing": 43,
     "env_limitations": [],
     "deployment_url": "https://mtgordle.vercel.app",
-    "smoke_test": "HTTP 307 → /login on / and /setup (auth proxy firing in production)"
+    "smoke_test": "HTTP 307 → /login on /setup (auth proxy firing in production)"
   },
   "deployment_url": "https://mtgordle.vercel.app",
   "implemented": [
+    {
+      "task": "template-browser",
+      "story_id": "template-browser",
+      "acceptance_criteria": [
+        "AC-TB-1",
+        "AC-TB-2",
+        "AC-TB-3",
+        "AC-TB-4"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/templates.ts",
+        "components/setup/TemplateBrowser.tsx",
+        "lib/templates/apply.ts",
+        "tests/templates-apply.test.ts"
+      ],
+      "tests_added": 12,
+      "tests_passing": 12,
+      "details": "Template picker UI on /setup loads the 3 seeded residential templates (Standard Timber Frame, Slab-on-Grade Single Storey, ICF Two-Storey) and summarizes each server-side via summarizeTemplate (AC-TB-1). Click-to-select highlights the active card and drives the preview panel showing stages with colored left-border, sample tasks per stage (capped at 3, '+N more' tail), and the template's total duration, stage count, task count (AC-TB-2). 'Use this template' triggers the applyTemplate server action which copies stages, tasks, and materials into the user's project with sequential date scheduling (AC-TB-3): buildTemplateInsertPlan walks a cursor day-by-day starting at project.start_date, planned_end = planned_start + duration_days, next task planned_start = prev planned_end + 1. order_by_date = planned_start - lead_time_days for each material. Server-side summarisation keeps the browser payload small and render under 2s (AC-TB-4). After apply, /setup detects existing stages for the project and shows a 'Template applied' holding view (customization story will refine). 12 new unit tests covering insert plan computation + template summary; all 43 suite tests pass; build + typecheck clean; production deploy smoke-tested (307 → /login on /setup, auth proxy firing)."
+    },
     {
       "task": "project-creation",
       "story_id": "project-creation",
@@ -282,7 +302,66 @@
   ],
   "factory_decisions": [
     {
-      "decision": "Isolate project-creation validation in pure functions (lib/projects/validate.ts)",
+      "decision": "Sequential date scheduling (no dependency graph) for template-apply",
+      "context": "Templates carry stages/tasks/materials but no task-dependency info. Template-apply needs to satisfy tasks.planned_start NOT NULL + planned_end NOT NULL on insert. Options: leave dates null (rejected by schema), chain linearly, or attempt to infer dependencies from task order.",
+      "alternatives_considered": [
+        "Defer date computation to a separate cascade step (breaks schema NOT NULL constraints; would need migration)",
+        "Template carries explicit depends_on — requires reshaping seed JSONB and template-customization story handles dependency editing already",
+        "All tasks share project.start_date — loses the ability to show a meaningful schedule in the Gantt before customization"
+      ],
+      "rationale": "Cursor-based linear schedule: planned_start of task N = planned_end of task N-1 + 1 day, planned_end = planned_start + duration_days. Produces a reasonable initial Gantt immediately after template apply; the user edits durations and dependencies in the template-customization + task-management stories and cascade_task_dates() refines from there. Pure function keeps the scheduling logic unit-testable without DB round-trips.",
+      "confidence": "high",
+      "affects": [
+        "lib/templates/apply.ts",
+        "app/actions/templates.ts"
+      ]
+    },
+    {
+      "decision": "Server-side template summarization (summarizeTemplate) — send TemplateSummary to the browser, not the full JSONB",
+      "context": "Each template stores a fat stages JSONB (whole build with materials). Sending all 3 to the client for list + preview would waste ~15KB and block the 2s render target in AC-TB-4.",
+      "alternatives_considered": [
+        "Ship raw templates array, summarize in the client — duplicates logic + bloats JS bundle",
+        "Paginate / lazy-load preview — overkill for 3 seeded templates",
+        "Render preview server-side with server actions — adds round-trip on every card click"
+      ],
+      "rationale": "/setup computes TemplateSummary (stage/task counts, sample_tasks per stage, total_duration_days with computed fallback) in the RSC, passes only summaries to the TemplateBrowser client component. Apply still reads the full JSONB server-side via templateId. Keeps client payload small, server logic centralized, and preview switching instant.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/setup/page.tsx",
+        "components/setup/TemplateBrowser.tsx",
+        "lib/templates/apply.ts"
+      ]
+    },
+    {
+      "decision": "Detect already-applied-template by counting stages on the project rather than a project flag",
+      "context": "After apply, the project is still status='setup' (customization story flips to 'active'). Navigating back to /setup needs to avoid letting the user apply a second template on top of the first.",
+      "alternatives_considered": [
+        "Add a projects.template_id or projects.template_applied_at column — schema churn for a UI guard",
+        "Redirect to a dedicated /setup/customize route after apply — premature; customization story hasn't defined that route yet",
+        "Client-side localStorage flag — unreliable across devices"
+      ],
+      "rationale": "A quick HEAD count on stages WHERE project_id = X is cheap (partial index exists), stateless, and inherently correct: if any stages exist, the template was applied. Works even if the user opened /setup on a second device. Zero schema changes.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/setup/page.tsx"
+      ]
+    },
+    {
+      "decision": "Use local synthetic ids ('s0', 't0-1') in the insert plan to join inserts across three tables",
+      "context": "applyTemplate has to insert stages, then tasks (needing the stage's real id), then materials (needing the task's real id). supabase.insert().select() returns real ids but not in the same order as input, so a join key is required.",
+      "alternatives_considered": [
+        "Insert stages one at a time to capture each id inline — N round trips instead of 1",
+        "Rely on array index ordering — Supabase does not guarantee it",
+        "Use Postgres CTE with WITH clauses — requires a stored procedure or rpc, more infra than needed"
+      ],
+      "rationale": "Insert plan tags each row with a deterministic _localId ('s{order_index}', 't{stageIdx}-{taskIdx}'), and both stages.order_index and tasks.(stage_id + order_index) are carried through inserts. The server action rebuilds the local→real mapping from the returned rows after each insert. Three round trips total, correct by construction.",
+      "confidence": "high",
+      "affects": [
+        "lib/templates/apply.ts",
+        "app/actions/templates.ts"
+      ]
+    },
+    {
       "context": "AC-PS-1/2/3 involve branching validation (empty name, past date warning, confirmation flag). The form needs client-side validation for UX; the server action needs identical validation for safety. Two code paths = duplication risk.",
       "alternatives_considered": [
         "Validate only server-side (requires round-trip for every validation error — poor mobile UX)",
@@ -468,7 +547,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "project-core",
-  "_current_story": "project-creation",
+  "_current_story": "template-browser",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
