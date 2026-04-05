@@ -3,11 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { ProjectCreationForm } from '@/components/setup/ProjectCreationForm'
 import { TemplateBrowser } from '@/components/setup/TemplateBrowser'
+import { CustomizationScreen } from '@/components/setup/CustomizationScreen'
 import {
   summarizeTemplate,
   type TemplateRecord,
   type TemplateSummary,
 } from '@/lib/templates/apply'
+import type {
+  CustomizationStage,
+  CustomizationTask,
+  TaskDependencyRow,
+} from '@/lib/customization/tree'
 
 type ProjectRow = Database['public']['Tables']['projects']['Row']
 
@@ -46,21 +52,46 @@ export default async function SetupPage() {
     const existingStageCount = (stageCountRes.count as number | null) ?? 0
 
     if (existingStageCount > 0) {
+      // Load stages, tasks, and dependencies for the customization screen
+      const [stagesRes, tasksRes, depsRes] = await Promise.all([
+        loose
+          .from('stages')
+          .select('id, name, color, order_index')
+          .eq('project_id', project.id)
+          .order('order_index', { ascending: true }),
+        loose
+          .from('tasks')
+          .select('id, stage_id, name, order_index, duration_days, notes')
+          .eq('project_id', project.id)
+          .order('order_index', { ascending: true }),
+        loose
+          .from('task_dependencies')
+          .select('task_id, depends_on_task_id'),
+      ])
+
+      const stages = (stagesRes.data ?? []) as CustomizationStage[]
+      const tasks = (tasksRes.data ?? []) as CustomizationTask[]
+      const taskIds = new Set(tasks.map(t => t.id))
+      const deps = ((depsRes.data ?? []) as TaskDependencyRow[]).filter(
+        d => taskIds.has(d.task_id) && taskIds.has(d.depends_on_task_id)
+      )
+
       return (
-        <div className="p-4 md:p-8 max-w-2xl">
+        <div className="p-4 md:p-8 max-w-6xl">
           <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">
-            Template applied
+            Customize &ldquo;{project.name}&rdquo;
           </h1>
           <p className="text-[#6B5D52] text-sm mb-6">
-            {existingStageCount} {existingStageCount === 1 ? 'stage' : 'stages'} added to{' '}
-            &ldquo;{project.name}&rdquo;. Customization coming next.
+            Toggle tasks off that don&rsquo;t apply, or describe your build to the AI
+            assistant for tailored suggestions.
           </p>
-          <div className="rounded-lg border border-[#E8DFD3] bg-white p-6">
-            <p className="text-sm text-[#6B5D52]">
-              Start date: {project.start_date}
-              {project.address ? ` · ${project.address}` : ''}
-            </p>
-          </div>
+          <CustomizationScreen
+            projectId={project.id}
+            projectName={project.name}
+            stages={stages}
+            tasks={tasks}
+            dependencies={deps}
+          />
         </div>
       )
     }
