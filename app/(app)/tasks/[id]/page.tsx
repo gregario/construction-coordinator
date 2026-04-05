@@ -5,6 +5,10 @@ import {
   TaskTradeAssigner,
   type AssignableTrade,
 } from '@/components/tasks/TaskTradeAssigner'
+import {
+  TaskMaterialsManager,
+  type MaterialListItem,
+} from '@/components/materials/TaskMaterialsManager'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,6 +89,15 @@ export default async function TaskDetailPage({ params }: Props) {
     .order('name', { ascending: true })
   const trades = (tradesRes.data as AssignableTrade[] | null) ?? []
 
+  const materialsRes = await supabase
+    .from('materials')
+    .select(
+      'id, name, quantity, lead_time_days, order_by_date, estimated_cost, supplier_name, notes'
+    )
+    .eq('task_id', task.id)
+    .order('created_at', { ascending: true })
+  const materials = (materialsRes.data as MaterialListItem[] | null) ?? []
+
   return (
     <main className="mx-auto max-w-2xl p-4 md:p-8">
       <header className="mb-6">
@@ -115,6 +128,12 @@ export default async function TaskDetailPage({ params }: Props) {
         taskId={task.id}
         trades={trades}
         initialTradeId={task.trade_id}
+      />
+
+      <TaskMaterialsManager
+        projectId={project.id}
+        taskId={task.id}
+        initialMaterials={materials}
       />
     </main>
   )
