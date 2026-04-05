@@ -9,6 +9,7 @@ import {
   TaskMaterialsManager,
   type MaterialListItem,
 } from '@/components/materials/TaskMaterialsManager'
+import { TaskDelayLogger } from '@/components/tasks/TaskDelayLogger'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,6 +130,14 @@ export default async function TaskDetailPage({ params }: Props) {
         trades={trades}
         initialTradeId={task.trade_id}
       />
+
+      {task.planned_end && (
+        <TaskDelayLogger
+          projectId={project.id}
+          taskId={task.id}
+          currentPlannedEnd={task.planned_end}
+        />
+      )}
 
       <TaskMaterialsManager
         projectId={project.id}
