@@ -1,22 +1,67 @@
 {
   "story_result": {
-    "story_id": "template-browser",
+    "story_id": "stage-management",
     "outcome": "pass",
     "files_changed": [
-      "app/(app)/setup/page.tsx",
-      "app/actions/templates.ts",
-      "components/setup/TemplateBrowser.tsx",
-      "lib/templates/apply.ts",
-      "tests/templates-apply.test.ts"
+      "app/(app)/schedule/page.tsx",
+      "app/actions/stages.ts",
+      "components/schedule/StageManager.tsx",
+      "lib/stages/operations.ts",
+      "tests/stages-operations.test.ts"
     ],
-    "tests_added": 12,
-    "tests_passing": 43,
-    "env_limitations": [],
+    "tests_added": 20,
+    "tests_passing": 85,
+    "env_limitations": [
+      "Drag-to-reorder uses the native HTML5 drag-and-drop API. Touch devices (iOS Safari) do not fire drag events, so mobile users rely on the up/down arrow buttons next to each stage to reorder — same persistence path (reorderProjectStages), same reorderStages() pure function, just a different input modality."
+    ],
     "deployment_url": "https://mtgordle.vercel.app",
-    "smoke_test": "HTTP 307 → /login on /setup (auth proxy firing in production)"
+    "smoke_test": "Full vitest suite (85 passing, 20 new), tsc --noEmit clean, next build succeeded with /schedule compiled as a dynamic route. ESLint clean on all new files."
   },
   "deployment_url": "https://mtgordle.vercel.app",
   "implemented": [
+    {
+      "task": "stage-management",
+      "story_id": "stage-management",
+      "acceptance_criteria": [
+        "AC-SM-1",
+        "AC-SM-2",
+        "AC-SM-3",
+        "AC-SM-4"
+      ],
+      "files_changed": [
+        "app/(app)/schedule/page.tsx",
+        "app/actions/stages.ts",
+        "components/schedule/StageManager.tsx",
+        "lib/stages/operations.ts",
+        "tests/stages-operations.test.ts"
+      ],
+      "tests_added": 20,
+      "tests_passing": 20,
+      "details": "Stage management on /schedule. Server component loads the user's most recent active project, its stages (ordered by order_index), and per-stage task counts via a single grouped select. StageManager client component handles the full lifecycle. AC-SM-1: \"+ Add Stage\" button opens a modal with a text name field (max 80, validated client-side via validateStageInput — pure fn shared with the server action) and a 6-swatch color picker (earth brown default + frame green / ochre / ink / slate blue / brick red). Submit calls createStage server action which revalidates ownership, fetches max(order_index) for the project, and inserts with order_index=max+1 so the new stage appears at the end. AC-SM-2: drag any stage row (draggable=true) onto another → handleDrop calls reorderStages() pure helper which sorts by order_index, splices the moved stage into the target position, and renumbers all stages to a dense 0..N-1 sequence. The new ordering is committed via reorderProjectStages server action which uses a two-phase update (tombstone with negative indices then write final slots) to stay safe under any future UNIQUE(project_id, order_index) constraint. Up/down arrow buttons provide the same reorder path for touch/accessibility users. AC-SM-3: delete on a stage with tasks opens a confirm dialog using buildDeleteWarning(name, taskCount) which produces the exact spec copy (\"N task(s) — deleting removes them all\") with correct 1/N pluralization. Only the \"Delete stage and tasks\" button in the dialog calls deleteStage(..., confirmed=true). AC-SM-4: delete on an empty stage (task_count=0) skips the dialog and calls deleteStage(..., confirmed=false) which the server treats as an unconditional delete because it independently counts tasks and finds zero. deleteStage also re-densifies order_index on remaining stages so gaps never accumulate. 20 new pure unit tests covering validation (empty/whitespace/over-length names, invalid+valid 3/6-digit hex colors), reorderStages (head→tail, tail→head, middle forward/backward, noop, out-of-range clamping, unknown id, non-mutation, unsorted input), normalizeStageColor fallback, and buildDeleteWarning (0/1/N pluralization). Total suite: 85 tests passing. Typecheck + production build + lint all clean."
+    },
+    {
+      "task": "template-customization",
+      "story_id": "template-customization",
+      "acceptance_criteria": [
+        "AC-TC-1",
+        "AC-TC-2",
+        "AC-TC-3",
+        "AC-TC-4",
+        "AC-TC-5"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/customization.ts",
+        "components/setup/CustomizationScreen.tsx",
+        "lib/customization/tree.ts",
+        "lib/customization/assistant.ts",
+        "tests/customization-tree.test.ts",
+        "tests/customization-assistant.test.ts"
+      ],
+      "tests_added": 22,
+      "tests_passing": 22,
+      "details": "Customization screen rendered at /setup for projects where a template has already been applied (status='setup' AND stages exist). Server component loads stages/tasks/task_dependencies (filtered to in-project ids only) and passes to CustomizationScreen client component. buildCustomizationTree (pure) groups tasks under stages by order_index — AC-TC-1 collapsible tree with per-stage header + checkbox per task. tasksWithBrokenDependencies (pure) returns the set of tasks whose direct depends_on_task_id is currently toggled off; the tree renders a ⚠ icon with title tooltip on each — AC-TC-2. Note: template-apply does not yet write task_dependencies rows (templates carry no dep info per prior factory_decision), so the warning is wired + tested but dormant until the task-management cycle adds dep editing. AI assist panel (AC-TC-3): chat textarea → suggestFromMessage keyword match (ICF → toggle_off slab + add ICF wall; insulation → add upgrade task; solar → add PV task) returns AssistantSuggestion with title/rationale/changes; each suggestion renders Accept/Reject buttons. Accept (AC-TC-4) calls applySuggestion merging toggle_off and add_task changes into the client draft state and marks the chat entry applied; Reject marks dismissed. applyCustomization server action persists the draft: deletes removed task ids (cascade removes materials + dep rows), inserts added tasks with max(order_index)+1 per stage and conservative planned_start=project.start_date. finalizeProject server action (AC-TC-5) verifies ownership + at-least-one-stage + at-least-one-task, updates projects.status setup→active, revalidates layout, redirects to /briefing. 22 new unit tests across tree-building ordering, toggle diff, broken-dep detection (including not flagging the off task itself and transitive vs direct), suggestion ICF/insulation/solar/empty-string cases + stable-id determinism, and applySuggestion merging across existing draft state. Total suite: 65 tests passing. Typecheck + production build clean (19 routes, Proxy middleware detected)."
+    },
     {
       "task": "template-browser",
       "story_id": "template-browser",
@@ -298,9 +343,80 @@
       "affects_acceptance_criteria": [],
       "affects_feature_areas": [],
       "reversible": false
+    },
+    {
+      "spec_says": "AI assist chat panel should return suggestions for free-form descriptions (e.g. 'I'm doing ICF foundation not traditional pour')",
+      "actually_did": "Implemented a deterministic keyword-matched suggester (ICF, insulation, solar) behind the same suggestFromMessage(message, snapshot) interface a real LLM call would use",
+      "rationale": "The project has no Anthropic SDK, OpenAI SDK, or API key wiring — shipping a real LLM call would require Vercel env-var plumbing, secret handling, streaming handling, and error/retry logic that belongs in its own story. The rule-based stub demonstrates the accept/reject flow end-to-end for the three seeded template archetypes and can be swapped for a real Claude API call later by replacing the body of suggestFromMessage. This is documented as an env_limitation on the story result.",
+      "affects_acceptance_criteria": [
+        "AC-TC-3"
+      ],
+      "affects_feature_areas": [
+        "project-setup"
+      ],
+      "reversible": true
     }
   ],
   "factory_decisions": [
+    {
+      "decision": "AI Assist implemented as a deterministic keyword-matched suggester (not a live LLM call)",
+      "context": "AC-TC-3 specifies 'the AI suggests specific task/material additions or substitutions with accept/reject buttons' and notes 'Requires LLM integration (Claude API or similar)'. The project has no Anthropic/OpenAI SDK in package.json, no API key in .env.local, and no server-side LLM helper.",
+      "alternatives_considered": [
+        "Add @anthropic-ai/sdk + ANTHROPIC_API_KEY + streaming response handling within this story — doubles the story scope, introduces a new secret to manage, and conflates LLM infra work with the UX story",
+        "Stub with a random/static suggestion regardless of input — fails AC-TC-3's specificity requirement",
+        "Skip AC-TC-3 entirely — leaves the chat panel un-demoable and blocks AC-TC-4"
+      ],
+      "rationale": "suggestFromMessage(message, snapshot) is a pure function with a stable interface — it returns AssistantSuggestion | null. A keyword matcher (ICF → toggle off slab + add ICF wall; insulation → add upgrade; solar → add PV) produces correct, specific, testable output for the three seeded templates. The whole chat UI, accept/reject flow, applySuggestion merger, and downstream applyCustomization are all real and exercised by the stub. The LLM swap is a one-function body replacement in a future llm-integration story.",
+      "confidence": "high",
+      "affects": [
+        "lib/customization/assistant.ts",
+        "components/setup/CustomizationScreen.tsx"
+      ]
+    },
+    {
+      "decision": "Broken-dependency warning fires on DIRECT deps only, not transitive closure",
+      "context": "AC-TC-2: 'any downstream tasks that depended on it show a warning icon'. Could mean direct depends_on rows only, or full transitive closure (A→B→C, toggle A, flag both B and C).",
+      "alternatives_considered": [
+        "Transitive closure via BFS over task_dependencies — O(V+E) per render, correct but hides the actual breakage point from the user",
+        "Flag nothing (leave cascade function to handle) — violates AC-TC-2 explicitly",
+        "Flag every task after the toggled task in order_index — ignores real deps, produces noise"
+      ],
+      "rationale": "Direct-dep flagging has O(deps) complexity and shows the user exactly where a dep broke. As the user toggles off B (now flagged), C becomes flagged next — so transitive breakage surfaces naturally through iterative toggling rather than a single noisy warning cloud. Dormant in this story since template-apply doesn't write task_dependencies rows yet, but the UI is correct and tested for when deps are added in the task-management cycle.",
+      "confidence": "high",
+      "affects": [
+        "lib/customization/tree.ts",
+        "components/setup/CustomizationScreen.tsx"
+      ]
+    },
+    {
+      "decision": "Customization state held in client (React useState) until 'Create project' is clicked",
+      "context": "User toggles tasks + accepts suggestions across multiple interactions. Could persist optimistically on each change, or batch all changes into the final submit.",
+      "alternatives_considered": [
+        "Persist every toggle via server action — N round trips, chat feels sluggish, partial-state DB rows if user abandons",
+        "localStorage draft like project-creation-draft — extra layer of state sync bugs for a flow the user finishes in one sitting",
+        "Supabase Realtime subscriptions for multi-device edit — overkill for single-user setup phase"
+      ],
+      "rationale": "Customization is a single focused step on one device ending in 'Create project'. Client-only state means zero round trips during the customization itself, one round trip on submit (applyCustomization), one redirect (finalizeProject). If the user abandons, no partial DB state. Matches the browser-only draft pattern from TemplateBrowser.",
+      "confidence": "high",
+      "affects": [
+        "components/setup/CustomizationScreen.tsx",
+        "app/actions/customization.ts"
+      ]
+    },
+    {
+      "decision": "Added tasks get planned_start = project.start_date on insert (not scheduled inline)",
+      "context": "applyCustomization inserts new tasks mid-schedule. Could: (a) recompute the cursor-based schedule across all tasks, (b) insert at project.start_date and let cascade_task_dates() refine, (c) compute a new planned_start based on the stage's existing task range.",
+      "alternatives_considered": [
+        "Rebuild the cursor schedule for all tasks (delete+reinsert) — heavy, risks losing user-edited dates from later stories",
+        "Place new task inline at max(planned_end) within the stage — requires a pre-insert SELECT and still doesn't form proper dependencies",
+        "Leave planned_start null — violates tasks.planned_start NOT NULL schema constraint"
+      ],
+      "rationale": "Start-date placeholder + cascade refinement is the pattern the schema was designed for: cascade_task_dates() is the single source of truth for date propagation. This story doesn't need to reinvent scheduling. The user can drag dates in the schedule-management story and cascade will propagate. NOT NULL satisfied; dates self-correct on first cascade.",
+      "confidence": "medium",
+      "affects": [
+        "app/actions/customization.ts"
+      ]
+    },
     {
       "decision": "Sequential date scheduling (no dependency graph) for template-apply",
       "context": "Templates carry stages/tasks/materials but no task-dependency info. Template-apply needs to satisfy tasks.planned_start NOT NULL + planned_end NOT NULL on insert. Options: leave dates null (rejected by schema), chain linearly, or attempt to infer dependencies from task order.",
@@ -490,9 +606,96 @@
       "affects": [
         "supabase/migrations/20260405193231_initial_schema.sql"
       ]
+    },
+    {
+      "decision": "StageManager uses client-side optimistic updates with server-side reorderProjectStages as the persistence truth",
+      "context": "AC-SM-2 requires drag reorder to re-render the Gantt \"with the new ordering.\" Options: (a) drag → server round trip → server returns new list → re-render; (b) client reorders locally, server action confirms in background; (c) server action re-throws errors and force-reverts.",
+      "alternatives_considered": [
+        "Server-first: every drag waits for the server — drag feels laggy, breaks the direct-manipulation UX spec",
+        "Optimistic + rollback on failure: requires snapshot + restore logic; adds state management for a rare failure path",
+        "Supabase Realtime subscription: overkill for single-user project editing"
+      ],
+      "rationale": "Drag updates the local stages state immediately (pure reorderStages produces the renumbered array), then fires reorderProjectStages in a startTransition. If the server fails, serverError banner shows and the user can retry. Single-device single-user editing means conflict is vanishingly rare; the optimistic path keeps drag feeling instant. Matches the client-only draft pattern from ProjectCreationForm + CustomizationScreen.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/StageManager.tsx",
+        "app/actions/stages.ts"
+      ]
+    },
+    {
+      "decision": "Up/down arrow buttons shipped alongside native HTML5 drag-and-drop",
+      "context": "AC-SM-2 says \"drags a stage to reorder\" but this is a PWA and touch devices (iOS Safari) do not reliably fire HTML5 drag events. The alternatives are a heavier touch-drag library (react-dnd, dnd-kit), omitting mobile support, or providing a parallel keyboard/tap interaction.",
+      "alternatives_considered": [
+        "Install dnd-kit or react-dnd for unified touch+mouse drag — new dependency, ~40KB, another abstraction to learn, McKinley says no unless drag is core",
+        "Ship drag-only, leave mobile broken — violates PWA product standard; stage reorder is core enough that mobile parity matters",
+        "Polyfill TouchEvent → DragEvent — fragile, hand-rolled, adds more bugs than it solves"
+      ],
+      "rationale": "Boring-tech drag via draggable=true covers desktop (the primary Gantt-editing environment) at zero cost. The up/down arrow buttons next to each stage row give touch users the same reorder capability through the same reorderStages() pure helper and reorderProjectStages server action. One feature, two input modalities, one code path. When the Gantt story needs true 2-D drag we can swap in dnd-kit then.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/StageManager.tsx"
+      ]
+    },
+    {
+      "decision": "Two-phase reorder update: tombstone-with-negative-indices then write final slots",
+      "context": "reorderProjectStages writes a new order_index to every stage in a project. Today there is no UNIQUE(project_id, order_index) constraint, so a one-pass update would work. But partial densification (e.g., swapping s1 order 0↔1 with s2 order 1) could briefly assign two rows the same index during the sequence of updates.",
+      "alternatives_considered": [
+        "Single-pass update with arbitrary order: works today, breaks silently if a UNIQUE constraint is ever added",
+        "Supabase RPC with a single transactional UPDATE ... FROM: requires a new migration + stored procedure for a 4-stage reorder",
+        "Delete-and-reinsert: loses stage ids, cascades tasks away"
+      ],
+      "rationale": "Two passes — first push each stage to order_index = -(1 + position) as a tombstone, then write the final 0..N-1 index — guarantees no two rows ever share a positive order_index mid-update. No new infrastructure, cheap (2N updates for N stages, N≤~12 typical), and safe if a UNIQUE constraint shows up in a later migration. deleteStage uses the same densification pattern on remaining stages.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/stages.ts"
+      ]
+    },
+    {
+      "decision": "Delete confirmation driven by client-side task_count, server independently re-verifies",
+      "context": "AC-SM-3 vs AC-SM-4 gates on \"stage has tasks.\" The page loads per-stage task counts; the client uses them to decide whether to show the dialog. But the server action also needs to decide whether to allow an unconfirmed delete.",
+      "alternatives_considered": [
+        "Client-only decision, server always deletes when called: a stale/tampered client could delete a populated stage without confirmation",
+        "Server returns requiresConfirmation the first call, client retries with confirmed=true: doubles round trips for every delete",
+        "Skip the dialog entirely, always server-delete with cascade: loses AC-SM-3 warning requirement"
+      ],
+      "rationale": "Client shows the dialog based on the task_count it loaded (fresh render = fresh count). Server action independently re-counts tasks — if taskCount > 0 and confirmed=false, it returns requiresConfirmation without deleting. The client ignores that fallback path in the happy case (it already showed the dialog) but the server guarantee means a stale count or a rogue client cannot delete populated stages without explicit confirmed=true. Defense in depth, one round trip in the common case.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/stages.ts",
+        "components/schedule/StageManager.tsx"
+      ]
+    },
+    {
+      "decision": "Six-swatch color palette (hardcoded) instead of free-form color picker",
+      "context": "AC-SM-1 specifies a \"color\" field. Options: free-form <input type=\"color\">, preset palette, hex text input.",
+      "alternatives_considered": [
+        "Native <input type=\"color\">: gives users infinite options that can clash with the brand palette; color wheel UI is inconsistent across browsers",
+        "Hex text input: requires validation copy + error UX for every typo",
+        "Larger preset (12+ swatches): decision paralysis, the Gantt only needs enough contrast to tell stages apart"
+      ],
+      "rationale": "Six swatches drawn from the product's brand palette (earth brown, frame green, ochre, ink, slate blue, brick red) give every stage a distinct, on-brand color. Picker UI is a row of circular buttons with aria-pressed — accessible, instant, no typing. validateStageInput still accepts any valid hex so a future \"custom color\" story (or a direct DB edit) is not blocked. normalizeStageColor falls back to the earth-brown default if the stored value is ever corrupt.",
+      "confidence": "medium",
+      "affects": [
+        "components/schedule/StageManager.tsx",
+        "lib/stages/operations.ts"
+      ]
     }
   ],
   "factory_questions": [
+    {
+      "question": "AI Assist chat currently uses a keyword-matched suggester stub. A follow-up story should add a real LLM backend (Claude via Anthropic SDK or OpenAI) behind the existing suggestFromMessage(message, snapshot) interface. Need: decision on model (Claude Haiku for cost vs Sonnet for quality), ANTHROPIC_API_KEY provisioning in Vercel env vars, server-action wrapper with streaming, and a structured-output prompt that returns the AssistantSuggestion shape (title, rationale, changes[]).",
+      "found_in": "AC-TC-3 implementation — template-customization story",
+      "resolved_as": "Stubbed with deterministic ICF/insulation/solar rules for this cycle; swap to real LLM in a dedicated llm-integration story",
+      "needs_clarification_from": "human",
+      "severity": "significant"
+    },
+    {
+      "question": "Broken-dependency warning (AC-TC-2) is currently dormant because template-apply does not write task_dependencies rows. The task-management cycle needs to let users author dependencies between tasks before this UI flag will actually fire. UI + logic + tests are already wired correctly.",
+      "found_in": "AC-TC-2 implementation — template-customization story",
+      "resolved_as": "Dormant warning — activates automatically once task_dependencies rows exist for the project",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
     {
       "question": "Supabase Auth email confirmation: Vercel production URL must be added to Supabase allowed redirect URLs before signup emails will work.",
       "found_in": "auth flow testing",
@@ -547,7 +750,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "project-core",
-  "_current_story": "template-browser",
+  "_current_story": "stage-management",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
