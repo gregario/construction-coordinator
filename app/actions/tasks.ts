@@ -7,6 +7,8 @@ import {
   computePlannedDates,
   type TaskDateRecord,
 } from '@/lib/tasks/operations'
+import { buildCascadeSummary, type CascadeSummary } from '@/lib/cascade/engine'
+import type { CascadeResult } from '@/types/database'
 
 // lib/supabase/types.ts lacks Relationships[] on every table (foundation-eval
 // finding). Cast at the call site — same pattern as stages.ts / projects.ts.
@@ -60,6 +62,7 @@ export type UpdateTaskDurationResult =
       ok: true
       task: { id: string; planned_start: string; planned_end: string; duration_days: number }
       cascade_changes: CascadeChange[]
+      cascade_summary: CascadeSummary
     }
   | { ok: false; error: string; field?: TaskFieldError }
 
@@ -260,7 +263,7 @@ export async function updateTaskDuration(
 
   const taskRes = await supabase
     .from('tasks')
-    .select('id, project_id, stage_id, planned_start, planned_end')
+    .select('id, project_id, stage_id, name, planned_start, planned_end')
     .eq('id', input.taskId)
     .single()
   if (taskRes.error || !taskRes.data) {
@@ -270,6 +273,7 @@ export async function updateTaskDuration(
     id: string
     project_id: string
     stage_id: string
+    name: string
     planned_start: string
     planned_end: string
   }
@@ -310,6 +314,21 @@ export async function updateTaskDuration(
   revalidatePath(`/tasks/${input.taskId}`)
 
   const changes = (cascadeRes.data as CascadeChange[] | null) ?? []
+  // AC-CE-3: assemble the unified cascade summary (trigger + downstream) so
+  // callers have one list to render. cascade_task_dates() returns downstream
+  // only — the trigger's before/after is known here from the original row +
+  // the new planned_end we just wrote.
+  const cascade_summary = buildCascadeSummary(
+    {
+      task_id: input.taskId,
+      task_name: task.name,
+      old_planned_start: task.planned_start,
+      old_planned_end: task.planned_end,
+      new_planned_start: task.planned_start,
+      new_planned_end: planned_end,
+    },
+    changes as CascadeResult[]
+  )
   return {
     ok: true,
     task: {
@@ -319,6 +338,7 @@ export async function updateTaskDuration(
       duration_days: duration,
     },
     cascade_changes: changes,
+    cascade_summary,
   }
 }
 
