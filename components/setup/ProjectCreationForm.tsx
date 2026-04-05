@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition, useRef } from 'react'
 import {
   validateProjectForm,
   hasBlockingErrors,
@@ -12,37 +12,34 @@ import {
 } from '@/lib/projects/validate'
 import { createProject } from '@/app/actions/projects'
 
+// AC-PS-5: read a single field from the localStorage draft during initialisation.
+// typeof window guard is required — lazy initialisers run on the client only,
+// but Next.js evaluates the module during SSR where localStorage is unavailable.
+function readDraftField(key: 'name' | 'address' | 'start_date'): string {
+  if (typeof window === 'undefined') return ''
+  const draft = readDraft()
+  const value = draft?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
 export function ProjectCreationForm() {
-  const [name, setName] = useState('')
-  const [address, setAddress] = useState('')
-  const [startDate, setStartDate] = useState('')
+  // AC-PS-5: lazy initialisers restore the draft from localStorage on mount (client-only).
+  const [name, setName] = useState(() => readDraftField('name'))
+  const [address, setAddress] = useState(() => readDraftField('address'))
+  const [startDate, setStartDate] = useState(() => readDraftField('start_date'))
   const [errors, setErrors] = useState<ProjectFormErrors>({})
   const [warnings, setWarnings] = useState<ProjectFormWarnings>({})
   const [pastDateConfirmed, setPastDateConfirmed] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [hydrated, setHydrated] = useState(false)
+  // Skip persisting the very first render (initial draft values were just read — no need to write back)
+  const isFirstRender = useRef(true)
 
-  // AC-PS-5: restore from localStorage on mount
+  // Persist to localStorage as user types
   useEffect(() => {
-    const draft = readDraft()
-    if (draft) {
-      if (typeof draft.name === 'string') setName(draft.name)
-      if (typeof draft.address === 'string') setAddress(draft.address)
-      if (typeof draft.start_date === 'string') setStartDate(draft.start_date)
-    }
-    setHydrated(true)
-  }, [])
-
-  // Persist to localStorage as user types (after hydration to avoid overwriting with empty)
-  useEffect(() => {
-    if (!hydrated) return
+    if (isFirstRender.current) { isFirstRender.current = false; return }
     writeDraft({ name, address, start_date: startDate })
-  }, [name, address, startDate, hydrated])
-
-  // Note: draft restoration useEffect above uses direct setState in an effect body intentionally —
-  // lazy initializers run during SSR where localStorage is unavailable. This is the correct
-  // SSR-safe pattern for 'use client' components that read browser-only APIs on mount.
+  }, [name, address, startDate])
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
