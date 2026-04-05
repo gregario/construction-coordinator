@@ -1,0 +1,19 @@
+{
+  "name": "Construction Manager",
+  "short_name": "Build Manager",
+  "description": "Dynamic build scheduling for expert owner-builders",
+  "start_url": "/briefing",
+  "display": "standalone",
+  "background_color": "#FAF7F2",
+  "theme_color": "#8B5E3C",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Daily Briefing", "url": "/briefing", "description": "Today's tasks and alerts" },
+    { "name": "Schedule", "url": "/schedule", "description": "Gantt chart view" }
+  ],
+  "categories": ["productivity", "business"]
+}
