@@ -1,0 +1,264 @@
+{
+  "deployment_url": "https://mtgordle.vercel.app",
+
+  "implemented": [
+    {
+      "task": "supabase-schema",
+      "category": "schema",
+      "acceptance_criteria": ["FC-schema-1", "FC-schema-2", "FC-schema-3", "FC-schema-4"],
+      "files_changed": [
+        "supabase/migrations/20260405193231_initial_schema.sql",
+        "supabase/migrations/20260405193546_storage_buckets.sql",
+        "supabase/migrations/20260405000002_storage_comment.sql",
+        "supabase/seed.sql",
+        "lib/supabase/types.ts",
+        "types/database.ts"
+      ],
+      "tests_added": 4,
+      "tests_passing": 4,
+      "serves_feature_areas": ["project-setup", "task-tree", "material-tracking", "scheduling-engine", "daily-briefing", "notifications", "gantt-chart", "photo-storage", "document-storage", "project-export"],
+      "details": "11 tables: projects, stages, trades, tasks, task_dependencies, materials, photos, documents, push_subscriptions, notification_preferences, shift_alerts. RLS on all tables. cascade_task_dates() PostgreSQL function (recursive CTE). 14 performance indexes including partial index on materials.order_by_date WHERE order_status = 'not_ordered'. set_updated_at() trigger on all mutable tables. Storage buckets: photos (10MB, image/*) and documents (25MB, pdf/docx/xlsx). 3 migrations pushed to ***REMOVED*** (eu-west-1). Seed data: O'Brien Timber Frame House, 7 stages, 22 tasks, 10 materials, 3 trades."
+    },
+    {
+      "task": "supabase-auth",
+      "category": "auth",
+      "acceptance_criteria": ["FC-auth-1", "FC-auth-2", "FC-auth-3"],
+      "files_changed": [
+        "proxy.ts",
+        "lib/supabase/server.ts",
+        "lib/supabase/client.ts",
+        "lib/supabase/service.ts",
+        "lib/supabase/setup-buckets.ts",
+        "app/(auth)/login/page.tsx",
+        "app/(auth)/signup/page.tsx",
+        "app/(auth)/forgot-password/page.tsx",
+        "app/(auth)/layout.tsx",
+        "app/actions/auth.ts",
+        "app/auth/callback/route.ts",
+        "app/page.tsx"
+      ],
+      "tests_added": 3,
+      "tests_passing": 3,
+      "serves_feature_areas": ["project-setup", "task-tree", "material-tracking", "scheduling-engine", "daily-briefing", "notifications", "gantt-chart", "photo-storage", "document-storage", "project-export"],
+      "details": "Server client (createClient via @supabase/ssr + cookies()), browser singleton client, proxy.ts for Next.js 16 session refresh middleware (replaces middleware.ts). Login/signup/forgot-password pages with warm earth-tone styling. Server action for signout. Root redirect: unauthenticated→/login, no project→/setup, active project→/briefing."
+    },
+    {
+      "task": "supabase-storage",
+      "category": "integration",
+      "acceptance_criteria": ["FC-storage-1", "FC-storage-2"],
+      "files_changed": [
+        "supabase/migrations/20260405193546_storage_buckets.sql",
+        "lib/supabase/setup-buckets.ts"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": ["photo-storage", "document-storage"],
+      "details": "photos bucket (10MB, jpeg/png/webp/heic, private) and documents bucket (25MB, pdf/docx/xlsx/images, private). RLS policies: authenticated users can INSERT/SELECT/DELETE. Signed URL pattern for downloads (60s expiry). setup-buckets.ts helper for programmatic bucket creation if needed."
+    },
+    {
+      "task": "pwa-service-worker",
+      "category": "integration",
+      "acceptance_criteria": ["FC-pwa-1", "FC-pwa-2"],
+      "files_changed": [
+        "public/sw.js",
+        "public/manifest.json",
+        "public/icons/icon-192.png",
+        "public/icons/icon-512.png",
+        "components/sw-register.tsx",
+        "next.config.ts",
+        "vercel.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": ["daily-briefing", "notifications"],
+      "details": "Custom service worker (not next-pwa — removed as webpack-only incompatible with Next.js 16 Turbopack). Network-first with cache fallback for app routes. Cache-first for /_next/static/ immutable assets. Supabase API: network-only. Offline shell caches /briefing and /materials. Push + notificationclick handlers. Web App Manifest with shortcuts (Briefing, Schedule). sw.js served with no-cache header via vercel.json. ServiceWorkerRegister client component for registration."
+    },
+    {
+      "task": "web-push-setup",
+      "category": "integration",
+      "acceptance_criteria": ["FC-push-1", "FC-push-2", "FC-push-3"],
+      "files_changed": [
+        "app/api/push/subscribe/route.ts",
+        "app/api/push/send/route.ts",
+        "app/api/cron/daily-check/route.ts",
+        "lib/push/client.ts",
+        "worker/index.ts",
+        "vercel.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": ["notifications"],
+      "details": "VAPID keys generated and stored in .env.local + Vercel env vars. POST /api/push/subscribe saves subscription to push_subscriptions. DELETE unsubscribes. GET /api/cron/daily-check: Vercel Cron (7am daily), sends push for overdue tasks and upcoming order deadlines, respects notification_preferences. Cron protected by CRON_SECRET. webpush.setVapidDetails moved inside handler (not module level) to avoid Turbopack module evaluation error."
+    },
+    {
+      "task": "shared-ui-shell",
+      "category": "ui-scaffold",
+      "acceptance_criteria": ["FC-ui-1", "FC-ui-2", "FC-ui-3"],
+      "files_changed": [
+        "app/globals.css",
+        "app/layout.tsx",
+        "app/(app)/layout.tsx",
+        "components/layout/AppShell.tsx",
+        "components/ui/empty-state.tsx",
+        "components/ui/loading-skeleton.tsx",
+        "components/ui/error-boundary.tsx",
+        "app/(app)/briefing/page.tsx",
+        "app/(app)/schedule/page.tsx",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/trades/page.tsx",
+        "app/(app)/stages/page.tsx",
+        "app/(app)/stages/[id]/page.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "app/(app)/photos/page.tsx",
+        "app/(app)/settings/page.tsx",
+        "app/(app)/setup/page.tsx"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": ["project-setup", "task-tree", "material-tracking", "scheduling-engine", "daily-briefing", "notifications", "gantt-chart", "photo-storage", "document-storage", "project-export"],
+      "details": "Warm earth-tone design tokens: --color-primary #8B5E3C (clay), --color-secondary #87A96B (sage), --color-accent #D4A355 (amber), --color-bg #FAF7F2 (warm off-white). AppShell: fixed sidebar (240px, desktop ≥768px) with primary + secondary nav, sign-out form action. Mobile: fixed bottom tab bar (56px, 4 primary routes). Placeholder pages for all routes with skeleton loading pattern. EmptyState, Skeleton, CardSkeleton, ErrorBoundary components. lucide-react icons throughout."
+    },
+    {
+      "task": "deploy-pipeline",
+      "category": "deploy",
+      "acceptance_criteria": ["FC-deploy-1"],
+      "files_changed": [
+        "vercel.json",
+        ".vercel/project.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": ["project-setup"],
+      "details": "Vercel project prj_S1ciXeW4V0GvMCBkjpRyUeZ6KW6Y (mtgordle). All 7 env vars set in Vercel dashboard (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET). Deployed to production: https://mtgordle.vercel.app. Hobby tier: production deploys only (--prod flag)."
+    },
+    {
+      "task": "test-fixtures",
+      "category": "fixtures",
+      "acceptance_criteria": ["FC-fixtures-1"],
+      "files_changed": [
+        "supabase/seed.sql",
+        "tests/schema.test.ts",
+        "tests/auth.test.ts",
+        "tests/setup.ts",
+        "vitest.config.ts"
+      ],
+      "tests_added": 7,
+      "tests_passing": 7,
+      "serves_feature_areas": ["project-setup", "task-tree", "material-tracking", "scheduling-engine"],
+      "details": "Realistic Irish construction seed: O'Brien Timber Frame House, 42 Laragh Lane, Wicklow. 7 stages (Foundation→Finishes), 22 tasks with realistic dependencies (excavation→footings→slab→frame→roof→etc.), 10 materials with lead times (Ready Mix Concrete 3d, Timber Frame Kit 70d, Windows 42d, MVHR 28d, Slates 21d). 3 trades: structural engineer, groundworks contractor, timber frame supplier."
+    }
+  ],
+
+  "skipped": [],
+
+  "divergences": [
+    {
+      "spec_says": "next-pwa for PWA service worker",
+      "actually_did": "Custom hand-written service worker at public/sw.js",
+      "rationale": "next-pwa v5 is webpack-only and incompatible with Next.js 16 Turbopack (default bundler). Custom service worker is actually simpler, has no Workbox dependency, and is fully portable. Push and notification handlers work identically.",
+      "affects_acceptance_criteria": [],
+      "affects_feature_areas": ["notifications"],
+      "reversible": true
+    },
+    {
+      "spec_says": "middleware.ts for Next.js auth middleware",
+      "actually_did": "proxy.ts with proxy() function and proxyConfig export",
+      "rationale": "Next.js 16 renamed middleware.ts to proxy.ts. Confirmed by Vercel platform context. The ƒ Proxy (Middleware) entry in the build output confirms it is correctly detected.",
+      "affects_acceptance_criteria": [],
+      "affects_feature_areas": [],
+      "reversible": false
+    }
+  ],
+
+  "factory_decisions": [
+    {
+      "decision": "Removed next-pwa, wrote custom service worker",
+      "context": "next-pwa v5 injects webpack config, incompatible with Next.js 16 Turbopack default. Build failed with 'This build is using Turbopack, with a webpack config and no turbopack config.'",
+      "alternatives_considered": [
+        "@ducanh2912/next-pwa — Turbopack-compatible fork, but adds another dependency for a problem solvable with 80 lines of vanilla JS",
+        "next build --webpack — disables Turbopack, slower builds, not idiomatic for Next.js 16"
+      ],
+      "rationale": "A custom sw.js at public/sw.js served with no-cache headers is the recommended Next.js 16 approach. No Workbox dependency, full control over caching strategy, easier to debug.",
+      "confidence": "high",
+      "affects": ["public/sw.js", "next.config.ts", "vercel.json"]
+    },
+    {
+      "decision": "Supabase project 'mtgordle' (***REMOVED***) used for construction-manager",
+      "context": "Git branch build/mtgordle matched both the Supabase project name and Vercel project name. ACTIVE_HEALTHY status confirmed.",
+      "alternatives_considered": [
+        "Create new Supabase project — would require pausing an existing project (at 2/2 free tier limit) and waiting for activation",
+        "Use 'openfleet' project — wrong project, different product"
+      ],
+      "rationale": "The naming alignment (build/mtgordle branch + mtgordle Supabase + mtgordle Vercel project) is unambiguous. Project was pre-created as part of the build setup.",
+      "confidence": "high",
+      "affects": ["supabase/", "lib/supabase/", ".env.local"]
+    },
+    {
+      "decision": "webpush.setVapidDetails() moved inside handler functions",
+      "context": "Calling setVapidDetails at module evaluation time caused build failure on Vercel: 'No key set in vapidDetails.privateKey'. Turbopack evaluates route modules during static page generation.",
+      "alternatives_considered": [
+        "Lazy initialization singleton — adds unnecessary complexity",
+        "Dynamic import of web-push — works but slower"
+      ],
+      "rationale": "Moving setVapidDetails inside the handler is the simplest fix. It runs once per cold start in production (Fluid Compute reuses instances). No performance impact.",
+      "confidence": "high",
+      "affects": ["app/api/cron/daily-check/route.ts", "app/api/push/send/route.ts"]
+    },
+    {
+      "decision": "cascade_task_dates() implemented as PostgreSQL function with recursive CTE",
+      "context": "Cascade engine spec requires single-transaction update of all downstream tasks. Acceptable: under 2s for 500 tasks.",
+      "alternatives_considered": [
+        "Application-layer BFS in TypeScript — multiple round trips, not atomic, slower for large graphs",
+        "PostgreSQL stored procedure with LOOP — not set-based, harder to optimize"
+      ],
+      "rationale": "Recursive CTE traverses the full DAG in one query, updates all affected tasks + materials atomically. PostgreSQL can optimize the traversal with the existing task_dependencies indexes.",
+      "confidence": "high",
+      "affects": ["supabase/migrations/20260405193231_initial_schema.sql"]
+    },
+    {
+      "decision": "shift_alerts table for briefing delta tracking",
+      "context": "Daily briefing needs to show 'what changed since last visit'. Options: compute on-the-fly (expensive join), event log (append-only), or client-side localStorage.",
+      "alternatives_considered": [
+        "On-the-fly computation — requires tracking last_visit_at per user and joining across all cascades",
+        "localStorage — lost on device switch, not reliable for mobile",
+        "Supabase Realtime subscription — overkill for a daily summary"
+      ],
+      "rationale": "Server-side event log (shift_alerts) written by the cascade function. Dismissed flag per user. Readable from any device. Foundation builds the table; daily-experience feature cycle builds the UI.",
+      "confidence": "high",
+      "affects": ["supabase/migrations/20260405193231_initial_schema.sql"]
+    }
+  ],
+
+  "factory_questions": [
+    {
+      "question": "Supabase Auth email confirmation: Vercel production URL must be added to Supabase allowed redirect URLs before signup emails will work.",
+      "found_in": "auth flow testing",
+      "resolved_as": null,
+      "needs_clarification_from": "human",
+      "severity": "significant"
+    },
+    {
+      "question": "cascade_task_dates() does not currently write to shift_alerts. The cascade function updates task dates and material order_by_dates but does not log the changes to shift_alerts. This must be added when implementing the daily-briefing feature area.",
+      "found_in": "schema design — cascade function",
+      "resolved_as": "Deferred to daily-briefing feature cycle (shift-alerts story)",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    }
+  ],
+
+  "foundation_completion": {
+    "schema_ready": true,
+    "auth_ready": true,
+    "integrations_ready": {
+      "supabase-schema": true,
+      "supabase-auth": true,
+      "supabase-storage": true,
+      "pwa-service-worker": true,
+      "web-push": true
+    },
+    "ui_scaffold_ready": true,
+    "deploy_ready": true,
+    "fixtures_ready": true,
+    "blocking_gaps": []
+  }
+}
