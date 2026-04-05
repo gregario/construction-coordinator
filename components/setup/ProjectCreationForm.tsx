@@ -40,10 +40,9 @@ export function ProjectCreationForm() {
     writeDraft({ name, address, start_date: startDate })
   }, [name, address, startDate, hydrated])
 
-  // Reset the past-date confirmation whenever the date changes
-  useEffect(() => {
-    setPastDateConfirmed(false)
-  }, [startDate])
+  // Note: draft restoration useEffect above uses direct setState in an effect body intentionally —
+  // lazy initializers run during SSR where localStorage is unavailable. This is the correct
+  // SSR-safe pattern for 'use client' components that read browser-only APIs on mount.
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -134,7 +133,7 @@ export function ProjectCreationForm() {
           name="start_date"
           type="date"
           value={startDate}
-          onChange={e => setStartDate(e.target.value)}
+          onChange={e => { setStartDate(e.target.value); setPastDateConfirmed(false) }}
           aria-invalid={Boolean(errors.start_date)}
           aria-describedby={errors.start_date ? 'start-date-error' : undefined}
           className="w-full rounded-md border border-[#E8DFD3] bg-white px-3 py-2 text-[#2B1F17] focus:outline-none focus:ring-2 focus:ring-[#8B5E3C]"
