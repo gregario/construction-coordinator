@@ -100,6 +100,69 @@ export function parseEstimatedCost(raw: string | null | undefined): number | nul
   return n
 }
 
+// Parse a YYYY-MM-DD string as a UTC midnight timestamp. Returns NaN for
+// malformed input — callers must handle that case.
+function isoDateToUtcMs(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return Number.NaN
+  return Date.UTC(y, m - 1, d)
+}
+
+// Days between two ISO dates (b - a). Both must be YYYY-MM-DD.
+// Returns integer day difference; floors across DST (we use UTC throughout).
+function daysBetweenIso(a: string, b: string): number {
+  const ms = isoDateToUtcMs(b) - isoDateToUtcMs(a)
+  return Math.round(ms / 86_400_000)
+}
+
+// AC-OB-2 / AC-OB-3: deadline badge for a material, based on today's date.
+// Returns null when the material is already ordered/delivered or has no date.
+export type MaterialDeadlineBadge = 'overdue' | 'due_soon'
+
+export type MaterialDeadlineInput = {
+  id: string
+  name: string
+  order_by_date: string | null
+  order_status: 'not_ordered' | 'ordered' | 'delivered'
+}
+
+const UPCOMING_WINDOW_DAYS = 7
+
+export function materialDeadlineStatus(
+  material: MaterialDeadlineInput,
+  today: string
+): MaterialDeadlineBadge | null {
+  if (material.order_status !== 'not_ordered') return null
+  if (!material.order_by_date) return null
+  const diff = daysBetweenIso(today, material.order_by_date)
+  if (Number.isNaN(diff)) return null
+  if (diff < 0) return 'overdue'
+  if (diff <= UPCOMING_WINDOW_DAYS) return 'due_soon'
+  return null
+}
+
+// AC-OB-4: briefing 'Upcoming Orders' — materials whose order_by_date is
+// on or before (today + 7), that are still not_ordered, sorted ascending.
+// Overdue items naturally sort to the top of the list.
+export function selectUpcomingOrders<T extends MaterialDeadlineInput>(
+  materials: T[],
+  today: string
+): T[] {
+  const cutoffMs = isoDateToUtcMs(today) + UPCOMING_WINDOW_DAYS * 86_400_000
+  return materials
+    .filter(m => {
+      if (m.order_status !== 'not_ordered') return false
+      if (!m.order_by_date) return false
+      const ms = isoDateToUtcMs(m.order_by_date)
+      if (Number.isNaN(ms)) return false
+      return ms <= cutoffMs
+    })
+    .sort((a, b) => {
+      // Both filtered to have order_by_date — safe to compare.
+      return (a.order_by_date as string).localeCompare(b.order_by_date as string)
+    })
+}
+
 // AC-ML-4: order_by_date = planned_start - lead_time_days.
 // Mirrors the schema trigger (cascade_task_dates SQL) so the UI can show the
 // same value the DB will compute. Returns YYYY-MM-DD or null.
