@@ -92,7 +92,7 @@ export default async function TaskDetailPage({ params }: Props) {
   const materialsRes = await supabase
     .from('materials')
     .select(
-      'id, name, quantity, lead_time_days, order_by_date, estimated_cost, supplier_name, notes'
+      'id, name, quantity, lead_time_days, order_by_date, order_status, estimated_cost, supplier_name, notes'
     )
     .eq('task_id', task.id)
     .order('created_at', { ascending: true })

@@ -8,6 +8,7 @@ import {
   computeOrderByDate,
   type MaterialFormField,
   type MaterialFormValues,
+  type MaterialOrderStatusValue,
 } from '@/lib/materials/operations'
 
 // lib/supabase/types.ts lacks Relationships[] — same cast pattern as the
@@ -22,6 +23,7 @@ export type MaterialRecord = {
   quantity: string | null
   lead_time_days: number
   order_by_date: string | null
+  order_status: MaterialOrderStatusValue
   estimated_cost: number | null
   supplier_name: string | null
   notes: string | null
@@ -140,7 +142,7 @@ export async function createMaterial(
       order_by_date,
     })
     .select(
-      'id, task_id, name, quantity, lead_time_days, order_by_date, estimated_cost, supplier_name, notes'
+      'id, task_id, name, quantity, lead_time_days, order_by_date, order_status, estimated_cost, supplier_name, notes'
     )
     .single()
 
@@ -219,7 +221,7 @@ export async function updateMaterial(
     })
     .eq('id', input.materialId)
     .select(
-      'id, task_id, name, quantity, lead_time_days, order_by_date, estimated_cost, supplier_name, notes'
+      'id, task_id, name, quantity, lead_time_days, order_by_date, order_status, estimated_cost, supplier_name, notes'
     )
     .single()
 
@@ -233,6 +235,100 @@ export async function updateMaterial(
   revalidatePath(`/tasks/${existing.task_id}`)
   revalidatePath('/materials')
   return { ok: true, material: upd.data as MaterialRecord }
+}
+
+// AC-MS-1 / AC-MS-2: update a material's order_status.
+// Valid transitions: not_ordered→ordered, ordered→delivered. Delivered is terminal.
+// (Also accepts a no-op re-assert for idempotency.)
+export type UpdateMaterialStatusInput = {
+  projectId: string
+  materialId: string
+  nextStatus: MaterialOrderStatusValue
+}
+
+export type UpdateMaterialStatusResult =
+  | {
+      ok: true
+      material: { id: string; task_id: string; order_status: MaterialOrderStatusValue }
+    }
+  | { ok: false; error: string }
+
+function isValidTransition(
+  current: MaterialOrderStatusValue,
+  next: MaterialOrderStatusValue
+): boolean {
+  if (current === next) return true
+  if (current === 'not_ordered' && next === 'ordered') return true
+  if (current === 'ordered' && next === 'delivered') return true
+  return false
+}
+
+export async function updateMaterialStatus(
+  input: UpdateMaterialStatusInput
+): Promise<UpdateMaterialStatusResult> {
+  if (!input.projectId || !input.materialId) {
+    return { ok: false, error: 'Project and material required' }
+  }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const matRes = await supabase
+    .from('materials')
+    .select('id, task_id, order_status')
+    .eq('id', input.materialId)
+    .single()
+  if (matRes.error || !matRes.data) {
+    return { ok: false, error: 'Material not found' }
+  }
+  const existing = matRes.data as {
+    id: string
+    task_id: string
+    order_status: MaterialOrderStatusValue
+  }
+
+  const owned = await verifyTaskOwnership(
+    supabase,
+    input.projectId,
+    existing.task_id,
+    user.id
+  )
+  if (!owned.ok) return owned
+
+  if (!isValidTransition(existing.order_status, input.nextStatus)) {
+    return {
+      ok: false,
+      error: `Cannot move from ${existing.order_status} to ${input.nextStatus}`,
+    }
+  }
+
+  const upd = await supabase
+    .from('materials')
+    .update({ order_status: input.nextStatus })
+    .eq('id', input.materialId)
+    .select('id, task_id, order_status')
+    .single()
+
+  if (upd.error || !upd.data) {
+    return {
+      ok: false,
+      error: `Failed to update status: ${upd.error?.message ?? 'unknown'}`,
+    }
+  }
+
+  revalidatePath(`/tasks/${existing.task_id}`)
+  revalidatePath('/materials')
+  return {
+    ok: true,
+    material: upd.data as {
+      id: string
+      task_id: string
+      order_status: MaterialOrderStatusValue
+    },
+  }
 }
 
 // AC-ML-5: delete a material after confirmation. Server re-verifies ownership

@@ -5,8 +5,11 @@ import {
   parseEstimatedCost,
   materialDeadlineStatus,
   selectUpcomingOrders,
+  filterMaterialsByStatus,
+  nextStatusTransition,
   type MaterialFormValues,
   type MaterialDeadlineInput,
+  type MaterialStatusFilter,
 } from '@/lib/materials/operations'
 
 const VALID: MaterialFormValues = {
@@ -334,5 +337,94 @@ describe('selectUpcomingOrders — AC-OB-4', () => {
 
   it('returns empty array when no materials match', () => {
     expect(selectUpcomingOrders([], TODAY)).toEqual([])
+  })
+})
+
+// @criterion: AC-MS-1 / AC-MS-2
+// Status transitions: not_ordered → ordered → delivered. Delivered is terminal.
+describe('nextStatusTransition — AC-MS-1 / AC-MS-2', () => {
+  it('suggests Mark Ordered when status is not_ordered', () => {
+    expect(nextStatusTransition('not_ordered')).toEqual({
+      nextStatus: 'ordered',
+      label: 'Mark Ordered',
+    })
+  })
+
+  it('suggests Mark Delivered when status is ordered', () => {
+    expect(nextStatusTransition('ordered')).toEqual({
+      nextStatus: 'delivered',
+      label: 'Mark Delivered',
+    })
+  })
+
+  it('returns null when delivered (terminal state)', () => {
+    expect(nextStatusTransition('delivered')).toBeNull()
+  })
+})
+
+// @criterion: AC-MS-3
+// Status filter tabs on /materials (All / Not Ordered / Ordered / Delivered).
+describe('filterMaterialsByStatus — AC-MS-3', () => {
+  type Row = { id: string; order_status: 'not_ordered' | 'ordered' | 'delivered' }
+  const ROWS: Row[] = [
+    { id: 'a', order_status: 'not_ordered' },
+    { id: 'b', order_status: 'ordered' },
+    { id: 'c', order_status: 'delivered' },
+    { id: 'd', order_status: 'not_ordered' },
+    { id: 'e', order_status: 'ordered' },
+  ]
+
+  it("returns all rows when filter='all'", () => {
+    expect(filterMaterialsByStatus(ROWS, 'all').map(r => r.id)).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ])
+  })
+
+  it("returns only not_ordered rows when filter='not_ordered'", () => {
+    expect(
+      filterMaterialsByStatus(ROWS, 'not_ordered').map(r => r.id)
+    ).toEqual(['a', 'd'])
+  })
+
+  it("returns only ordered rows when filter='ordered'", () => {
+    expect(filterMaterialsByStatus(ROWS, 'ordered').map(r => r.id)).toEqual([
+      'b',
+      'e',
+    ])
+  })
+
+  it("returns only delivered rows when filter='delivered'", () => {
+    expect(filterMaterialsByStatus(ROWS, 'delivered').map(r => r.id)).toEqual([
+      'c',
+    ])
+  })
+
+  it('returns empty array when no rows match', () => {
+    const onlyDelivered: Row[] = [{ id: 'x', order_status: 'delivered' }]
+    expect(
+      filterMaterialsByStatus(onlyDelivered, 'ordered').map(r => r.id)
+    ).toEqual([])
+  })
+
+  it('does not mutate the input array', () => {
+    const copy = [...ROWS]
+    filterMaterialsByStatus(ROWS, 'ordered')
+    expect(ROWS).toEqual(copy)
+  })
+
+  it('accepts MaterialStatusFilter type values', () => {
+    const filters: MaterialStatusFilter[] = [
+      'all',
+      'not_ordered',
+      'ordered',
+      'delivered',
+    ]
+    for (const f of filters) {
+      expect(Array.isArray(filterMaterialsByStatus(ROWS, f))).toBe(true)
+    }
   })
 })
