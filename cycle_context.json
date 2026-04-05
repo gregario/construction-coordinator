@@ -1,23 +1,22 @@
 {
   "story_result": {
-    "story_id": "stage-management",
+    "story_id": "task-management",
     "outcome": "pass",
     "files_changed": [
-      "app/(app)/schedule/page.tsx",
-      "app/actions/stages.ts",
+      "lib/tasks/operations.ts",
+      "app/actions/tasks.ts",
+      "components/tasks/StageTasksManager.tsx",
+      "app/(app)/stages/[id]/page.tsx",
       "components/schedule/StageManager.tsx",
-      "lib/stages/operations.ts",
-      "tests/stages-operations.test.ts"
+      "tests/tasks-operations.test.ts"
     ],
-    "tests_added": 20,
-    "tests_passing": 85,
+    "tests_added": 26,
+    "tests_passing": 111,
     "env_limitations": [
-      "Drag-to-reorder uses the native HTML5 drag-and-drop API. Touch devices (iOS Safari) do not fire drag events, so mobile users rely on the up/down arrow buttons next to each stage to reorder — same persistence path (reorderProjectStages), same reorderStages() pure function, just a different input modality."
-    ],
-    "deployment_url": "https://mtgordle.vercel.app",
-    "smoke_test": "Full vitest suite (85 passing, 20 new), tsc --noEmit clean, next build succeeded with /schedule compiled as a dynamic route. ESLint clean on all new files."
+      "cascade_task_dates() RPC path (AC-TM-5) wasn't exercised against the live DB — unit tests verify the pure date math and the action code path, but the downstream-update SQL runs server-side. A Supabase integration test (or QA pass) is the right place to verify that duration edits actually shift downstream planned_start/planned_end columns."
+    ]
   },
-  "deployment_url": "https://mtgordle.vercel.app",
+  "deployment_url": null,
   "implemented": [
     {
       "task": "stage-management",
@@ -322,6 +321,27 @@
         "scheduling-engine"
       ],
       "details": "Realistic Irish construction seed: O'Brien Timber Frame House, 42 Laragh Lane, Wicklow. 7 stages (Foundation→Finishes), 22 tasks with realistic dependencies (excavation→footings→slab→frame→roof→etc.), 10 materials with lead times (Ready Mix Concrete 3d, Timber Frame Kit 70d, Windows 42d, MVHR 28d, Slates 21d). 3 trades: structural engineer, groundworks contractor, timber frame supplier."
+    },
+    {
+      "task": "task-management",
+      "acceptance_criteria": [
+        "AC-TM-1",
+        "AC-TM-2",
+        "AC-TM-3",
+        "AC-TM-4",
+        "AC-TM-5",
+        "AC-TM-6"
+      ],
+      "files_changed": [
+        "lib/tasks/operations.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/StageTasksManager.tsx",
+        "app/(app)/stages/[id]/page.tsx",
+        "components/schedule/StageManager.tsx",
+        "tests/tasks-operations.test.ts"
+      ],
+      "tests_added": 26,
+      "tests_passing": 111
     }
   ],
   "skipped": [],
@@ -679,6 +699,80 @@
         "components/schedule/StageManager.tsx",
         "lib/stages/operations.ts"
       ]
+    },
+    {
+      "decision": "Inclusive-day semantics for planned_start/planned_end (end = start + duration − 1)",
+      "context": "AC-TM-2 says \"planned_end = planned_start + 2 days\" for a 2-day task. Two interpretations: exclusive (start=06-01, end=06-03 → 2 nights) or inclusive (start=06-01, end=06-02 → first and last working day, 2 working days).",
+      "alternatives_considered": [
+        "Exclusive: planned_end = planned_start + duration_days. Simpler arithmetic but a 1-day task would render as a zero-width Gantt bar and the end date is a day the task is NOT worked.",
+        "Inclusive: planned_end = planned_start + (duration_days − 1). Matches how humans read a schedule (\"Monday–Tuesday = 2 days\") and matches the existing seed data pattern."
+      ],
+      "rationale": "Checked the seeded O'Brien data + the template-apply cursor schedule — both treat planned_start and planned_end as the first and last working day of the task (inclusive). A 1-day task has planned_start = planned_end. The cursor schedule in lib/templates/apply.ts advances via `start = prev.planned_end + 1`, which is exactly AC-TM-4's \"max(dep.planned_end) + 1 day\" formula — consistent across the codebase.",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/operations.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "AC-TM-3 \"no deps AND no prior task\" resolves to project.start_date for all no-deps cases",
+      "context": "AC-TM-3 specifies the no-deps-no-prior-task case but is silent on no-deps-WITH-prior-tasks-in-stage. template-apply uses a sequential cursor (each task follows the previous one in order_index). template-customization uses project.start_date as a placeholder.",
+      "alternatives_considered": [
+        "Sequential cursor within the stage — infers an implicit dependency chain the user did not author. If the user really wants sequence, they can set depends_on explicitly.",
+        "Max end of prior tasks in stage — leaks \"stage order\" into date computation. Same problem: implicit chain.",
+        "project.start_date uniformly when depends_on is empty — predictable, self-documenting, matches the customization-story placeholder pattern."
+      ],
+      "rationale": "Dependencies are the single source of truth for sequencing. If a user adds a task with no dependencies, they get project.start_date and can fix it by either adding deps or editing the date directly in a later story. Explicit > implicit. Matches the template-customization decision to use start_date as the placeholder for newly-added tasks.",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/operations.ts"
+      ]
+    },
+    {
+      "decision": "AC-TM-6 dependency cleanup relies on ON DELETE CASCADE on task_dependencies.depends_on_task_id",
+      "context": "The spec requires that deleting task A removes it from the depends_on array of every downstream task. Options: handle in application code, use the DB cascade, or both.",
+      "alternatives_considered": [
+        "Application-layer: SELECT dependents, DELETE by task_id = A, then DELETE rows where depends_on_task_id = A. Three round trips, race conditions if another request is editing deps simultaneously.",
+        "DB cascade only: task_dependencies has ON DELETE CASCADE on BOTH foreign keys (task_id, depends_on_task_id). Deleting task A atomically removes every row that references A in either column.",
+        "Both layers for defense in depth: duplicates effort without improving guarantees."
+      ],
+      "rationale": "The schema already guarantees AC-TM-6 via CASCADE. Server action just deletes the task and RLS + CASCADE do the rest. Added a pure removeFromDependencies() helper for the UI to mirror the same behaviour in client state — so the task list re-renders correctly without a round trip.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts",
+        "lib/tasks/operations.ts",
+        "components/tasks/StageTasksManager.tsx"
+      ]
+    },
+    {
+      "decision": "updateTaskDuration holds planned_start fixed and recalculates only planned_end",
+      "context": "AC-TM-5 says \"edits the duration_days field and saves, THEN the task's planned_end recalculates and cascades.\" Options: recompute planned_start from deps then extend end, or keep start stable and extend/shrink end.",
+      "alternatives_considered": [
+        "Recompute planned_start from deps on every duration edit — could shift the start date if deps have changed since task creation, surprising the user when they just edited duration.",
+        "Hold start fixed, shift end only — matches the AC's \"end recalculates\" wording and is what cascade_task_dates() is designed for (it receives new_planned_end and propagates the delta downstream).",
+        "Re-run the full schedule — massive blast radius for a single edit."
+      ],
+      "rationale": "cascade_task_dates(p_task_id, p_new_planned_start, p_new_planned_end) expects the caller to pick the new end. Passing the current planned_start unchanged + new planned_end = start + (duration − 1) gives a clean delta the recursive CTE uses to shift every downstream task by the same offset. One RPC, one transaction, O(downstream) updates.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Add Task lives on /stages/:id, reached via an \"Open\" link on each stage row in /schedule",
+      "context": "AC-TM-1 says \"clicks Add Task within [a stage]\". Three possible homes: inline on /schedule (expand each stage), dedicated /stages/:id detail, or a full modal launched from the schedule list.",
+      "alternatives_considered": [
+        "Inline-on-schedule: every stage on the schedule page expands into a task list. Crowds a Gantt-like screen; doesn't scale past ~3 tasks per stage.",
+        "/stages/:id detail page with full task CRUD: clean single-purpose screen, future-proof for per-stage editing, and the /stages/:id route already exists as a placeholder.",
+        "Global /tasks list: loses the stage scoping AC-TM-1 requires."
+      ],
+      "rationale": "The foundation already scaffolded /stages/[id]/page.tsx as a placeholder route and the /schedule StageManager already has per-stage rows. Adding an \"Open\" link to each row + rewriting the stage detail page as the task-CRUD screen uses existing infrastructure, keeps /schedule lightweight, and gives tasks a natural home for future attributes (materials, photos, trade assignment).",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/stages/[id]/page.tsx",
+        "components/tasks/StageTasksManager.tsx",
+        "components/schedule/StageManager.tsx"
+      ]
     }
   ],
   "factory_questions": [
@@ -707,6 +801,20 @@
       "question": "cascade_task_dates() does not currently write to shift_alerts. The cascade function updates task dates and material order_by_dates but does not log the changes to shift_alerts. This must be added when implementing the daily-briefing feature area.",
       "found_in": "schema design — cascade function",
       "resolved_as": "Deferred to daily-briefing feature cycle (shift-alerts story)",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Duration-edit cascade (AC-TM-5) is exercised via cascade_task_dates() RPC — the pure date math is unit-tested but the SQL function itself is not hit from Node tests. A Supabase integration smoke test (seed a 3-task dep chain, bump the middle one's duration, assert downstream dates shifted) would close the loop.",
+      "found_in": "app/actions/tasks.ts updateTaskDuration",
+      "resolved_as": "Unit tests cover the pure layer; QA phase should verify the RPC cascade against the live DB",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Task edit UI only surfaces duration_days. Name, notes, trade, and depends_on editing for EXISTING tasks is out of scope for task-management (the spec only calls out duration edits in AC-TM-5) — those edits will want a dedicated /tasks/:id edit screen in a later story.",
+      "found_in": "AC-TM-5 vs user journey J5-gantt-review",
+      "resolved_as": "Deferred — current scope is create + duration-edit + delete. A future task-edit story can extend StageTasksManager or use the /tasks/:id route.",
       "needs_clarification_from": "spec",
       "severity": "minor"
     }
@@ -750,7 +858,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "project-core",
-  "_current_story": "stage-management",
+  "_current_story": "task-management",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
