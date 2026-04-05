@@ -1,11 +1,9 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
-  materialDeadlineStatus,
-  type MaterialDeadlineInput,
-} from '@/lib/materials/operations'
-import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
+  MaterialsListView,
+  type MaterialsListRow,
+} from '@/components/materials/MaterialsListView'
 import type { MaterialOrderStatus } from '@/types/database'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
@@ -58,68 +56,25 @@ export default async function MaterialsPage() {
 
   // RLS + the nested tasks(...) join return project-scoped rows only; the
   // second filter is belt-and-braces against mis-joined rows.
-  const scoped = materials.filter(m => m.tasks != null)
-
-  const today = todayIso()
+  const rows: MaterialsListRow[] = materials
+    .filter(m => m.tasks != null)
+    .map(m => ({
+      id: m.id,
+      name: m.name,
+      quantity: m.quantity,
+      lead_time_days: m.lead_time_days,
+      order_by_date: m.order_by_date,
+      order_status: m.order_status,
+      task: m.tasks,
+    }))
 
   return (
     <div className="mx-auto max-w-2xl p-4 md:p-8">
       <h1 className="mb-1 text-2xl font-semibold text-[#2B1F17]">Materials</h1>
       <p className="mb-6 text-sm text-[#6B5D52]">
-        Order-by deadlines across all tasks
+        Order status and deadlines across all tasks
       </p>
-
-      {scoped.length === 0 ? (
-        <div className="rounded-lg border border-[#E8DFD3] bg-white p-6 text-center">
-          <p className="text-sm text-[#6B5D52]">
-            No materials yet. Add materials from any task detail screen.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {scoped.map(m => {
-            const badge = materialDeadlineStatus(
-              {
-                id: m.id,
-                name: m.name,
-                order_by_date: m.order_by_date,
-                order_status: m.order_status,
-              } satisfies MaterialDeadlineInput,
-              today
-            )
-            return (
-              <li
-                key={m.id}
-                className="rounded-lg border border-[#E8DFD3] bg-white p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#2B1F17]">
-                      {m.name}
-                    </p>
-                    {m.tasks && (
-                      <Link
-                        href={`/tasks/${m.tasks.id}`}
-                        className="text-xs text-[#6B5D52] underline-offset-2 hover:underline"
-                      >
-                        {m.tasks.name}
-                      </Link>
-                    )}
-                  </div>
-                  <MaterialDeadlineBadge badge={badge} />
-                </div>
-                <div className="mt-2 flex items-center gap-3 text-xs text-[#6B5D52]">
-                  {m.order_by_date && (
-                    <span>Order by {m.order_by_date}</span>
-                  )}
-                  <span>· {m.lead_time_days}d lead</span>
-                  {m.quantity && <span>· {m.quantity}</span>}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      <MaterialsListView materials={rows} today={todayIso()} />
     </div>
   )
 }

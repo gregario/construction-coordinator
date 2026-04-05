@@ -163,6 +163,41 @@ export function selectUpcomingOrders<T extends MaterialDeadlineInput>(
     })
 }
 
+// AC-MS-1 / AC-MS-2: material order_status transitions.
+// not_ordered → ordered → delivered. Delivered is terminal.
+export type MaterialOrderStatusValue = 'not_ordered' | 'ordered' | 'delivered'
+
+export type StatusTransition = {
+  nextStatus: MaterialOrderStatusValue
+  label: string
+}
+
+export function nextStatusTransition(
+  status: MaterialOrderStatusValue
+): StatusTransition | null {
+  if (status === 'not_ordered') {
+    return { nextStatus: 'ordered', label: 'Mark Ordered' }
+  }
+  if (status === 'ordered') {
+    return { nextStatus: 'delivered', label: 'Mark Delivered' }
+  }
+  return null
+}
+
+// AC-MS-3: filter tabs on /materials — All / Not Ordered / Ordered / Delivered.
+export type MaterialStatusFilter =
+  | 'all'
+  | 'not_ordered'
+  | 'ordered'
+  | 'delivered'
+
+export function filterMaterialsByStatus<
+  T extends { order_status: MaterialOrderStatusValue },
+>(materials: T[], filter: MaterialStatusFilter): T[] {
+  if (filter === 'all') return materials.slice()
+  return materials.filter(m => m.order_status === filter)
+}
+
 // AC-ML-4: order_by_date = planned_start - lead_time_days.
 // Mirrors the schema trigger (cascade_task_dates SQL) so the UI can show the
 // same value the DB will compute. Returns YYYY-MM-DD or null.

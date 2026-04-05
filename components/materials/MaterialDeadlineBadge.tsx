@@ -1,4 +1,7 @@
-import type { MaterialDeadlineBadge as BadgeKind } from '@/lib/materials/operations'
+import type {
+  MaterialDeadlineBadge as BadgeKind,
+  MaterialOrderStatusValue,
+} from '@/lib/materials/operations'
 
 type Props = { badge: BadgeKind | null }
 
@@ -23,4 +26,34 @@ export function MaterialDeadlineBadge({ badge }: Props) {
       due soon
     </span>
   )
+}
+
+// AC-MS-1 / AC-MS-2: ordered (green outline) / delivered (solid green) pills.
+// Shown in place of the deadline badge once a material leaves not_ordered.
+export function MaterialStatusBadge({
+  status,
+}: {
+  status: MaterialOrderStatusValue
+}) {
+  if (status === 'ordered') {
+    return (
+      <span
+        data-testid="material-badge-ordered"
+        className="inline-flex items-center rounded-full border border-[#A8C49A] bg-[#EAF2E3] px-2 py-0.5 text-xs font-medium text-[#3E5A2E]"
+      >
+        ordered
+      </span>
+    )
+  }
+  if (status === 'delivered') {
+    return (
+      <span
+        data-testid="material-badge-delivered"
+        className="inline-flex items-center rounded-full border border-[#3E5A2E] bg-[#3E5A2E] px-2 py-0.5 text-xs font-medium text-white"
+      >
+        delivered
+      </span>
+    )
+  }
+  return null
 }

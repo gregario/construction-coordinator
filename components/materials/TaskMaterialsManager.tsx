@@ -3,14 +3,18 @@
 import { useState, useTransition } from 'react'
 import {
   validateMaterialInput,
+  nextStatusTransition,
   type MaterialFormField,
   type MaterialFormValues,
+  type MaterialOrderStatusValue,
 } from '@/lib/materials/operations'
 import {
   createMaterial,
   updateMaterial,
   deleteMaterial,
+  updateMaterialStatus,
 } from '@/app/actions/materials'
+import { MaterialStatusBadge } from '@/components/materials/MaterialDeadlineBadge'
 
 export type MaterialListItem = {
   id: string
@@ -18,6 +22,7 @@ export type MaterialListItem = {
   quantity: string | null
   lead_time_days: number
   order_by_date: string | null
+  order_status: MaterialOrderStatusValue
   estimated_cost: number | null
   supplier_name: string | null
   notes: string | null
@@ -141,6 +146,30 @@ export function TaskMaterialsManager({
     })
   }
 
+  function handleAdvanceStatus(m: MaterialListItem) {
+    const transition = nextStatusTransition(m.order_status)
+    if (!transition) return
+    setServerError(null)
+    startTransition(async () => {
+      const res = await updateMaterialStatus({
+        projectId,
+        materialId: m.id,
+        nextStatus: transition.nextStatus,
+      })
+      if (!res.ok) {
+        setServerError(res.error)
+        return
+      }
+      setMaterials(prev =>
+        prev.map(item =>
+          item.id === m.id
+            ? { ...item, order_status: res.material.order_status }
+            : item
+        )
+      )
+    })
+  }
+
   function handleConfirmDelete() {
     if (!deleteTarget) return
     const targetId = deleteTarget.id
@@ -197,21 +226,24 @@ export function TaskMaterialsManager({
         <ul className="mt-3 space-y-2" data-testid="material-list">
           {materials.map(m => {
             const cost = formatCurrency(m.estimated_cost)
+            const transition = nextStatusTransition(m.order_status)
             return (
               <li
                 key={m.id}
                 className="rounded-md border border-[#E8DFD3] p-3"
                 data-material-id={m.id}
+                data-order-status={m.order_status}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-[#2B1F17]">
-                      {m.name}
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#2B1F17]">
+                      <span>{m.name}</span>
                       {m.quantity && (
-                        <span className="ml-2 font-normal text-[#6B5D52]">
+                        <span className="font-normal text-[#6B5D52]">
                           · {m.quantity}
                         </span>
                       )}
+                      <MaterialStatusBadge status={m.order_status} />
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B5D52]">
                       <span>
@@ -231,6 +263,17 @@ export function TaskMaterialsManager({
                     )}
                   </div>
                   <div className="flex items-center gap-1">
+                    {transition && (
+                      <button
+                        type="button"
+                        aria-label={`${transition.label} — ${m.name}`}
+                        onClick={() => handleAdvanceStatus(m)}
+                        disabled={pending}
+                        className="rounded border border-[#A8C49A] bg-[#EAF2E3] px-2 py-1 text-xs font-medium text-[#3E5A2E] hover:bg-[#DCE8D1] disabled:opacity-40"
+                      >
+                        {transition.label}
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-label={`Edit ${m.name}`}
