@@ -1,6 +1,43 @@
 {
+  "story_result": {
+    "story_id": "project-creation",
+    "outcome": "pass",
+    "files_changed": [
+      "app/(app)/setup/page.tsx",
+      "app/actions/projects.ts",
+      "components/setup/ProjectCreationForm.tsx",
+      "lib/projects/validate.ts",
+      "tests/projects-validate.test.ts"
+    ],
+    "tests_added": 13,
+    "tests_passing": 34,
+    "env_limitations": [],
+    "deployment_url": "https://mtgordle.vercel.app",
+    "smoke_test": "HTTP 307 → /login on / and /setup (auth proxy firing in production)"
+  },
   "deployment_url": "https://mtgordle.vercel.app",
   "implemented": [
+    {
+      "task": "project-creation",
+      "story_id": "project-creation",
+      "acceptance_criteria": [
+        "AC-PS-1",
+        "AC-PS-2",
+        "AC-PS-3",
+        "AC-PS-4",
+        "AC-PS-5"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/projects.ts",
+        "components/setup/ProjectCreationForm.tsx",
+        "lib/projects/validate.ts",
+        "tests/projects-validate.test.ts"
+      ],
+      "tests_added": 13,
+      "tests_passing": 13,
+      "details": "ProjectCreationForm client component with React 19 useTransition for pending state. Pure validation helpers in lib/projects/validate.ts (name required, start_date required + past-date warning with explicit checkbox confirmation, valid date parsing). localStorage draft persistence under versioned key 'cm:project-creation-draft:v1' — restores name/address/start_date on remount, cleared after successful submit. Server action app/actions/projects.ts re-runs validation server-side, inserts Project with user_id from authenticated session and status='setup', revalidates /, redirects to /setup. /setup page routes: no project → creation form; status='setup' → template browser placeholder (next story); status='active' → /briefing. Root / route already handled AC-PS-4 (redirect based on project presence/status) from foundation. Warm earth-tone design tokens applied (clay primary, amber warning, sage accents). 13 unit tests covering all 5 ACs. Total suite: 34 tests passing."
+    },
     {
       "task": "supabase-schema",
       "category": "schema",
@@ -245,6 +282,66 @@
   ],
   "factory_decisions": [
     {
+      "decision": "Isolate project-creation validation in pure functions (lib/projects/validate.ts)",
+      "context": "AC-PS-1/2/3 involve branching validation (empty name, past date warning, confirmation flag). The form needs client-side validation for UX; the server action needs identical validation for safety. Two code paths = duplication risk.",
+      "alternatives_considered": [
+        "Validate only server-side (requires round-trip for every validation error — poor mobile UX)",
+        "Validate only client-side (security hole — malicious clients can POST invalid data)",
+        "Schema library (zod) — another dep for 5 rules this simple"
+      ],
+      "rationale": "Pure functions accepting (values, today) return { errors, warnings }. Used by both the form and the server action. 13 unit tests run in <10ms, no mocks needed. McKinley: boring technology — plain TypeScript, no runtime deps.",
+      "confidence": "high",
+      "affects": [
+        "lib/projects/validate.ts",
+        "app/actions/projects.ts",
+        "components/setup/ProjectCreationForm.tsx"
+      ]
+    },
+    {
+      "decision": "Past-date confirmation via checkbox inside an amber warning panel (not browser confirm())",
+      "context": "AC-PS-3 requires 'explicit confirmation' for past start_date. Options: native window.confirm(), inline checkbox, two-step submit.",
+      "alternatives_considered": [
+        "window.confirm() — blocking modal, inaccessible, ugly on mobile",
+        "Two-step submit (first click shows warning, second submits) — confusing UX, easy to double-click through",
+        "Modal dialog — overkill for a single confirmation"
+      ],
+      "rationale": "Inline amber panel with a checkbox: visible, accessible, preserves form context, prevents accidental submits. Confirmation state resets whenever the date changes so the user re-confirms if they adjust.",
+      "confidence": "high",
+      "affects": [
+        "components/setup/ProjectCreationForm.tsx",
+        "lib/projects/validate.ts"
+      ]
+    },
+    {
+      "decision": "localStorage draft persistence stored under versioned key 'cm:project-creation-draft:v1'",
+      "context": "AC-PS-5: form restore across sessions. Need a key that won't collide with other drafts and can be migrated.",
+      "alternatives_considered": [
+        "sessionStorage (lost on tab close, fails AC-PS-5)",
+        "IndexedDB (overkill for 3 string fields)",
+        "Unversioned key 'project-draft' (can't migrate schema without orphaning old drafts)"
+      ],
+      "rationale": "Namespaced + versioned key allows future form schema changes. Draft is cleared after successful createProject redirect (returns to same page, effect unmounts, clearDraft called in the success path).",
+      "confidence": "high",
+      "affects": [
+        "lib/projects/validate.ts",
+        "components/setup/ProjectCreationForm.tsx"
+      ]
+    },
+    {
+      "decision": "Cast-at-site for projects.insert() rather than editing lib/supabase/types.ts",
+      "context": "Foundation eval flagged lib/supabase/types.ts as lacking Relationships[] on every table, which causes typed Postgrest inserts to resolve to 'never'. Options: regenerate types, add Relationships: [] to all 12 tables, or cast at call sites.",
+      "alternatives_considered": [
+        "Edit all 12 tables to add Relationships: [] — touches 12 tables for a single insert, high blast radius",
+        "Regenerate types via supabase gen types — correct long-term fix but requires Supabase CLI auth and migration roundtrip, out of scope for this story",
+        "Disable strict typing globally — defeats the purpose"
+      ],
+      "rationale": "Single targeted cast in app/actions/projects.ts with a comment pointing at the foundation-eval finding. The typed Row/Insert shapes are still used by app/page.tsx and app/(app)/setup/page.tsx for reads. A dedicated types-regeneration pass belongs in a separate chore, not buried inside a feature story.",
+      "confidence": "medium",
+      "affects": [
+        "app/actions/projects.ts"
+      ]
+    },
+    {
       "decision": "Removed next-pwa, wrote custom service worker",
       "context": "next-pwa v5 injects webpack config, incompatible with Next.js 16 Turbopack default. Build failed with 'This build is using Turbopack, with a webpack config and no turbopack config.'",
       "alternatives_considered": [
@@ -370,8 +467,8 @@
     ]
   },
   "_cycle_number": 1,
-  "_current_milestone": null,
-  "_current_story": null,
+  "_current_milestone": "project-core",
+  "_current_story": "project-creation",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
@@ -475,5 +572,13 @@
       "In the daily-briefing cycle, ensure notification_preferences row is inserted on first auth (upsert in the auth callback or signup action).",
       "In the photo-storage cycle, consider tightening storage RLS to restrict by path prefix (user_id) rather than just auth.uid() IS NOT NULL."
     ]
+  },
+  "infrastructure": {
+    "readiness": {
+      "posthog": true,
+      "sentry": false,
+      "supabase": false,
+      "cloudflare": false
+    }
   }
 }
