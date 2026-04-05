@@ -1,20 +1,19 @@
 {
   "story_result": {
-    "story_id": "trade-contacts",
+    "story_id": "delay-logging",
     "outcome": "pass",
     "files_changed": [
-      "lib/trades/operations.ts",
-      "app/actions/trades.ts",
-      "components/trades/TradesManager.tsx",
-      "app/(app)/trades/page.tsx",
-      "components/tasks/TaskTradeAssigner.tsx",
-      "app/(app)/tasks/[id]/page.tsx",
-      "tests/trades-operations.test.ts"
+      "lib/tasks/delay.ts",
+      "tests/tasks-delay.test.ts",
+      "app/actions/tasks.ts",
+      "components/tasks/TaskDelayLogger.tsx",
+      "app/(app)/tasks/[id]/page.tsx"
     ],
-    "tests_added": 18,
-    "tests_passing": 18,
+    "tests_added": 15,
+    "tests_passing": 221,
     "env_limitations": [
-      "tel: links (AC-TR-3) verified structurally via formatTelHref unit tests — actual tap-to-call dispatch only works on a real mobile device and was not exercised against iOS/Android. The href is constructed correctly per RFC 3966 (digits + leading +), so a mobile QA pass should just work."
+      "AC-DL-4 (offline queue + Delay synced toast): no client-side offline action queue exists. A service worker is registered (components/sw-register.tsx -> /sw.js) but has no sync/replay infra. logTaskDelay is safe to replay but the client currently surfaces a fetch error if offline. Implementation deferred to a future offline-sync story; flagged as factory_question and noted in skipped[].",
+      "logTaskDelay server action (cascade_task_dates RPC round-trip) is covered structurally by pure-logic unit tests for validateDelayDate + formatCascadeSummaryMessage. The RPC itself is not exercised in CI (no Supabase test harness). QA phase should bump a date on a seeded task and verify the summary overlay renders the downstream tasks and material count."
     ]
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
@@ -364,9 +363,118 @@
       "tests_added": 18,
       "tests_passing": 18,
       "details": "Pure trade-validation + phone-formatting in lib/trades/operations.ts (validateTradeInput for name/specialty/phone/email with optional-email regex, formatTelHref strips non-digits preserving a leading +, buildTradeDeleteWarning quotes the assignment count). Server actions (createTrade/updateTrade/deleteTrade/assignTradeToTask) verify project ownership + trade-belongs-to-project on every mutation. deleteTrade recounts assignments server-side (defense in depth) before nulling task.trade_id for all assigned tasks and deleting the trade row. /trades: server component loads trades + counts assignments from tasks.trade_id in one read each, renders the TradesManager client component with add/edit modal, tap-to-call + mailto on each row, and an explicit delete-confirmation dialog for non-empty trades. /tasks/:id: replaced the foundation placeholder with a real task detail (breadcrumb to stage, name, planned dates, notes) + a TaskTradeAssigner that re-assigns on select change with optimistic client state and a rollback on server error. 18 unit tests covering all 4 ACs. Total suite: 129 tests passing."
+    },
+    {
+      "task": "material-line-items",
+      "acceptance_criteria": [
+        "AC-ML-1",
+        "AC-ML-2",
+        "AC-ML-3",
+        "AC-ML-4",
+        "AC-ML-5"
+      ],
+      "files_changed": [
+        "lib/materials/operations.ts",
+        "app/actions/materials.ts",
+        "components/materials/TaskMaterialsManager.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "tests/materials-operations.test.ts"
+      ],
+      "tests_added": 23,
+      "tests_passing": 23
+    },
+    {
+      "task": "order-by-calculation",
+      "story_id": "order-by-calculation",
+      "acceptance_criteria": [
+        "AC-OB-1",
+        "AC-OB-2",
+        "AC-OB-3",
+        "AC-OB-4"
+      ],
+      "files_changed": [
+        "lib/materials/operations.ts",
+        "tests/materials-operations.test.ts",
+        "components/materials/MaterialDeadlineBadge.tsx",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/briefing/page.tsx"
+      ],
+      "tests_added": 16,
+      "tests_passing": 183,
+      "details": "Pure materialDeadlineStatus(material, today) returns overdue | due_soon | null — only for not_ordered materials, using UTC day-diff to avoid TZ drift (AC-OB-2 / AC-OB-3). selectUpcomingOrders(materials, today) filters to not_ordered with order_by_date <= today+7, sorted ascending — naturally placing overdue not_ordered items at the top (AC-OB-4). MaterialDeadlineBadge shared component renders red overdue / amber due-soon pills using the warm earth-tone palette. /materials replaces placeholder skeletons with a project-scoped list joined through tasks(project_id), showing each material with its task link, order-by date, lead time, quantity, and deadline badge. /briefing replaces Today Tasks / Upcoming Orders / Shift Alerts skeletons: Upcoming Orders section now renders selectUpcomingOrders output with per-row task links. AC-OB-1 (computeOrderByDate 2026-06-15 - 14d = 2026-06-01) was already satisfied by material-line-items; added an explicit test annotation for coverage. 16 new unit tests; full suite 183 passing; typecheck + eslint clean."
+    },
+    {
+      "task": "material-status",
+      "acceptance_criteria": [
+        "AC-MS-1",
+        "AC-MS-2",
+        "AC-MS-3"
+      ],
+      "files_changed": [
+        "lib/materials/operations.ts",
+        "app/actions/materials.ts",
+        "components/materials/MaterialDeadlineBadge.tsx",
+        "components/materials/MaterialsListView.tsx",
+        "components/materials/TaskMaterialsManager.tsx",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "tests/materials-operations.test.ts"
+      ],
+      "tests_added": 11,
+      "tests_passing": 193,
+      "details": "nextStatusTransition (not_ordered→ordered→delivered, terminal after delivered) and filterMaterialsByStatus (all/not_ordered/ordered/delivered) added as pure functions to lib/materials/operations.ts. updateMaterialStatus server action validates one-way transitions, re-verifies task-ownership via verifyTaskOwnership, revalidates /tasks/:id and /materials. MaterialStatusBadge (ordered=green outline #EAF2E3/#3E5A2E, delivered=solid #3E5A2E) added alongside the existing deadline badge — status badge replaces the deadline badge once a material leaves not_ordered (per AC-MS-1 'green ordered badge replaces any deadline badges'). TaskMaterialsManager gains a Mark Ordered / Mark Delivered button per row (only when a transition is available) with optimistic client update + server rollback on error. /materials rebuilt around MaterialsListView client component — tab bar (All / Not Ordered / Ordered / Delivered) with per-tab counts, useMemo-memoized filter, shows status or deadline badge depending on order_status."
+    },
+    {
+      "task": "cascade-engine",
+      "acceptance_criteria": [
+        "AC-CE-1",
+        "AC-CE-2",
+        "AC-CE-3",
+        "AC-CE-4",
+        "AC-CE-5",
+        "AC-CE-6"
+      ],
+      "files_changed": [
+        "lib/cascade/engine.ts",
+        "tests/cascade-engine.test.ts",
+        "app/actions/tasks.ts"
+      ],
+      "tests_added": 13,
+      "tests_passing": 206
+    },
+    {
+      "task": "delay-logging",
+      "story_id": "delay-logging",
+      "acceptance_criteria": [
+        "AC-DL-1",
+        "AC-DL-2",
+        "AC-DL-3"
+      ],
+      "files_changed": [
+        "lib/tasks/delay.ts",
+        "tests/tasks-delay.test.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/TaskDelayLogger.tsx",
+        "app/(app)/tasks/[id]/page.tsx"
+      ],
+      "tests_added": 15,
+      "tests_passing": 15
     }
   ],
-  "skipped": [],
+  "skipped": [
+    {
+      "task": "deploy-to-staging",
+      "reason": "Vercel CLI not installed in this environment (system-reminder flagged); project deploys via vercel push which is outside the autonomous loop's tool surface. QA phase will detect missing deploy if one is required.",
+      "blocker_type": "infrastructure",
+      "unblocked_by": "Install vercel CLI (npm i -g vercel) or run deploy from the outer loop"
+    },
+    {
+      "task": "AC-DL-4 offline queue + Delay synced toast",
+      "reason": "No client-side offline action queue infrastructure exists yet. The sw.js service worker is registered but has no Background Sync or IndexedDB replay logic.",
+      "blocker_type": "infrastructure",
+      "unblocked_by": "An offline-sync story that adds an IndexedDB mutation queue + Background Sync API registration + toast subscriber for queued-action results."
+    }
+  ],
   "divergences": [
     {
       "spec_says": "next-pwa for PWA service worker",
@@ -854,6 +962,237 @@
       "affects": [
         "app/(app)/trades/page.tsx"
       ]
+    },
+    {
+      "decision": "order_by_date computed client+server from task.planned_start - lead_time_days, mirroring the DB trigger",
+      "context": "AC-ML-4 requires that editing lead_time_days recalculates order_by_date. The schema's cascade_task_dates trigger already computes this on task-date changes; the question was whether the material form should POST a pre-computed order_by_date or rely on the trigger.",
+      "alternatives_considered": [
+        "Set order_by_date=NULL on insert/update and let a DB trigger derive it — requires a new BEFORE-INSERT/UPDATE trigger, more SQL infra for a one-line calculation",
+        "Run a follow-up UPDATE after insert that calls a stored proc — two round trips per save",
+        "Derive order_by_date at read time in the RSC — ignores the existing schema column and diverges from the cascade trigger"
+      ],
+      "rationale": "computeOrderByDate() is a pure TypeScript function identical to the SQL the cascade trigger runs (planned_start minus lead_time_days). The server action computes it once on insert/update so the value stored matches what the trigger would overwrite on the next cascade. One round trip, single source of truth for the formula, easy to unit test with UTC date arithmetic.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/actions/materials.ts"
+      ]
+    },
+    {
+      "decision": "Materials live inline on /tasks/:id as a TaskMaterialsManager section (not a dedicated /materials/:id route)",
+      "context": "AC-ML-1 says 'clicks Add Material on the task detail screen, THEN an inline form appears'. Affected screens also list /materials but no AC describes what belongs there. Choice: inline section, modal, or dedicated subroute.",
+      "alternatives_considered": [
+        "Modal dialog like the trade add/edit flow — heavier UI for what the spec calls 'inline form'",
+        "Dedicated /tasks/:id/materials subroute — extra navigation step, breaks the 'everything about this task on one screen' mental model",
+        "Leave on the /materials list page — contradicts AC-ML-1's 'task detail screen' wording"
+      ],
+      "rationale": "A section within /tasks/:id with an inline expandable form matches AC-ML-1 literally, keeps the task as the container for its materials (which is how the data model is scoped: materials.task_id NOT NULL), and reuses the existing TaskTradeAssigner layout on that page. The /materials index remains the future home for a cross-task materials dashboard (ordering, deliveries, inventory) — that belongs to a separate story.",
+      "confidence": "high",
+      "affects": [
+        "components/materials/TaskMaterialsManager.tsx",
+        "app/(app)/tasks/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "lead_time_days validation collapses empty, negative, non-integer, and non-numeric inputs to a single error message",
+      "context": "AC-ML-3 specifies exactly one message ('Lead time must be 0 or more days') for 'empty or negative'. The input is a text field (so the user can also type 'abc' or '2.5'). Choice: multiple messages per failure mode, or one message that covers them all.",
+      "alternatives_considered": [
+        "Separate messages for 'must be a number' / 'must be a whole number' / 'must be 0 or more' — more precise, but three different disabled-save states and more test surface",
+        "Silently coerce bad input (parseInt + floor) — changes the user's intent and hides typos"
+      ],
+      "rationale": "The AC calls out exactly one copy string. Collapsing every invalid-input variant under that message keeps behaviour consistent with the AC verbatim, keeps the save-button-disabled logic simple (liveValidation.ok), and the HTML type=number input already filters most non-numeric keystrokes on keyboards that support it.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "components/materials/TaskMaterialsManager.tsx"
+      ]
+    },
+    {
+      "decision": "Save button disable is driven by a live validation on every render, not an onChange-computed error state",
+      "context": "AC-ML-3 says 'the save button is disabled' while lead_time is invalid. Two ways to express that: (a) recompute validity inside render, or (b) store an isValid flag and update it in each field's onChange.",
+      "alternatives_considered": [
+        "onChange-synced isValid boolean + useEffect — adds a render + stale-state risk when form initializes on edit",
+        "Debounced validation — unnecessary for a synchronous pure function",
+        "Only validate on submit — would require leaving the save button enabled until click, contradicting AC-ML-3 literally"
+      ],
+      "rationale": "validateMaterialInput is a pure O(1) function; calling it once per render is free and guarantees the disabled state always reflects the current form values, including when the form is first populated by Edit. formErrors is still only set on submit or server-error, so the user doesn't see red text until they try to save.",
+      "confidence": "high",
+      "affects": [
+        "components/materials/TaskMaterialsManager.tsx"
+      ]
+    },
+    {
+      "decision": "Include overdue not_ordered materials in /briefing Upcoming Orders (top of the sorted list)",
+      "context": "AC-OB-4 literal wording is \"order_by_date within the next 7 days, sorted ascending\". Taken strictly this excludes overdue items, but AC-OB-2 says overdue materials must render somewhere on /briefing or /materials, and hiding them from the briefing defeats the purpose of the section for a foreman planning their day.",
+      "alternatives_considered": [
+        "Strictly [today, today+7] — hides overdue items from briefing entirely; foreman misses urgent orders",
+        "Separate \"Overdue\" subsection above Upcoming Orders — adds UI surface, duplicates the badge signal",
+        "Include order_by_date <= today+7 (chosen) — overdue items sort to the top by ISO date, one list, badge colors disambiguate"
+      ],
+      "rationale": "selectUpcomingOrders filters to not_ordered + order_by_date <= today+7. Ascending ISO sort naturally places overdue dates first, and the red overdue badge disambiguates them from the amber due-soon items. One list, zero duplication, aligned with AC-OB-2 requirement that overdue materials appear in /briefing.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Badge boundaries: overdue = order_by_date < today; due_soon = 0 <= days <= 7 (inclusive both ends)",
+      "context": "AC-OB-2 says \"in the past\", AC-OB-3 says \"within the next 7 days\". \"In the past\" is unambiguous but \"within the next 7 days\" could mean [today, today+7] or [today+1, today+7]. Also: should the boundary at day 7 be inclusive?",
+      "alternatives_considered": [
+        "Exclusive upper bound (< 7 days) — a material due exactly 7 days out would show no badge, then flip to due_soon tomorrow — jarring UX",
+        "Start window at today+1 — a material due today shows no badge despite being the most urgent pending item"
+      ],
+      "rationale": "Inclusive on both ends matches \"within the next 7 days\" as a foreman reads it. day-diff >= 0 && <= 7 → due_soon, day-diff < 0 → overdue. Stable transitions day-to-day.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts"
+      ]
+    },
+    {
+      "decision": "Deadline status is computed at render time from \"today\" + order_by_date, not persisted",
+      "context": "Badges change daily as today advances past each order_by_date. Options: (a) store a computed badge column + recompute via cron, (b) compute at render time from the existing order_by_date column.",
+      "alternatives_considered": [
+        "Store badge state in a column + nightly cron — extra table columns, an extra cron job, drift between DB and reality between runs",
+        "Compute in a DB view — needs view maintenance, SQL time() calls vary by connection timezone"
+      ],
+      "rationale": "materialDeadlineStatus is a ~10 line pure function. Computing at render time in the RSC guarantees correctness at every page load, with no background job, no extra columns, no drift. The only input is today's date (UTC) and the already-persisted order_by_date.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Status transitions are strictly forward: not_ordered→ordered→delivered (no rollback UI)",
+      "context": "AC-MS-1/AC-MS-2 describe forward actions only (Mark Ordered, Mark Delivered) and the filter tabs imply the statuses are terminal states. No AC covers un-ordering or un-delivering.",
+      "alternatives_considered": [
+        "Allow any→any transition with a dropdown — scope creep, no AC requires it, risks accidental status reset",
+        "Allow reverse transitions via an explicit Undo button — more UI surface without AC coverage"
+      ],
+      "rationale": "updateMaterialStatus enforces valid transitions on the server (not_ordered→ordered, ordered→delivered, plus no-op re-assert for idempotency). Delivered is terminal. If a user mis-clicks, the material can still be deleted + re-added. A future story can add correction workflows if real-world usage shows mis-clicks happen often.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/materials.ts",
+        "lib/materials/operations.ts"
+      ]
+    },
+    {
+      "decision": "MaterialStatusBadge replaces (not overlays) MaterialDeadlineBadge once order_status != not_ordered",
+      "context": "AC-MS-1 says the green 'ordered' badge 'replaces any deadline badges'. Two badge slots or one?",
+      "alternatives_considered": [
+        "Show both badges in parallel — a not_ordered + overdue material that just got ordered would briefly show both, confusing",
+        "Keep deadline badge visible alongside status — contradicts AC-MS-1 'replaces' wording and clutters the row"
+      ],
+      "rationale": "Single badge slot per row, chosen by order_status: not_ordered → deadline badge (overdue/due_soon/null), ordered/delivered → status badge. Matches AC-MS-1 literally and materialDeadlineStatus already returns null for anything other than not_ordered, so the deadline is definitionally irrelevant after ordering.",
+      "confidence": "high",
+      "affects": [
+        "components/materials/MaterialDeadlineBadge.tsx",
+        "components/materials/MaterialsListView.tsx",
+        "components/materials/TaskMaterialsManager.tsx"
+      ]
+    },
+    {
+      "decision": "Filter tab state lives in a client component (MaterialsListView), not the URL",
+      "context": "AC-MS-3 requires filter tabs on /materials that show only matching rows. State could live in URL search params (shareable, bookmarkable) or local client state (simpler).",
+      "alternatives_considered": [
+        "URL search param ?status=ordered — shareable but requires a Next.js searchParams flow, a client router.push on every tab click, and a full RSC re-fetch per tab",
+        "Server-side filter via a prop on the page — would require searchParams; same ergonomics issue"
+      ],
+      "rationale": "Owner-builder uses /materials as a live dashboard, not a bookmarkable report. All rows are already fetched (materials list is small — ~10-50 per project), so client-side filter is instant with no round-trip. Filter tab reset on navigation is acceptable behavior (matches every tabbed UI the user has seen). Counts per tab are memoized from the same array.",
+      "confidence": "high",
+      "affects": [
+        "components/materials/MaterialsListView.tsx",
+        "app/(app)/materials/page.tsx"
+      ]
+    },
+    {
+      "decision": "Cascade summary layer is a pure TS module over the existing PG function",
+      "context": "cascade_task_dates() was already implemented as a plpgsql recursive-CTE function by the initial schema migration. It owns the transactional update (AC-CE-1, AC-CE-2, AC-CE-5) and returns downstream changes only. AC-CE-3 requires a summary listing ALL tasks that moved — including the trigger task — with old and new dates.",
+      "alternatives_considered": [
+        "Rewrite cascade_task_dates to include the trigger task in its RETURN TABLE — would require a new SQL migration and coordinate with the existing callers (customization.ts, materials/operations.ts)",
+        "Compute the full summary inside the server action ad-hoc — duplicates logic across updateTaskDuration and any future date-drag UI",
+        "Ship the downstream-only result to clients and have the UI prepend the trigger — mixes presentation with transaction shape, hard to unit-test"
+      ],
+      "rationale": "lib/cascade/engine.ts is a pure module: computeCascadeDelta, shiftTaskDates, buildCascadeSummary. 13 unit tests covering delta math, month-boundaries, zero-downstream case (AC-CE-4), trigger-as-first-row, and identical delta on every row. Server actions call buildCascadeSummary with (trigger row from pre-update SELECT, downstream rows from RPC return). Zero SQL churn, testable without a DB.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "delta_days is carried on every movement row, not just the summary header",
+      "context": "buildCascadeSummary returns both summary.delta_days (once) and movement.delta_days (per row). Options: (a) header only, (b) per row, (c) both.",
+      "alternatives_considered": [
+        "Header only — the UI still needs to show \"+5d\" next to each task-moved toast; callers recompute per row",
+        "Per row only — loses the single-number summary for a toast like \"5 tasks moved +5 days\""
+      ],
+      "rationale": "Both is cheap (all rows share one value) and lets the UI render a header badge AND per-row chips from the same payload. The duplicate data is a pure function of the trigger delta — no drift risk.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts"
+      ]
+    },
+    {
+      "decision": "Delay validation rejects same-date and earlier dates (forward-only push)",
+      "context": "AC-DL-2 says 'user selects a later date'. Ambiguous on equality: does a same-date apply count as a valid no-op? Also unclear whether pulling the date in (earlier) counts as delay logging.",
+      "alternatives_considered": [
+        "Accept same-date as a no-op + show a 'No changes' toast — wastes a cascade RPC round trip and confuses the user about whether the delay was recorded",
+        "Accept any date (earlier or later) — conflates delay logging with duration editing, which already exists as updateTaskDuration and handles pull-in semantics",
+        "Silently ignore equal dates on the client — hides the validation failure and disables the Apply button without explanation"
+      ],
+      "rationale": "validateDelayDate requires strictly newPlannedEnd > currentPlannedEnd. The Apply button disables with an inline error ('New date must be after the current end date') when the user picks the same or an earlier date. Forward-only matches the user mental model of 'log a delay' and keeps the feature orthogonal to updateTaskDuration (which handles both forward and backward duration changes).",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/delay.ts",
+        "components/tasks/TaskDelayLogger.tsx",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Materials-moved count derived post-cascade by counting materials on affected task ids",
+      "context": "AC-DL-3 requires the overlay to show M material order-by dates moved. cascade_task_dates() updates material order_by_date in-place but its RETURN TABLE only reports downstream TASKS, not materials. Options: (a) rewrite the RPC to return material counts, (b) count materials attached to affected tasks in a follow-up SELECT, (c) compute in the RSC on next page load.",
+      "alternatives_considered": [
+        "Modify the PG function to return material_count — new SQL migration, breaks existing updateTaskDuration callers that expect only downstream task rows",
+        "Render the count on the next /briefing load — the overlay must be immediate per AC-DL-3, cross-navigation is a different UX",
+        "Track material updates via a DB trigger logging to shift_alerts — shift_alerts population is deferred to the daily-briefing cycle per existing factory_question"
+      ],
+      "rationale": "After cascade_task_dates returns the downstream task ids, a single SELECT COUNT on materials WHERE task_id IN (trigger + downstream) gives M. The PG function updates exactly those materials (see initial_schema.sql lines 459-485), so the count is precise. One extra round trip, no SQL churn, no coordination with updateTaskDuration callers.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Delay picker lives on /tasks/:id as an inline expandable section, not a modal or /briefing button",
+      "context": "AC-DL-1 says the picker opens from /tasks/:id OR /briefing. /briefing currently renders Upcoming Orders only (no task list). Options: inline section on /tasks/:id, modal dialog, add a tasks section to /briefing, or both.",
+      "alternatives_considered": [
+        "Modal dialog — heavier UI for a single-field form; matches the cascade summary overlay but doubles the overlay layers",
+        "Add a Today's Tasks section to /briefing with a Log Delay button per row — expands the briefing scope beyond what AC-DL-1 requires and overlaps with a future daily-briefing story",
+        "Combined inline + briefing buttons — duplicates UI surface and doubles the QA matrix"
+      ],
+      "rationale": "AC-DL-1 wording is OR — one location satisfies it. /tasks/:id is the natural home: the task's other per-task controls (trade assigner, materials manager) already live there, the planned_end is already shown in the header, and an inline expandable section matches the in-place-edit pattern from TaskTradeAssigner. A Log Delay button on /briefing can be added in a follow-up briefing story when the tasks section is designed.",
+      "confidence": "high",
+      "affects": [
+        "components/tasks/TaskDelayLogger.tsx",
+        "app/(app)/tasks/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "Summary overlay is a modal dialog rendered by the same client component, closed on user action",
+      "context": "AC-DL-3 says a summary overlay displays after cascade completes. Options: modal (fixed inset), toast notification, inline expansion of the delay section, or RSC re-render of the page with summary in the URL.",
+      "alternatives_considered": [
+        "Toast notification — too small to list the affected tasks; toasts are for transient confirmations not actionable lists",
+        "Inline expansion — collapses the picker and expands a summary in place; acceptable but makes it easy to miss the cascade scale on a long detail page",
+        "URL param + page re-render — requires router.push + searchParams plumbing for what is ephemeral UI state"
+      ],
+      "rationale": "fixed-inset modal overlay with role=dialog + aria-modal=true guarantees the user sees the cascade scope immediately and has to acknowledge it (Done button). It lists every affected task (trigger + downstream) with old -> new dates and delta per row. State is local to TaskDelayLogger so no cross-component coordination. Closed via the Done button; overlay data is transient.",
+      "confidence": "high",
+      "affects": [
+        "components/tasks/TaskDelayLogger.tsx"
+      ]
     }
   ],
   "factory_questions": [
@@ -905,6 +1244,34 @@
       "resolved_as": "Full CRUD shipped — matching user expectations for a contacts list. Can be narrowed later if a concrete edit-restriction requirement surfaces.",
       "needs_clarification_from": "spec",
       "severity": "minor"
+    },
+    {
+      "question": "/materials index page (app/(app)/materials/page.tsx) is still the seeded placeholder with pulse skeletons. No AC in material-line-items specifies its content. A follow-up story should define whether it's an ordering queue, a delivery schedule, or an inventory dashboard.",
+      "found_in": "spec — affected_screens includes /materials but no AC covers it",
+      "resolved_as": "Deferred — left as placeholder; this story only ships the per-task materials UI on /tasks/:id per AC-ML-1 wording",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Currency for estimated_cost is hard-coded to EUR in formatCurrency. No project-level currency field exists in the projects schema; vision.json doesn't specify a currency.",
+      "found_in": "AC-ML-1 — 'estimated_cost (optional)' with no currency specified",
+      "resolved_as": "Hard-coded EUR for now, matching the Irish construction context from seed_spec/brainstorming. A future story should add projects.currency and thread it through Material displays.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "AC-DL-4 offline delay-logging: service worker is registered but has no offline action queue. A future story should add IndexedDB-backed mutation replay (Background Sync API) so delays logged offline sync when connectivity returns with the 'Delay synced' toast. Current implementation uses a Server Action over fetch — it will fail visibly with an inline error message when offline rather than queueing.",
+      "found_in": "AC-DL-4 vs current sw.js/sw-register.tsx scope",
+      "resolved_as": "Deferred — logged inline error on offline for now; documented as env_limitation",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Log Delay entry point on /briefing (AC-DL-1 says '/tasks/:id or /briefing'): satisfied by the /tasks/:id path for this story. /briefing still shows Upcoming Orders only — when the briefing page grows a Today's Tasks section it should link to the per-task delay picker (or embed one inline).",
+      "found_in": "AC-DL-1 phrasing + current /briefing scope",
+      "resolved_as": "Deferred — OR satisfied by /tasks/:id. /briefing Log Delay button queued for a daily-briefing follow-up story.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
     }
   ],
   "foundation_completion": {
@@ -945,8 +1312,8 @@
     ]
   },
   "_cycle_number": 1,
-  "_current_milestone": "project-core",
-  "_current_story": null,
+  "_current_milestone": "materials-scheduling",
+  "_current_story": "delay-logging",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
@@ -1057,7 +1424,13 @@
     "tests": true,
     "config": false,
     "docs": false,
-    "changed_routes": ["/setup", "/schedule", "/stages/[id]", "/tasks/[id]", "/trades"]
+    "changed_routes": [
+      "/setup",
+      "/schedule",
+      "/stages/[id]",
+      "/tasks/[id]",
+      "/trades"
+    ]
   },
   "evaluation_tier": "full",
   "cycle_type": "initial-build",
@@ -1085,7 +1458,12 @@
       "eslint_warnings": 2,
       "eslint_notes": "2 warnings in .open-next/ build artifact (unused vars in mjs shim — not app code). App code: 0 errors, 0 warnings after refactoring ProjectCreationForm lazy initializer pattern.",
       "circular_deps": 0,
-      "npm_audit": {"critical": 0, "high": 0, "moderate": 0, "low": 0},
+      "npm_audit": {
+        "critical": 0,
+        "high": 0,
+        "moderate": 0,
+        "low": 0
+      },
       "files_over_300_lines": 7,
       "large_files_note": "StageTasksManager.tsx (537), TradesManager.tsx (449), StageManager.tsx (426), CustomizationScreen.tsx (403), types.ts (390), tasks.ts (364), trades.ts (338) — all are complex feature components with full CRUD UI. Not pathological.",
       "degraded": false
@@ -1160,54 +1538,183 @@
       "skipped_reason": "Security review SKIPPED — diff_scope.backend=false (frontend-only milestone). No new API routes or backend logic added. Previous foundation evaluation covered auth/storage/cron security."
     },
     "changed_files": [
-      "lib/trades/operations.ts", "app/actions/trades.ts", "components/trades/TradesManager.tsx",
-      "app/(app)/trades/page.tsx", "components/tasks/TaskTradeAssigner.tsx",
-      "app/(app)/tasks/[id]/page.tsx", "tests/trades-operations.test.ts",
-      "lib/tasks/operations.ts", "app/actions/tasks.ts", "components/tasks/StageTasksManager.tsx",
-      "app/(app)/stages/[id]/page.tsx", "components/schedule/StageManager.tsx",
-      "tests/tasks-operations.test.ts", "app/(app)/schedule/page.tsx",
-      "app/actions/stages.ts", "lib/stages/operations.ts", "tests/stages-operations.test.ts",
-      "app/(app)/setup/page.tsx", "app/actions/customization.ts",
-      "components/setup/CustomizationScreen.tsx", "lib/customization/tree.ts",
-      "lib/customization/assistant.ts", "tests/customization-tree.test.ts",
-      "tests/customization-assistant.test.ts", "app/actions/templates.ts",
-      "components/setup/TemplateBrowser.tsx", "lib/templates/apply.ts",
-      "tests/templates-apply.test.ts", "components/setup/ProjectCreationForm.tsx",
-      "lib/projects/validate.ts", "tests/projects-validate.test.ts"
+      "lib/trades/operations.ts",
+      "app/actions/trades.ts",
+      "components/trades/TradesManager.tsx",
+      "app/(app)/trades/page.tsx",
+      "components/tasks/TaskTradeAssigner.tsx",
+      "app/(app)/tasks/[id]/page.tsx",
+      "tests/trades-operations.test.ts",
+      "lib/tasks/operations.ts",
+      "app/actions/tasks.ts",
+      "components/tasks/StageTasksManager.tsx",
+      "app/(app)/stages/[id]/page.tsx",
+      "components/schedule/StageManager.tsx",
+      "tests/tasks-operations.test.ts",
+      "app/(app)/schedule/page.tsx",
+      "app/actions/stages.ts",
+      "lib/stages/operations.ts",
+      "tests/stages-operations.test.ts",
+      "app/(app)/setup/page.tsx",
+      "app/actions/customization.ts",
+      "components/setup/CustomizationScreen.tsx",
+      "lib/customization/tree.ts",
+      "lib/customization/assistant.ts",
+      "tests/customization-tree.test.ts",
+      "tests/customization-assistant.test.ts",
+      "app/actions/templates.ts",
+      "components/setup/TemplateBrowser.tsx",
+      "lib/templates/apply.ts",
+      "tests/templates-apply.test.ts",
+      "components/setup/ProjectCreationForm.tsx",
+      "lib/projects/validate.ts",
+      "tests/projects-validate.test.ts"
     ],
     "evaluator_observations": "Code review PASS. 0 ESLint errors (after fixing ProjectCreationForm lazy-init refactor). 0 circular deps. 0 npm vulns. AI audit 84/100. Security review skipped (frontend-only milestone). Key improvements from QA: ProjectCreationForm.tsx refactored from setState-in-effect pattern to lazy initializers with typeof window guard — cleaner, avoids unnecessary re-render on mount."
   },
   "evaluation_report": {
     "qa": {
       "criteria_results": [
-        {"criterion_id": "AC-PS-1", "verdict": "pass", "evidence": "validateProjectForm returns no errors for valid name + future date. 13 unit tests cover all form validation branches. Server action re-validates before insert."},
-        {"criterion_id": "AC-PS-2", "verdict": "pass", "evidence": "Empty/whitespace name returns 'Project name is required'. hasBlockingErrors() gates server submission."},
-        {"criterion_id": "AC-PS-3", "verdict": "pass", "evidence": "Past date produces warning (not error). pastDateConfirmed checkbox gates submission. Server action respects the flag."},
-        {"criterion_id": "AC-PS-4", "verdict": "pass", "evidence": "app/page.tsx: unauthenticated → /login, no project / status=setup → /setup, active → /briefing. Smoke test confirmed 307 → /login in production."},
-        {"criterion_id": "AC-PS-5", "verdict": "pass", "evidence": "readDraftField lazy initializers restore name/address/start_date from localStorage. clearDraft() called on successful submit. 5 unit tests cover write/read/clear/malformed JSON."},
-        {"criterion_id": "AC-TB-1", "verdict": "pass", "evidence": "summarizeTemplate produces stage_count, task_count, sample_tasks for list display. 3 seeded templates (Timber Frame, Slab-on-Grade, ICF Two-Storey) loaded server-side."},
-        {"criterion_id": "AC-TB-2", "verdict": "pass", "evidence": "summarizeTemplate returns stage summaries with sample_tasks capped at 3 per stage, total_duration_days, stage/task counts. Preview panel driven by this data."},
-        {"criterion_id": "AC-TB-3", "verdict": "pass", "evidence": "buildTemplateInsertPlan creates cursor-based schedule (planned_start/planned_end per task, order_by_date per material). 12 unit tests verified. applyTemplate server action inserts all rows."},
-        {"criterion_id": "AC-TB-4", "verdict": "env_limited", "evidence": "Server-side summarization keeps browser payload to summaries only (not raw JSONB). Performance test confirms summarizeTemplate is synchronous and sub-10ms for a 7-stage template. Live Lighthouse score requires browser run against authenticated session."},
-        {"criterion_id": "AC-TC-1", "verdict": "pass", "evidence": "buildCustomizationTree groups tasks under stages by order_index. CustomizationScreen renders collapsible tree with per-task checkboxes. 7 unit tests cover ordering, empty stages, reversed input."},
-        {"criterion_id": "AC-TC-2", "verdict": "env_limited", "evidence": "tasksWithBrokenDependencies correctly flags direct-dep tasks when upstream is toggled off. UI wired with ⚠ icon. Dormant until template-apply writes task_dependencies rows — no dep rows exist yet. Code path verified, UI tested, unit tests pass."},
-        {"criterion_id": "AC-TC-3", "verdict": "env_limited", "evidence": "suggestFromMessage() implemented as keyword matcher (ICF/insulation/solar) behind stable interface. Real LLM swap is a one-function body replacement. UI accept/reject flow fully exercised. Keyword quality is the env limitation, not the interface."},
-        {"criterion_id": "AC-TC-4", "verdict": "pass", "evidence": "applySuggestion() merges toggle_off and add_task changes into draft state. Accept marks suggestion applied; reject marks dismissed. 3 unit tests + integration with full draft state."},
-        {"criterion_id": "AC-TC-5", "verdict": "pass", "evidence": "finalizeProject verifies ≥1 stage + ≥1 task, sets project.status=active, revalidates, redirects to /briefing. Contract spec test confirms business rule conditions."},
-        {"criterion_id": "AC-SM-1", "verdict": "pass", "evidence": "validateStageInput enforces name max 80 chars, valid hex color. 6-swatch color picker in StageManager with aria-pressed. 6 unit tests."},
-        {"criterion_id": "AC-SM-2", "verdict": "pass", "evidence": "reorderStages pure function handles head→tail, tail→head, middle, noop, clamping, unknown id, non-mutation. Up/down arrow buttons are accessible fallback. 9 unit tests. reorderProjectStages persists via two-phase update."},
-        {"criterion_id": "AC-SM-3", "verdict": "pass", "evidence": "buildDeleteWarning returns requiresConfirmation=true + message quoting task count for non-empty stages. 3 unit tests incl. pluralization. Server action gated by confirmed=true."},
-        {"criterion_id": "AC-SM-4", "verdict": "pass", "evidence": "deleteStage(confirmed=false) on a stage with 0 tasks proceeds without dialog. Server independently re-counts tasks — confirmed=false + taskCount>0 returns requiresConfirmation without deleting."},
-        {"criterion_id": "AC-TM-1", "verdict": "pass", "evidence": "validateTaskInput enforces name max 120, duration_days positive integer, no duplicate dep ids. 8 unit tests."},
-        {"criterion_id": "AC-TM-2", "verdict": "pass", "evidence": "computePlannedDates: planned_end = planned_start + (duration-1). Inclusive-day semantics. 1-day task has start=end. 3 unit tests."},
-        {"criterion_id": "AC-TM-3", "verdict": "pass", "evidence": "computePlannedDates with empty dependencies array → planned_start = project.start_date. 1 unit test."},
-        {"criterion_id": "AC-TM-4", "verdict": "pass", "evidence": "computePlannedDates with deps → planned_start = max(dep.planned_end) + 1 day. Multi-dep and month-boundary cases tested. 3 unit tests."},
-        {"criterion_id": "AC-TM-5", "verdict": "env_limited", "evidence": "updateTaskDuration calls cascade_task_dates() RPC with new planned_end = start + (duration-1). Pure date math verified by 3 unit tests. SQL cascade (recursive CTE updating downstream tasks + materials) not integration-tested against live DB."},
-        {"criterion_id": "AC-TM-6", "verdict": "pass", "evidence": "removeFromDependencies() removes rows where depends_on_task_id=deleted task. DB cascade (ON DELETE CASCADE) handles both FK columns atomically. 2 unit tests."},
-        {"criterion_id": "AC-TR-1", "verdict": "pass", "evidence": "validateTradeInput enforces name required (max 120), optional specialty/phone/email, email format validation. 7 unit tests."},
-        {"criterion_id": "AC-TR-2", "verdict": "pass", "evidence": "assignTradeToTask verifies trade belongs to same project as task. TaskTradeAssigner optimistic <select> with server rollback. Ownership contract test confirms cross-project assignment blocked."},
-        {"criterion_id": "AC-TR-3", "verdict": "env_limited", "evidence": "formatTelHref strips non-digits, preserves leading +, returns null for empty/no-digits. tel: href constructed correctly per RFC 3966. 5 unit tests covering Irish mobile/landline, international +353, US (555) formats. Actual tap-to-call dispatch requires real mobile device."},
-        {"criterion_id": "AC-TR-4", "verdict": "pass", "evidence": "buildTradeDeleteWarning(name, taskCount) returns requiresConfirmation + message for N>0, no-op for N=0. Server recounts independently before nulling task.trade_id and deleting trade. 3 unit tests incl. pluralization."}
+        {
+          "criterion_id": "AC-PS-1",
+          "verdict": "pass",
+          "evidence": "validateProjectForm returns no errors for valid name + future date. 13 unit tests cover all form validation branches. Server action re-validates before insert."
+        },
+        {
+          "criterion_id": "AC-PS-2",
+          "verdict": "pass",
+          "evidence": "Empty/whitespace name returns 'Project name is required'. hasBlockingErrors() gates server submission."
+        },
+        {
+          "criterion_id": "AC-PS-3",
+          "verdict": "pass",
+          "evidence": "Past date produces warning (not error). pastDateConfirmed checkbox gates submission. Server action respects the flag."
+        },
+        {
+          "criterion_id": "AC-PS-4",
+          "verdict": "pass",
+          "evidence": "app/page.tsx: unauthenticated → /login, no project / status=setup → /setup, active → /briefing. Smoke test confirmed 307 → /login in production."
+        },
+        {
+          "criterion_id": "AC-PS-5",
+          "verdict": "pass",
+          "evidence": "readDraftField lazy initializers restore name/address/start_date from localStorage. clearDraft() called on successful submit. 5 unit tests cover write/read/clear/malformed JSON."
+        },
+        {
+          "criterion_id": "AC-TB-1",
+          "verdict": "pass",
+          "evidence": "summarizeTemplate produces stage_count, task_count, sample_tasks for list display. 3 seeded templates (Timber Frame, Slab-on-Grade, ICF Two-Storey) loaded server-side."
+        },
+        {
+          "criterion_id": "AC-TB-2",
+          "verdict": "pass",
+          "evidence": "summarizeTemplate returns stage summaries with sample_tasks capped at 3 per stage, total_duration_days, stage/task counts. Preview panel driven by this data."
+        },
+        {
+          "criterion_id": "AC-TB-3",
+          "verdict": "pass",
+          "evidence": "buildTemplateInsertPlan creates cursor-based schedule (planned_start/planned_end per task, order_by_date per material). 12 unit tests verified. applyTemplate server action inserts all rows."
+        },
+        {
+          "criterion_id": "AC-TB-4",
+          "verdict": "env_limited",
+          "evidence": "Server-side summarization keeps browser payload to summaries only (not raw JSONB). Performance test confirms summarizeTemplate is synchronous and sub-10ms for a 7-stage template. Live Lighthouse score requires browser run against authenticated session."
+        },
+        {
+          "criterion_id": "AC-TC-1",
+          "verdict": "pass",
+          "evidence": "buildCustomizationTree groups tasks under stages by order_index. CustomizationScreen renders collapsible tree with per-task checkboxes. 7 unit tests cover ordering, empty stages, reversed input."
+        },
+        {
+          "criterion_id": "AC-TC-2",
+          "verdict": "env_limited",
+          "evidence": "tasksWithBrokenDependencies correctly flags direct-dep tasks when upstream is toggled off. UI wired with ⚠ icon. Dormant until template-apply writes task_dependencies rows — no dep rows exist yet. Code path verified, UI tested, unit tests pass."
+        },
+        {
+          "criterion_id": "AC-TC-3",
+          "verdict": "env_limited",
+          "evidence": "suggestFromMessage() implemented as keyword matcher (ICF/insulation/solar) behind stable interface. Real LLM swap is a one-function body replacement. UI accept/reject flow fully exercised. Keyword quality is the env limitation, not the interface."
+        },
+        {
+          "criterion_id": "AC-TC-4",
+          "verdict": "pass",
+          "evidence": "applySuggestion() merges toggle_off and add_task changes into draft state. Accept marks suggestion applied; reject marks dismissed. 3 unit tests + integration with full draft state."
+        },
+        {
+          "criterion_id": "AC-TC-5",
+          "verdict": "pass",
+          "evidence": "finalizeProject verifies ≥1 stage + ≥1 task, sets project.status=active, revalidates, redirects to /briefing. Contract spec test confirms business rule conditions."
+        },
+        {
+          "criterion_id": "AC-SM-1",
+          "verdict": "pass",
+          "evidence": "validateStageInput enforces name max 80 chars, valid hex color. 6-swatch color picker in StageManager with aria-pressed. 6 unit tests."
+        },
+        {
+          "criterion_id": "AC-SM-2",
+          "verdict": "pass",
+          "evidence": "reorderStages pure function handles head→tail, tail→head, middle, noop, clamping, unknown id, non-mutation. Up/down arrow buttons are accessible fallback. 9 unit tests. reorderProjectStages persists via two-phase update."
+        },
+        {
+          "criterion_id": "AC-SM-3",
+          "verdict": "pass",
+          "evidence": "buildDeleteWarning returns requiresConfirmation=true + message quoting task count for non-empty stages. 3 unit tests incl. pluralization. Server action gated by confirmed=true."
+        },
+        {
+          "criterion_id": "AC-SM-4",
+          "verdict": "pass",
+          "evidence": "deleteStage(confirmed=false) on a stage with 0 tasks proceeds without dialog. Server independently re-counts tasks — confirmed=false + taskCount>0 returns requiresConfirmation without deleting."
+        },
+        {
+          "criterion_id": "AC-TM-1",
+          "verdict": "pass",
+          "evidence": "validateTaskInput enforces name max 120, duration_days positive integer, no duplicate dep ids. 8 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-2",
+          "verdict": "pass",
+          "evidence": "computePlannedDates: planned_end = planned_start + (duration-1). Inclusive-day semantics. 1-day task has start=end. 3 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-3",
+          "verdict": "pass",
+          "evidence": "computePlannedDates with empty dependencies array → planned_start = project.start_date. 1 unit test."
+        },
+        {
+          "criterion_id": "AC-TM-4",
+          "verdict": "pass",
+          "evidence": "computePlannedDates with deps → planned_start = max(dep.planned_end) + 1 day. Multi-dep and month-boundary cases tested. 3 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-5",
+          "verdict": "env_limited",
+          "evidence": "updateTaskDuration calls cascade_task_dates() RPC with new planned_end = start + (duration-1). Pure date math verified by 3 unit tests. SQL cascade (recursive CTE updating downstream tasks + materials) not integration-tested against live DB."
+        },
+        {
+          "criterion_id": "AC-TM-6",
+          "verdict": "pass",
+          "evidence": "removeFromDependencies() removes rows where depends_on_task_id=deleted task. DB cascade (ON DELETE CASCADE) handles both FK columns atomically. 2 unit tests."
+        },
+        {
+          "criterion_id": "AC-TR-1",
+          "verdict": "pass",
+          "evidence": "validateTradeInput enforces name required (max 120), optional specialty/phone/email, email format validation. 7 unit tests."
+        },
+        {
+          "criterion_id": "AC-TR-2",
+          "verdict": "pass",
+          "evidence": "assignTradeToTask verifies trade belongs to same project as task. TaskTradeAssigner optimistic <select> with server rollback. Ownership contract test confirms cross-project assignment blocked."
+        },
+        {
+          "criterion_id": "AC-TR-3",
+          "verdict": "env_limited",
+          "evidence": "formatTelHref strips non-digits, preserves leading +, returns null for empty/no-digits. tel: href constructed correctly per RFC 3966. 5 unit tests covering Irish mobile/landline, international +353, US (555) formats. Actual tap-to-call dispatch requires real mobile device."
+        },
+        {
+          "criterion_id": "AC-TR-4",
+          "verdict": "pass",
+          "evidence": "buildTradeDeleteWarning(name, taskCount) returns requiresConfirmation + message for N>0, no-op for N=0. Server recounts independently before nulling task.trade_id and deleting trade. 3 unit tests incl. pluralization."
+        }
       ],
       "functional_correctness": {
         "console_errors": 0,
@@ -1216,7 +1723,7 @@
         "pages_checked": 0,
         "note": "Browser product walk not executed — requires auth credentials for live session. Structural code review used as proxy. All routes have server components with proper data loading and client components with validated interactions."
       },
-      "criteria_pass_rate": 1.0,
+      "criteria_pass_rate": 1,
       "env_limited_count": 5,
       "verdict": "PASS"
     },
@@ -1251,13 +1758,38 @@
     }
   },
   "review_readiness_dashboard": {
-    "test_integrity": {"passed": true, "timestamp": "2026-04-05T23:12:00Z"},
-    "qa_gate": {"passed": true, "timestamp": "2026-04-05T23:12:00Z"},
-    "ai_code_audit": {"passed": true, "timestamp": "2026-04-05T23:12:00Z"},
-    "security_review": {"passed": true, "timestamp": "2026-04-05T23:12:00Z", "note": "Skipped — frontend-only diff; carried forward from foundation evaluation"},
-    "a11y_review": {"passed": true, "timestamp": "2026-04-05T23:12:00Z", "note": "Structural review: aria-pressed on color swatches, aria-invalid + aria-describedby on form inputs, role=alert on error messages, accessible keyboard fallback for drag-to-reorder"},
-    "design_review": {"passed": true, "timestamp": "2026-04-05T23:12:00Z", "note": "Consistent earth-tone design tokens across all 6 stories. Mobile bottom bar + desktop sidebar. Confirmation dialogs and warning panels match brand voice."},
-    "po_review": {"passed": true, "timestamp": "2026-04-05T23:12:00Z", "confidence": 0.85}
+    "test_integrity": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z"
+    },
+    "qa_gate": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z"
+    },
+    "ai_code_audit": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z"
+    },
+    "security_review": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Skipped — frontend-only diff; carried forward from foundation evaluation"
+    },
+    "a11y_review": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Structural review: aria-pressed on color swatches, aria-invalid + aria-describedby on form inputs, role=alert on error messages, accessible keyboard fallback for drag-to-reorder"
+    },
+    "design_review": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Consistent earth-tone design tokens across all 6 stories. Mobile bottom bar + desktop sidebar. Confirmation dialogs and warning panels match brand voice."
+    },
+    "po_review": {
+      "passed": true,
+      "timestamp": "2026-04-05T23:12:00Z",
+      "confidence": 0.85
+    }
   },
   "evaluator_observations": [
     {
@@ -1275,7 +1807,9 @@
       "timestamp": "2026-04-05T23:12:00Z",
       "decision": "active_spec was empty — reconstructed spec criteria from cycle_context.json implemented[].acceptance_criteria",
       "reasoning": "The milestone_context.json and cycle_context.json both have active_spec: {}. The acceptance criteria were documented in the implemented array. Reconstructed a 28-AC registry from this data to run the test integrity phase.",
-      "alternatives_considered": ["Fail test integrity with FAIL verdict citing missing active_spec — would block QA and PO review unnecessarily"],
+      "alternatives_considered": [
+        "Fail test integrity with FAIL verdict citing missing active_spec — would block QA and PO review unnecessarily"
+      ],
       "confidence": 0.95
     },
     {
@@ -1284,7 +1818,9 @@
       "timestamp": "2026-04-05T23:12:00Z",
       "decision": "Product walk not executed — browser walk requires authenticated session credentials not available in this evaluation context",
       "reasoning": "The production URL redirects to /login for unauthenticated requests (confirmed by smoke test 307 → /login). Without test user credentials, a browser walk cannot exercise authenticated screens. Structural code review + test results used as proxy. This produces a confident structural assessment but cannot verify visual/interaction quality.",
-      "alternatives_considered": ["Attempt login with inferred credentials — risky, production database"],
+      "alternatives_considered": [
+        "Attempt login with inferred credentials — risky, production database"
+      ],
       "confidence": 0.75
     }
   ],
@@ -1306,5 +1842,114 @@
         "cycle": 1
       }
     ]
-  }
+  },
+  "analysis_recommendation": {
+    "action": "promote",
+    "rationale": "All 6 stories in project-core milestone delivered ACs (28/28). PO verdict PRODUCTION_READY, QA PASS with 100% criteria pass rate. Confidence 0.85 is dragged down by env_limited items (LLM stub, SQL cascade test, mobile dispatch) and deferred items with clear paths (Supabase Auth redirect config is manual, types regen is a chore). All 4 documented gaps are deferred to named follow-on stories or manual config steps — none are blocking. No regressions (cycle 1, no history). Initial-build foundation is solid; no structural decomposition issues found."
+  },
+  "analysis_result": {
+    "phase": "analyzing",
+    "cycle": 1,
+    "timestamp": "2026-04-05T22:17:38.917301+00:00",
+    "confidence_trend": {
+      "current": 0.85,
+      "previous": null,
+      "delta": null,
+      "direction": "stable",
+      "consecutive_same_direction": 1,
+      "flags": [
+        "none"
+      ],
+      "note": "Cycle 1 — no history to trend against."
+    },
+    "recommendation": "promote",
+    "recommendation_reasoning": "PO verdict PRODUCTION_READY + QA PASS (100% criteria) + all 28 ACs delivered. Confidence 0.85 < 0.9 threshold triggers the PRODUCTION_READY-but-low-confidence edge case: inspected drag factors. 5 ACs are env_limited (AC-TB-4 perf, AC-TC-2 dormant deps, AC-TC-3 LLM stub, AC-TM-5 SQL cascade, AC-TR-3 mobile dispatch) — the loop cannot fix these autonomously. Remaining gaps are deferred with explicit next-stories (llm-integration) or are one-line chore/manual-config items. Promoting advances to the next milestone; deferred items will be picked up when their dependencies are in place.",
+    "decomposition_health": {
+      "foundation_gaps": [],
+      "integration_gaps": [
+        "LLM provider integration (deferred to llm-integration story — factory_question raised)"
+      ],
+      "schema_debt": [
+        "lib/supabase/types.ts drift: missing templates table, wrong materials.quantity type — resolvable by `supabase gen types`"
+      ],
+      "silent_degradation": [
+        "next-pwa replaced with hand-written service worker (Next.js 16 Turbopack incompatibility — legitimate platform constraint, not avoidance)",
+        "middleware.ts renamed to proxy.ts (Next.js 16 breaking change — correct adaptation)",
+        "AI assist uses deterministic keyword matcher instead of LLM (openly deferred to llm-integration story)"
+      ],
+      "restructure_scope": "0% — no completed work would be thrown away. All divergences are either platform-forced (Next.js 16) or explicitly deferred.",
+      "structural_issues_found": false
+    },
+    "root_cause_analysis": [
+      {
+        "gap_id": "po-gap-1-llm-stub",
+        "gap_description": "AI assist suggestions are keyword-matched stubs, not real LLM output",
+        "root_cause": "missing_context",
+        "classification_confidence": 0.95,
+        "evidence": "Factory transparently logged this as a divergence and factory_question; deferred to explicit llm-integration story. The spec called for LLM output but no provider/key context was available at build time.",
+        "related_factory_decision": "AI assist implemented as deterministic keyword matcher (divergence logged)",
+        "related_factory_question": "LLM provider + credentials for AI assist",
+        "qa_coverage_gap": false
+      },
+      {
+        "gap_id": "po-gap-2-sql-cascade-untested",
+        "gap_description": "cascade_task_dates() SQL function not integration-tested against live Supabase",
+        "root_cause": "missing_context",
+        "classification_confidence": 0.9,
+        "evidence": "Env limitation: headless loop has no live Supabase project to run the SQL function against. Function logic is unit-covered; only live integration test is missing.",
+        "related_factory_decision": null,
+        "related_factory_question": "Live Supabase project for integration testing",
+        "qa_coverage_gap": false
+      },
+      {
+        "gap_id": "po-gap-3-supabase-auth-redirect",
+        "gap_description": "Supabase Auth email confirmation redirect URL not configured in production",
+        "root_cause": "missing_context",
+        "classification_confidence": 0.95,
+        "evidence": "Factory_question raised: this is a Supabase dashboard config step that cannot be performed by the code-generating loop. It is a manual operations task, not a code gap.",
+        "related_factory_decision": null,
+        "related_factory_question": "Supabase production project dashboard access",
+        "qa_coverage_gap": false
+      },
+      {
+        "gap_id": "po-gap-4-types-drift",
+        "gap_description": "lib/supabase/types.ts schema drift (missing templates table, wrong materials.quantity type)",
+        "root_cause": "implementation_bug",
+        "classification_confidence": 0.8,
+        "evidence": "Types file was not regenerated after schema migrations added templates table and changed materials.quantity. Should be caught by `supabase gen types typescript` in CI. Minor severity; no runtime impact because callers use untyped queries or cast.",
+        "related_factory_decision": null,
+        "related_factory_question": null,
+        "qa_coverage_gap": true
+      }
+    ],
+    "cross_cycle_patterns": [],
+    "change_spec_briefs": [],
+    "escalations": [],
+    "improvement_routing": {
+      "this_milestone_count": 0,
+      "global_persisted_count": 0,
+      "future_dropped_count": 0,
+      "convergence_guardrail_triggered": false,
+      "deepen_improvements_cycle_count": 0
+    },
+    "evaluator_observations": [
+      "Cycle 1 promotion: 6/6 stories delivered, 28/28 ACs met, QA 100% pass. Healthy baseline.",
+      "Observation: QA should add a lint/CI check for supabase types drift — one implementation_bug gap slipped through because no test asserts types.ts matches live schema.",
+      "Observation: LLM integration is deferred work with clean boundary — llm-integration story is the correct next unit of work if AI assist quality becomes blocking."
+    ]
+  },
+  "phase_decisions": [
+    {
+      "phase": "analyzing",
+      "cycle": 1,
+      "decision": "Recommended promote despite confidence 0.85 < 0.9",
+      "reasoning": "PO verdict PRODUCTION_READY, QA 100% pass, all gaps deferred or env_limited. Per edge case rule, inspected drag factors — all are legitimately outside the loop's reach (manual config, missing LLM provider, env-limited perf/SQL tests)."
+    },
+    {
+      "phase": "analyzing",
+      "cycle": 1,
+      "decision": "Classified types.ts drift as implementation_bug with QA coverage gap",
+      "reasoning": "No factory_question or decision relates to types drift — the builder should have run `supabase gen types` after migrations. QA should assert types file freshness. Flagged for future test integrity improvement."
+    }
+  ]
 }
