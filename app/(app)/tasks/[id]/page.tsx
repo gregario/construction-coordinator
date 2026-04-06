@@ -10,6 +10,10 @@ import {
   type MaterialListItem,
 } from '@/components/materials/TaskMaterialsManager'
 import { TaskDelayLogger } from '@/components/tasks/TaskDelayLogger'
+import {
+  TaskPhotosManager,
+  type PhotoListItem as PhotoItem,
+} from '@/components/photos/TaskPhotosManager'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +103,32 @@ export default async function TaskDetailPage({ params }: Props) {
     .order('created_at', { ascending: true })
   const materials = (materialsRes.data as MaterialListItem[] | null) ?? []
 
+  // Load task photos
+  const photosRes = await supabase
+    .from('photos')
+    .select('id, storage_path, file_name, file_size, taken_at, created_at')
+    .eq('task_id', task.id)
+    .order('created_at', { ascending: false })
+  const taskPhotos = (photosRes.data as PhotoItem[] | null) ?? []
+
+  // Generate signed URLs for photo previews
+  const signedUrls: Record<string, string> = {}
+  if (taskPhotos.length > 0) {
+    const { data: urlData } = await supabase.storage
+      .from('photos')
+      .createSignedUrls(
+        taskPhotos.map(p => p.storage_path),
+        60
+      )
+    if (urlData) {
+      for (let i = 0; i < taskPhotos.length; i++) {
+        if (urlData[i]?.signedUrl) {
+          signedUrls[taskPhotos[i].id] = urlData[i].signedUrl
+        }
+      }
+    }
+  }
+
   return (
     <main className="mx-auto max-w-2xl p-4 md:p-8">
       <header className="mb-6">
@@ -143,6 +173,14 @@ export default async function TaskDetailPage({ params }: Props) {
         projectId={project.id}
         taskId={task.id}
         initialMaterials={materials}
+      />
+
+      <TaskPhotosManager
+        projectId={project.id}
+        taskId={task.id}
+        stageId={task.stage_id}
+        initialPhotos={taskPhotos}
+        signedUrls={signedUrls}
       />
     </main>
   )
