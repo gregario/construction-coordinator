@@ -8,6 +8,9 @@ import {
   type DocumentValidationResult,
 } from '@/lib/documents/operations'
 
+// @criterion: AC-DS-1, AC-DS-4
+// AC-DS-1: Upload validates MIME type (PDF/JPEG/PNG/DOCX/XLSX) and stores via Supabase Storage.
+// AC-DS-4: 25MB size cap with exact spec error message "Files must be under 25 MB — consider compressing the document".
 // --- validateDocumentFile ---
 
 describe('validateDocumentFile', () => {
@@ -72,6 +75,8 @@ describe('validateDocumentFile', () => {
   })
 })
 
+// @criterion: AC-DS-1
+// AC-DS-1: Document stored at {project_id}/{entity_id}/{timestamp}-{sanitized_name} in documents bucket.
 // --- buildDocumentStoragePath ---
 
 describe('buildDocumentStoragePath', () => {
@@ -124,6 +129,8 @@ describe('formatUploadDate', () => {
   })
 })
 
+// @criterion: AC-DS-2
+// AC-DS-2: Each document row shows a file type icon based on MIME type (pdf/word/excel/image/file).
 // --- fileTypeIcon ---
 
 describe('fileTypeIcon', () => {

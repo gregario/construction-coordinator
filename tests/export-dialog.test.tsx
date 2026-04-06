@@ -9,6 +9,9 @@ vi.mock('@/app/actions/export', () => ({
   fetchExportData: vi.fn(),
 }))
 
+// @criterion: AC-EX-1, AC-EX-4
+// AC-EX-1: Export button on /settings opens format selection dialog (JSON/CSV/PDF) with aria-pressed radio-style buttons.
+// AC-EX-4: PDF format option triggers window.print() for browser-native print-to-PDF.
 describe('ExportDialog', () => {
   const onClose = vi.fn()
 

@@ -30,6 +30,9 @@ const documents: Document[] = [
   { id: 'd1', project_id: 'p1', task_id: null, stage_id: 's1', storage_path: 'documents/p1/plan.pdf', file_name: 'plan.pdf', file_type: 'application/pdf', file_size: 2048000, created_at: '2026-04-02T10:00:00Z' },
 ]
 
+// @criterion: AC-EX-2
+// AC-EX-2: JSON export assembles all project entities (project, stages, tasks, materials, trades, photos, documents),
+//          strips photo/document binary fields, serializes as pretty-printed JSON.
 // ─── JSON Export ────────────────────────────────────────────────────
 describe('buildJsonExport', () => {
   it('includes all entity arrays', () => {
@@ -85,6 +88,9 @@ describe('serializeJsonExport', () => {
   })
 })
 
+// @criterion: AC-EX-3
+// AC-EX-3: CSV export produces individual CSVs (stages, tasks, materials, trades) with proper escaping,
+//          assembled into a valid ZIP archive (STORE method, CRC-32 checksums, no external deps).
 // ─── CSV Export ─────────────────────────────────────────────────────
 describe('escapeCsvValue', () => {
   it('returns empty string for null/undefined', () => {

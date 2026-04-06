@@ -22,6 +22,10 @@ const mkPhoto = (overrides: Partial<PhotoListItem> & { id: string }): PhotoListI
   ...overrides,
 })
 
+// @criterion: AC-PS-1, AC-PS-2, AC-PS-4
+// AC-PS-1: Upload via file picker with capture="environment" for mobile camera, MIME/size validation.
+// AC-PS-2: Photo grid renders thumbnails with file_name, date, file_size; signed URL preview or "No preview" fallback.
+// AC-PS-4: Delete button (X) per photo calls deletePhoto server action.
 describe('TaskPhotosManager', () => {
   const defaultProps = {
     projectId: 'proj-1',
