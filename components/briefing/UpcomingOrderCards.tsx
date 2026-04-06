@@ -76,11 +76,13 @@ export function UpcomingOrderCards({ cards, projectId }: Props) {
                 aria-expanded={isExpanded}
                 data-testid={`order-card-${card.id}`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-[#2B1F17]">
+                <div>
+                  <p className="text-sm font-medium text-[#2B1F17]">
                     {card.name}
                   </p>
-                  <MaterialDeadlineBadge badge={card.badge} />
+                  <div className="mt-1">
+                    <MaterialDeadlineBadge badge={card.badge} />
+                  </div>
                 </div>
                 <p className="mt-1 truncate text-xs text-[#6B5D52]">
                   {card.task_name}
