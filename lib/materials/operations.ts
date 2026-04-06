@@ -198,6 +198,27 @@ export function filterMaterialsByStatus<
   return materials.filter(m => m.order_status === filter)
 }
 
+// AC-UO-2: days remaining until order_by_date from today.
+// Returns negative for overdue, 0 for today, positive for future. null if no date.
+export function daysUntilOrderBy(
+  today: string,
+  orderByDate: string | null
+): number | null {
+  if (!orderByDate) return null
+  const diff = daysBetweenIso(today, orderByDate)
+  if (Number.isNaN(diff)) return null
+  return diff
+}
+
+// AC-UO-3: format estimated_cost as EUR for display.
+export function formatMaterialCost(cost: number | null): string | null {
+  if (cost === null || cost === undefined) return null
+  return new Intl.NumberFormat('en-IE', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(cost)
+}
+
 // AC-ML-4: order_by_date = planned_start - lead_time_days.
 // Mirrors the schema trigger (cascade_task_dates SQL) so the UI can show the
 // same value the DB will compute. Returns YYYY-MM-DD or null.
