@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import {
   selectUpcomingOrders,
   materialDeadlineStatus,
+  daysUntilOrderBy,
+  formatMaterialCost,
   type MaterialDeadlineInput,
 } from '@/lib/materials/operations'
 import {
@@ -17,6 +19,7 @@ import {
 import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
 import { RefreshButton } from '@/components/briefing/RefreshButton'
 import { BriefingTaskList } from '@/components/briefing/BriefingTaskList'
+import { UpcomingOrderCards, type UpcomingOrderCard } from '@/components/briefing/UpcomingOrderCards'
 import type { MaterialOrderStatus, TaskStatus } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +42,11 @@ type MaterialRow = {
   order_by_date: string | null
   order_status: MaterialOrderStatus
   task_id: string
+  quantity: string | null
+  estimated_cost: number | null
+  lead_time_days: number
+  supplier_name: string | null
+  notes: string | null
   tasks: { id: string; name: string } | null
 }
 
@@ -85,7 +93,7 @@ export default async function BriefingPage() {
       .eq('stages.project_id', project.id),
     supabase
       .from('materials')
-      .select('id, name, order_by_date, order_status, task_id, tasks!inner(id, name, project_id)')
+      .select('id, name, order_by_date, order_status, task_id, quantity, estimated_cost, lead_time_days, supplier_name, notes, tasks!inner(id, name, project_id)')
       .eq('tasks.project_id', project.id),
     supabase
       .from('shift_alerts')
@@ -114,17 +122,36 @@ export default async function BriefingPage() {
   const todayTasks = selectTodayTasks(briefingTasks, today)
   const nextStart = todayTasks.length === 0 ? nextTaskStartDate(briefingTasks, today) : null
 
-  // Upcoming Orders (existing)
-  const upcoming = selectUpcomingOrders(
+  // Upcoming Orders — AC-UO-1/2/3/4
+  const upcomingRaw = selectUpcomingOrders(
     materials.map((m) => ({
       id: m.id,
       name: m.name,
       order_by_date: m.order_by_date,
       order_status: m.order_status,
-      _task: m.tasks,
     })),
     today
   )
+  // Build lookup from id → full row for enriching card data
+  const matById = new Map(materials.map((m) => [m.id, m]))
+  const upcomingCards: UpcomingOrderCard[] = upcomingRaw.map((u) => {
+    const full = matById.get(u.id)!
+    const badge = materialDeadlineStatus(u as MaterialDeadlineInput, today)
+    return {
+      id: u.id,
+      name: u.name,
+      order_by_date: u.order_by_date,
+      task_id: full.task_id,
+      task_name: full.tasks?.name ?? '',
+      days_remaining: daysUntilOrderBy(today, u.order_by_date),
+      badge,
+      supplier_name: full.supplier_name,
+      quantity: full.quantity,
+      estimated_cost_formatted: formatMaterialCost(full.estimated_cost),
+      lead_time_days: full.lead_time_days,
+      notes: full.notes,
+    }
+  })
 
   // Shift Alerts (AC-DB-1)
   const alerts: BriefingShiftAlert[] = shiftAlerts.map((a) => ({
@@ -190,56 +217,15 @@ export default async function BriefingPage() {
         )}
       </section>
 
-      {/* AC-DB-1 Section 2: Upcoming Orders */}
-      <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
-          Upcoming Orders
-        </h2>
-        {upcoming.length === 0 ? (
-          <p className="text-sm text-[#6B5D52]">
-            No orders due in the next 7 days.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {upcoming.map((m) => {
-              const badge = materialDeadlineStatus(
-                m as unknown as MaterialDeadlineInput,
-                today
-              )
-              const task = (
-                m as unknown as { _task: { id: string; name: string } | null }
-              )._task
-              return (
-                <li
-                  key={m.id}
-                  className="flex items-start justify-between gap-3 rounded-md border border-[#EFE8DD] bg-[#FAF7F2] p-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#2B1F17]">
-                      {m.name}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-[#6B5D52]">
-                      <span>Order by {m.order_by_date}</span>
-                      {task && (
-                        <>
-                          <span>·</span>
-                          <Link
-                            href={`/tasks/${task.id}`}
-                            className="underline-offset-2 hover:underline"
-                          >
-                            {task.name}
-                          </Link>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <MaterialDeadlineBadge badge={badge} />
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+      {/* AC-UO-4: section hidden when no upcoming orders */}
+      {upcomingCards.length > 0 && (
+        <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
+            Upcoming Orders
+          </h2>
+          <UpcomingOrderCards cards={upcomingCards} projectId={project.id} />
+        </section>
+      )}
 
       {/* AC-DB-1 Section 3: Shift Alerts */}
       <section className="rounded-lg border border-[#E8DFD3] bg-white p-4">
