@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
 import { updateMaterialStatus } from '@/app/actions/materials'
-import type { MaterialDeadlineBadge as BadgeKind } from '@/lib/materials/operations'
+import { nextStatusTransition, type MaterialDeadlineBadge as BadgeKind } from '@/lib/materials/operations'
 
 export type UpcomingOrderCard = {
   id: string
@@ -42,12 +42,16 @@ export function UpcomingOrderCards({ cards, projectId }: Props) {
     setExpandedId((prev) => (prev === id ? null : id))
   }
 
-  function handleMarkOrdered(materialId: string) {
+  // Upcoming orders are always 'not_quoted' — next step is 'quoted'
+  const transition = nextStatusTransition('not_quoted')
+
+  function handleAdvanceStatus(materialId: string) {
+    if (!transition) return
     startTransition(async () => {
       await updateMaterialStatus({
         projectId,
         materialId,
-        nextStatus: 'ordered',
+        nextStatus: transition.nextStatus,
       })
       router.refresh()
     })
@@ -142,12 +146,12 @@ export function UpcomingOrderCards({ cards, projectId }: Props) {
                   </dl>
                   <button
                     type="button"
-                    onClick={() => handleMarkOrdered(card.id)}
-                    disabled={pending}
+                    onClick={() => handleAdvanceStatus(card.id)}
+                    disabled={pending || !transition}
                     className="mt-3 w-full rounded-md border border-[#A8C49A] bg-[#EAF2E3] px-3 py-1.5 text-xs font-medium text-[#3E5A2E] transition-colors hover:bg-[#D8E8CE] disabled:opacity-50"
                     data-testid={`mark-ordered-${card.id}`}
                   >
-                    {pending ? 'Updating...' : 'Mark Ordered'}
+                    {pending ? 'Updating...' : transition?.label ?? 'Mark Quoted'}
                   </button>
                 </div>
               )}

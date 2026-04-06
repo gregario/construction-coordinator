@@ -5,7 +5,7 @@ import { ProjectCreationForm } from '@/components/setup/ProjectCreationForm'
 import { TemplateBrowser } from '@/components/setup/TemplateBrowser'
 import { CustomizationScreen } from '@/components/setup/CustomizationScreen'
 import { BlockManager } from '@/components/setup/BlockManager'
-import { MethodPicker } from '@/components/setup/MethodPicker'
+import { SetupWizard } from '@/components/setup/SetupWizard'
 import {
   summarizeTemplate,
   type TemplateRecord,
@@ -34,7 +34,6 @@ export default async function SetupPage({
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  try {
   // If explicitly creating a new project, skip to the creation form
   if (isNewProject) {
     return (
@@ -78,26 +77,6 @@ export default async function SetupPage({
       .eq('project_id', project.id)
       .order('order_index', { ascending: true })
     const existingBlocks = (blocksRes.data ?? []) as BlockRow[]
-
-    if (existingBlocks.length === 0) {
-      // No blocks yet → show block manager (Step 2)
-      return (
-        <div className="p-4 md:p-8 max-w-2xl">
-          <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">
-            Add your buildings
-          </h1>
-          <p className="text-[#6B5D52] text-sm mb-6">
-            Each block gets its own construction scheme. Add at least one block to continue.
-          </p>
-          <BlockManager projectId={project.id} initialBlocks={[]} />
-          <div className="mt-6 flex justify-end">
-            <span className="text-xs text-[#6B5D52]">
-              Add a block above, then the construction scheme picker will appear.
-            </span>
-          </div>
-        </div>
-      )
-    }
 
     // Check if stages exist (template/method applied)
     const stageCountRes = await loose
@@ -151,21 +130,21 @@ export default async function SetupPage({
       )
     }
 
-    // Blocks exist but no stages → show construction method picker
+    // No stages yet → show setup wizard (blocks + method picker)
     return (
       <div className="p-4 md:p-8 max-w-3xl">
         <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">
-          Construction Scheme
+          Set up &ldquo;{project.name}&rdquo;
         </h1>
         <p className="text-[#6B5D52] text-sm mb-6">
-          Pick your construction methods for &ldquo;{project.name}&rdquo;. Each category
-          generates substages for your schedule.
+          Configure your blocks and pick construction methods.
         </p>
         <div className="bg-white rounded-lg border border-[#E8DFD3] p-4 md:p-6">
-          <MethodPicker
+          <SetupWizard
             projectId={project.id}
-            blocks={existingBlocks}
+            initialBlocks={existingBlocks}
             startDate={project.start_date ?? new Date().toISOString().split('T')[0]}
+            projectName={project.name}
           />
         </div>
       </div>
@@ -185,21 +164,4 @@ export default async function SetupPage({
     </div>
   )
 
-  } catch (err) {
-    // Surface the actual error in production instead of generic 500
-    const message = err instanceof Error ? err.message : String(err)
-    const stack = err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : ''
-    return (
-      <div className="p-4 md:p-8 max-w-2xl">
-        <h1 className="text-2xl font-semibold text-[#B85450] mb-2">Setup Error</h1>
-        <div className="rounded-lg border border-[#B85450]/30 bg-[#B85450]/5 p-4">
-          <p className="text-sm text-[#2B1F17] font-mono">{message}</p>
-          {stack && <pre className="mt-2 text-xs text-[#6B5D52] whitespace-pre-wrap">{stack}</pre>}
-        </div>
-        <a href="/briefing" className="mt-4 inline-block text-sm text-[#8B5E3C] underline">
-          ← Back to Briefing
-        </a>
-      </div>
-    )
-  }
 }

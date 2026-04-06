@@ -11,6 +11,7 @@ import {
   type ConstructionMethod,
   type SchemeSelection,
 } from '@/app/actions/construction-methods'
+import { activateProject } from '@/app/actions/projects'
 import type { BlockRow } from '@/app/actions/blocks'
 
 interface MethodPickerProps {
@@ -141,7 +142,9 @@ export function MethodPicker({ projectId, blocks, startDate }: MethodPickerProps
           return
         }
       }
-      // All done — reload to show customization screen
+      // Activate the project and go to schedule
+      await activateProject(projectId)
+      router.push('/schedule')
       router.refresh()
     })
   }

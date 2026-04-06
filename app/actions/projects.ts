@@ -62,6 +62,25 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
   return { ok: true }
 }
 
+export async function activateProject(
+  projectId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not authenticated' }
+
+  const { error } = await (supabase as any)
+    .from('projects')
+    .update({ status: 'active' })
+    .eq('id', projectId)
+    .eq('user_id', user.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}
+
 export async function updateProjectDetails(
   projectId: string,
   data: { name: string; address: string | null }
