@@ -6,6 +6,8 @@ import {
   createTask,
   updateTaskDuration,
   deleteTask,
+  addDependency,
+  removeDependency,
 } from '@/app/actions/tasks'
 
 export type TaskRow = {
@@ -76,6 +78,10 @@ export function StageTasksManager({
   const [editTarget, setEditTarget] = useState<TaskRow | null>(null)
   const [editDuration, setEditDuration] = useState('1')
   const [editError, setEditError] = useState<string | null>(null)
+
+  // AC-DV-1: Edit dependencies modal
+  const [depEditTarget, setDepEditTarget] = useState<TaskRow | null>(null)
+  const [depEditError, setDepEditError] = useState<string | null>(null)
 
   const depsByTask = useMemo(() => {
     const map = new Map<string, string[]>()
@@ -175,6 +181,42 @@ export function StageTasksManager({
     setEditTarget(null)
     setEditDuration('1')
     setEditError(null)
+  }
+
+  function handleOpenDepEdit(task: TaskRow) {
+    setDepEditTarget(task)
+    setDepEditError(null)
+  }
+
+  function handleCloseDepEdit() {
+    setDepEditTarget(null)
+    setDepEditError(null)
+  }
+
+  function handleToggleExistingDep(taskId: string, depTaskId: string, isCurrentlyDep: boolean) {
+    setDepEditError(null)
+    startTransition(async () => {
+      if (isCurrentlyDep) {
+        const res = await removeDependency(projectId, taskId, depTaskId)
+        if (!res.ok) {
+          setDepEditError(res.error)
+          return
+        }
+        setDependencies(prev =>
+          prev.filter(d => !(d.task_id === taskId && d.depends_on_task_id === depTaskId))
+        )
+      } else {
+        const res = await addDependency({ projectId, taskId, dependsOnTaskId: depTaskId })
+        if (!res.ok) {
+          setDepEditError(res.error)
+          return
+        }
+        setDependencies(prev => [
+          ...prev,
+          { task_id: taskId, depends_on_task_id: depTaskId },
+        ])
+      }
+    })
   }
 
   function handleSubmitEdit(e: React.FormEvent<HTMLFormElement>) {
@@ -312,6 +354,15 @@ export function StageTasksManager({
                     )}
                   </div>
                   <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Edit dependencies for ${task.name}`}
+                      onClick={() => handleOpenDepEdit(task)}
+                      disabled={pending}
+                      className="rounded px-2 py-1 text-xs text-[#2B1F17] hover:bg-[#FAF7F2] disabled:opacity-30"
+                    >
+                      Deps
+                    </button>
                     <button
                       type="button"
                       aria-label={`Edit duration for ${task.name}`}
@@ -530,6 +581,77 @@ export function StageTasksManager({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {depEditTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit dependencies"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={handleCloseDepEdit}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+          >
+            <h3 className="text-base font-semibold text-[#2B1F17]">Edit dependencies</h3>
+            <p className="mt-1 text-xs text-[#6B5D52]">
+              {depEditTarget.name} — check tasks this task depends on.
+            </p>
+
+            {depEditError && (
+              <p
+                role="alert"
+                data-testid="dep-cycle-error"
+                className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800"
+              >
+                {depEditError}
+              </p>
+            )}
+
+            <div className="mt-3 max-h-48 overflow-y-auto rounded-md border border-[#E8DFD3] p-2">
+              {availableTasks
+                .filter(opt => opt.id !== depEditTarget.id)
+                .map(opt => {
+                  const isChecked = dependencies.some(
+                    d =>
+                      d.task_id === depEditTarget.id &&
+                      d.depends_on_task_id === opt.id
+                  )
+                  return (
+                    <label
+                      key={opt.id}
+                      className="flex items-center gap-2 py-1 text-xs text-[#2B1F17]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={pending}
+                        onChange={() =>
+                          handleToggleExistingDep(depEditTarget.id, opt.id, isChecked)
+                        }
+                      />
+                      <span>
+                        {opt.name}{' '}
+                        <span className="text-[#6B5D52]">({opt.stage_name})</span>
+                      </span>
+                    </label>
+                  )
+                })}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCloseDepEdit}
+                className="rounded-md bg-[#2B1F17] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A1E]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
