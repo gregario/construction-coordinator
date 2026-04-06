@@ -30,26 +30,27 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
     return { ok: false, error: 'You must be signed in', field: 'auth' }
   }
 
-  // Cast: lib/supabase/types.ts lacks Relationships[] on each table so the
-  // typed insert path resolves to `never`. Foundation eval flagged this drift
-  // and recommended casting at call sites until types are regenerated.
-  const { data: newProject, error } = await (supabase.from('projects') as unknown as {
-    insert: (row: Record<string, unknown>) => { select: (cols: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> } }
-  }).insert({
-    user_id: user.id,
-    name,
-    address: address || null,
-    start_date,
-    status: 'setup',
-  }).select('id').single()
+  // Cast: lib/supabase/types.ts lacks Relationships[] — use loose client
+  const loose = supabase as any
+  const { data: newProject, error } = await loose
+    .from('projects')
+    .insert({
+      user_id: user.id,
+      name,
+      address: address || null,
+      start_date,
+      status: 'setup',
+    })
+    .select('id')
+    .single()
 
   if (error) {
     return { ok: false, error: error.message, field: 'server' }
   }
 
   // Auto-create default "Main Building" block
-  if (newProject) {
-    await (supabase as any).from('blocks').insert({
+  if (newProject?.id) {
+    await loose.from('blocks').insert({
       project_id: newProject.id,
       name: 'Main Building',
       attachment_type: 'attached',
