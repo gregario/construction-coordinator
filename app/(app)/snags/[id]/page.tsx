@@ -39,12 +39,14 @@ export default async function SnagDetailPage({ params }: { params: Promise<{ id:
   if (!project || project.user_id !== user.id) redirect('/snags')
 
   // Load related data in parallel
-  const [stageRes, tradesRes, photosRes] = await Promise.all([
+  const [stageRes, tradesRes, photosRes, allStagesRes, allBlocksRes] = await Promise.all([
     snag.stage_id
       ? supabase.from('stages').select('id, name, color').eq('id', snag.stage_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from('trades').select('id, name, phone, email').eq('project_id', project.id).order('name'),
     supabase.from('photos').select('id, storage_path, file_name, file_size, created_at').eq('snag_id', snagId).order('created_at', { ascending: false }),
+    supabase.from('stages').select('id, name').eq('project_id', project.id).order('order_index'),
+    supabase.from('blocks').select('id, name').eq('project_id', project.id).order('order_index'),
   ])
 
   const stage = stageRes.data as { id: string; name: string; color: string } | null
@@ -94,6 +96,8 @@ export default async function SnagDetailPage({ params }: { params: Promise<{ id:
         photos={photos}
         signedUrls={signedUrls}
         projectId={project.id}
+        stages={(allStagesRes.data ?? []) as { id: string; name: string }[]}
+        blocks={(allBlocksRes.data ?? []) as { id: string; name: string }[]}
       />
     </main>
   )

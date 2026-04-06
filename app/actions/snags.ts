@@ -118,6 +118,39 @@ export async function updateSnagStatus(
   return { ok: true }
 }
 
+export async function updateSnag(
+  snagId: string,
+  data: {
+    description?: string | null
+    priority?: SnagPriority
+    trade_id?: string | null
+    block_id?: string | null
+    stage_id?: string | null
+  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not authenticated' }
+
+  const updates: Record<string, unknown> = {}
+  if (data.description !== undefined) updates.description = data.description
+  if (data.priority !== undefined) updates.priority = data.priority
+  if (data.trade_id !== undefined) updates.trade_id = data.trade_id
+  if (data.block_id !== undefined) updates.block_id = data.block_id
+  if (data.stage_id !== undefined) updates.stage_id = data.stage_id
+
+  const { error } = await (supabase as any)
+    .from('snags')
+    .update(updates)
+    .eq('id', snagId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/snags/${snagId}`)
+  revalidatePath('/snags')
+  return { ok: true }
+}
+
 export async function listSnags(projectId: string): Promise<SnagRow[]> {
   const supabase = await createClient()
   const { data } = await (supabase as any)
