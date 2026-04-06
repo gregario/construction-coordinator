@@ -33,7 +33,7 @@ export function ProjectSwitcher({ projects, activeProjectId }: ProjectSwitcherPr
 
   function handleNewProject() {
     setOpen(false)
-    router.push('/setup')
+    router.push('/setup?new=true')
   }
 
   return (

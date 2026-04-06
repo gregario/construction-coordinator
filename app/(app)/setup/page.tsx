@@ -20,12 +20,34 @@ import type { BlockRow } from '@/app/actions/blocks'
 
 type ProjectRow = Database['public']['Tables']['projects']['Row']
 
-export default async function SetupPage() {
+export default async function SetupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>
+}) {
+  const params = await searchParams
+  const isNewProject = params.new === 'true'
+
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // If explicitly creating a new project, skip to the creation form
+  if (isNewProject) {
+    return (
+      <div className="p-4 md:p-8 max-w-2xl">
+        <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">Create a new project</h1>
+        <p className="text-[#6B5D52] text-sm mb-6">
+          Give your project a name and start date.
+        </p>
+        <div className="bg-white rounded-lg border border-[#E8DFD3] p-4 md:p-6">
+          <ProjectCreationForm />
+        </div>
+      </div>
+    )
+  }
 
   const result = await supabase
     .from('projects')
