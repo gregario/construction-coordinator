@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CATEGORY_ORDER, CATEGORY_LABELS } from '@/app/actions/construction-methods'
+import { CATEGORY_ORDER, CATEGORY_LABELS } from '@/lib/construction/categories'
 
 describe('CATEGORY_ORDER', () => {
   it('has 9 categories', () => {

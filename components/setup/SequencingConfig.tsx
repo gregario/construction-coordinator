@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { GripVertical } from 'lucide-react'
-import { CATEGORY_ORDER, CATEGORY_LABELS } from '@/app/actions/construction-methods'
+import { CATEGORY_ORDER, CATEGORY_LABELS } from '@/lib/construction/categories'
 import {
   saveSchedulingConfig,
   type SchedulingConfig as SchedulingConfigType,

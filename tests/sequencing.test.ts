@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { SchedulingConfig, CategorySequencing } from '@/app/actions/sequencing'
-import { CATEGORY_ORDER } from '@/app/actions/construction-methods'
+import { CATEGORY_ORDER } from '@/lib/construction/categories'
 
 describe('SchedulingConfig structure', () => {
   it('can represent all-sequential config', () => {

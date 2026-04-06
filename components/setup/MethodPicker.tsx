@@ -3,9 +3,8 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Check, Copy } from 'lucide-react'
+import { CATEGORY_ORDER, CATEGORY_LABELS } from '@/lib/construction/categories'
 import {
-  CATEGORY_ORDER,
-  CATEGORY_LABELS,
   listMethodsByCategory,
   applySchemeToBlock,
   copySchemeToBlock,
