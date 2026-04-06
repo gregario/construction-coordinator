@@ -92,6 +92,7 @@ export type LogTaskDelayInput = {
   projectId: string
   taskId: string
   newPlannedEnd: string // ISO YYYY-MM-DD
+  reason?: string
 }
 
 export type LogTaskDelayResult =
@@ -681,6 +682,14 @@ export async function logTaskDelay(
     return { ok: false, error: `Cascade failed: ${cascadeRes.error.message}` }
   }
 
+  // Save delay reason if provided
+  if (input.reason) {
+    await supabase
+      .from('tasks')
+      .update({ delay_reason: input.reason, status: 'delayed' })
+      .eq('id', input.taskId)
+  }
+
   const changes = (cascadeRes.data as CascadeResult[] | null) ?? []
 
   // AC-CMS-1/AC-CMS-2: build the MaterialMovement list so the post-cascade
@@ -1004,4 +1013,125 @@ export async function cleanStaleDependencies(
 
   revalidatePath('/schedule')
   return { ok: true, removed_count: removed.length }
+}
+
+// ─── Preview Cascade (read-only, no side effects) ───
+
+export type CascadePreview = {
+  affected_tasks: {
+    id: string
+    name: string
+    current_start: string
+    current_end: string
+    new_start: string
+    new_end: string
+  }[]
+  affected_materials: {
+    id: string
+    name: string
+    task_name: string
+    current_order_by: string | null
+    new_order_by: string | null
+    would_be_overdue: boolean
+  }[]
+  total_tasks: number
+  total_materials: number
+  overdue_materials: number
+}
+
+export async function previewCascade(
+  taskId: string,
+  delayDays: number
+): Promise<{ ok: true; preview: CascadePreview } | { ok: false; error: string }> {
+  if (delayDays < 1) return { ok: false, error: 'Delay must be at least 1 day' }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+
+  // Call the preview_cascade SQL function (read-only, STABLE)
+  const res = await supabase.rpc('preview_cascade', {
+    p_task_id: taskId,
+    p_delay_days: delayDays,
+  })
+
+  if (res.error) {
+    return { ok: false, error: res.error.message }
+  }
+
+  const rows = (res.data ?? []) as Array<{
+    affected_task_id: string
+    affected_task_name: string
+    current_planned_start: string
+    current_planned_end: string
+    new_planned_start: string
+    new_planned_end: string
+    delta_days: number
+  }>
+
+  const affected_tasks = rows.map(r => ({
+    id: r.affected_task_id,
+    name: r.affected_task_name,
+    current_start: r.current_planned_start,
+    current_end: r.current_planned_end,
+    new_start: r.new_planned_start,
+    new_end: r.new_planned_end,
+  }))
+
+  // Load materials for affected tasks to preview order-by date changes
+  const taskIds = rows.map(r => r.affected_task_id)
+  let affected_materials: CascadePreview['affected_materials'] = []
+  let overdue_materials = 0
+
+  if (taskIds.length > 0) {
+    const matRes = await supabase
+      .from('materials')
+      .select('id, name, task_id, lead_time_days, order_by_date, order_status')
+      .in('task_id', taskIds)
+
+    const materials = (matRes.data ?? []) as Array<{
+      id: string; name: string; task_id: string
+      lead_time_days: number; order_by_date: string | null
+      order_status: string
+    }>
+
+    const today = new Date().toISOString().split('T')[0]
+    const taskMap = new Map(rows.map(r => [r.affected_task_id, r]))
+
+    affected_materials = materials.map(m => {
+      const taskRow = taskMap.get(m.task_id)
+      const newStart = taskRow?.new_planned_start ?? null
+      const newOrderBy = newStart
+        ? (() => {
+          const d = new Date(newStart + 'T00:00:00Z')
+          d.setUTCDate(d.getUTCDate() - m.lead_time_days)
+          return d.toISOString().split('T')[0]
+        })()
+        : m.order_by_date
+
+      const wouldBeOverdue = !!(
+        newOrderBy && newOrderBy < today &&
+        (m.order_status === 'not_quoted' || m.order_status === 'quoted')
+      )
+      if (wouldBeOverdue) overdue_materials++
+
+      return {
+        id: m.id,
+        name: m.name,
+        task_name: taskRow?.affected_task_name ?? '',
+        current_order_by: m.order_by_date,
+        new_order_by: newOrderBy,
+        would_be_overdue: wouldBeOverdue,
+      }
+    }).filter(m => m.current_order_by !== m.new_order_by)
+  }
+
+  return {
+    ok: true,
+    preview: {
+      affected_tasks,
+      affected_materials,
+      total_tasks: affected_tasks.length,
+      total_materials: affected_materials.length,
+      overdue_materials,
+    },
+  }
 }
