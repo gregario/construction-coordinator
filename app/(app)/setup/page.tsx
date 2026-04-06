@@ -139,7 +139,7 @@ export default async function SetupPage() {
           <MethodPicker
             projectId={project.id}
             blocks={existingBlocks}
-            startDate={project.start_date}
+            startDate={project.start_date ?? new Date().toISOString().split('T')[0]}
           />
         </div>
       </div>
