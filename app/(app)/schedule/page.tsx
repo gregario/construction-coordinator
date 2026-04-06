@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { StageManager } from '@/components/schedule/StageManager'
 import { GanttChart } from '@/components/schedule/GanttChart'
 import type { GanttTask, GanttStage } from '@/lib/gantt/compute'
 import type { TaskDetailData } from '@/components/schedule/GanttChart'
@@ -175,12 +174,6 @@ export default async function SchedulePage() {
     }
   }
 
-  // Task counts per stage — computed from fetched tasks.
-  const stagesWithCounts = stages.map(s => ({
-    ...s,
-    task_count: taskRows.filter(t => t.stage_id === s.id).length,
-  }))
-
   return (
     <div className="p-4 md:p-8">
       <header className="mb-4">
@@ -188,19 +181,14 @@ export default async function SchedulePage() {
         <p className="text-[#6B5D52] text-sm">{project.name}</p>
       </header>
 
-      {/* Gantt Chart — primary visual dashboard */}
-      <section className="mb-6">
+      {/* Gantt Chart — visual dashboard (read-only, v0.3.1) */}
+      <section>
         <GanttChart
           stages={ganttStages}
           tasks={ganttTasks}
           projectId={project.id}
           taskDetails={taskDetailMap}
         />
-      </section>
-
-      {/* Stage Manager — below Gantt for editing */}
-      <section className="max-w-2xl">
-        <StageManager projectId={project.id} initialStages={stagesWithCounts} />
       </section>
     </div>
   )

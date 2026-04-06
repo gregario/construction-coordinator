@@ -13,6 +13,7 @@ export type CreateStageInput = {
   projectId: string
   name: string
   color: string
+  blockId?: string
 }
 
 export type CreateStageResult =
@@ -80,14 +81,17 @@ export async function createStage(input: CreateStageInput): Promise<CreateStageR
       : -1
   const nextIndex = currentMax + 1
 
+  const insertData: Record<string, unknown> = {
+    project_id: input.projectId,
+    name: input.name.trim(),
+    color: normalizeStageColor(input.color),
+    order_index: nextIndex,
+  }
+  if (input.blockId) insertData.block_id = input.blockId
+
   const ins = await supabase
     .from('stages')
-    .insert({
-      project_id: input.projectId,
-      name: input.name.trim(),
-      color: normalizeStageColor(input.color),
-      order_index: nextIndex,
-    })
+    .insert(insertData)
     .select('id, name, color, order_index')
     .single()
 

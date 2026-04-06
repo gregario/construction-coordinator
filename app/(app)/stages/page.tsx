@@ -123,7 +123,7 @@ export default async function StagesPage() {
           </p>
         </div>
       ) : (
-        <StagesAccordionView blocks={blocks} stagesByBlock={stagesByBlock} />
+        <StagesAccordionView projectId={project.id} blocks={blocks} stagesByBlock={stagesByBlock} />
       )}
     </div>
   )
