@@ -6,13 +6,31 @@ import {
   materialDeadlineStatus,
   type MaterialDeadlineInput,
 } from '@/lib/materials/operations'
+import {
+  selectTodayTasks,
+  nextTaskStartDate,
+  formatShiftAlert,
+  shiftAlertHref,
+  type BriefingTask,
+  type BriefingShiftAlert,
+} from '@/lib/briefing/operations'
 import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
-import type { MaterialOrderStatus } from '@/types/database'
+import { RefreshButton } from '@/components/briefing/RefreshButton'
+import type { MaterialOrderStatus, TaskStatus } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LooseClient = any
 
 type ProjectRow = { id: string; name: string; status: string; user_id: string }
+
+type TaskRow = {
+  id: string
+  name: string
+  planned_start: string
+  planned_end: string
+  status: TaskStatus
+  stages: { name: string; color: string } | null
+}
 
 type MaterialRow = {
   id: string
@@ -21,6 +39,17 @@ type MaterialRow = {
   order_status: MaterialOrderStatus
   task_id: string
   tasks: { id: string; name: string } | null
+}
+
+type ShiftAlertRow = {
+  id: string
+  entity_type: 'task' | 'material'
+  entity_id: string
+  entity_name: string
+  change_type: 'date_moved' | 'status_changed'
+  old_value: string | null
+  new_value: string | null
+  created_at: string
 }
 
 function todayIso(): string {
@@ -45,15 +74,48 @@ export default async function BriefingPage() {
   if (!project) redirect('/setup')
   if (project.status === 'setup') redirect('/setup')
 
-  const matRes = await supabase
-    .from('materials')
-    .select('id, name, order_by_date, order_status, task_id, tasks!inner(id, name, project_id)')
-    .eq('tasks.project_id', project.id)
-  const materials = (matRes.data as MaterialRow[] | null) ?? []
-
   const today = todayIso()
+
+  // Parallel data fetches for performance (AC-DB-6)
+  const [taskRes, matRes, alertRes] = await Promise.all([
+    supabase
+      .from('tasks')
+      .select('id, name, planned_start, planned_end, status, stages!inner(name, color, project_id)')
+      .eq('stages.project_id', project.id),
+    supabase
+      .from('materials')
+      .select('id, name, order_by_date, order_status, task_id, tasks!inner(id, name, project_id)')
+      .eq('tasks.project_id', project.id),
+    supabase
+      .from('shift_alerts')
+      .select('id, entity_type, entity_id, entity_name, change_type, old_value, new_value, created_at')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .eq('dismissed', false)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+
+  const allTasks = (taskRes.data as TaskRow[] | null) ?? []
+  const materials = (matRes.data as MaterialRow[] | null) ?? []
+  const shiftAlerts = (alertRes.data as ShiftAlertRow[] | null) ?? []
+
+  // Today's Tasks (AC-DB-2)
+  const briefingTasks: BriefingTask[] = allTasks.map((t) => ({
+    id: t.id,
+    name: t.name,
+    planned_start: t.planned_start,
+    planned_end: t.planned_end,
+    status: t.status,
+    stage_name: t.stages?.name ?? '',
+    stage_color: t.stages?.color ?? '#8B5E3C',
+  }))
+  const todayTasks = selectTodayTasks(briefingTasks, today)
+  const nextStart = todayTasks.length === 0 ? nextTaskStartDate(briefingTasks, today) : null
+
+  // Upcoming Orders (existing)
   const upcoming = selectUpcomingOrders(
-    materials.map(m => ({
+    materials.map((m) => ({
       id: m.id,
       name: m.name,
       order_by_date: m.order_by_date,
@@ -63,14 +125,97 @@ export default async function BriefingPage() {
     today
   )
 
+  // Shift Alerts (AC-DB-1)
+  const alerts: BriefingShiftAlert[] = shiftAlerts.map((a) => ({
+    id: a.id,
+    entity_type: a.entity_type,
+    entity_id: a.entity_id,
+    entity_name: a.entity_name,
+    change_type: a.change_type,
+    old_value: a.old_value,
+    new_value: a.new_value,
+    created_at: a.created_at,
+  }))
+
   return (
     <div className="mx-auto max-w-2xl p-4 md:p-8">
-      <h1 className="mb-1 text-2xl font-semibold text-[#2B1F17]">Daily Briefing</h1>
-      <p className="mb-6 text-sm text-[#6B5D52]">
-        Today&apos;s tasks, orders, and alerts
-      </p>
+      {/* Header with refresh (AC-DB-5) */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="mb-1 text-2xl font-semibold text-[#2B1F17]">
+            Daily Briefing
+          </h1>
+          <p className="text-sm text-[#6B5D52]">
+            Today&apos;s tasks, orders, and alerts
+          </p>
+        </div>
+        <RefreshButton />
+      </div>
 
-      <section className="rounded-lg border border-[#E8DFD3] bg-white p-4">
+      {/* AC-DB-1 Section 1: Today's Tasks */}
+      <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
+          Today&apos;s Tasks
+        </h2>
+        {todayTasks.length === 0 ? (
+          /* AC-DB-3: empty state */
+          <p className="text-sm text-[#6B5D52]">
+            No tasks scheduled today
+            {nextStart ? (
+              <>
+                {' — next task starts '}
+                <Link
+                  href="/schedule"
+                  className="font-medium text-[#8B5E3C] underline-offset-2 hover:underline"
+                >
+                  {nextStart}
+                </Link>
+              </>
+            ) : (
+              <>
+                .{' '}
+                <Link
+                  href="/schedule"
+                  className="font-medium text-[#8B5E3C] underline-offset-2 hover:underline"
+                >
+                  View schedule
+                </Link>
+              </>
+            )}
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {todayTasks.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center gap-3 rounded-md border border-[#EFE8DD] bg-[#FAF7F2] p-3"
+              >
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: t.stage_color }}
+                  title={t.stage_name}
+                />
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/tasks/${t.id}`}
+                    className="block truncate text-sm font-medium text-[#2B1F17] underline-offset-2 hover:underline"
+                  >
+                    {t.name}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-[#6B5D52]">
+                    {t.stage_name}
+                    {' · '}
+                    {t.status === 'in_progress' ? 'In progress' : 'Not started'}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* AC-DB-1 Section 2: Upcoming Orders */}
+      <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
           Upcoming Orders
         </h2>
@@ -80,12 +225,14 @@ export default async function BriefingPage() {
           </p>
         ) : (
           <ul className="space-y-2">
-            {upcoming.map(m => {
+            {upcoming.map((m) => {
               const badge = materialDeadlineStatus(
                 m as unknown as MaterialDeadlineInput,
                 today
               )
-              const task = (m as unknown as { _task: { id: string; name: string } | null })._task
+              const task = (
+                m as unknown as { _task: { id: string; name: string } | null }
+              )._task
               return (
                 <li
                   key={m.id}
@@ -114,6 +261,38 @@ export default async function BriefingPage() {
                 </li>
               )
             })}
+          </ul>
+        )}
+      </section>
+
+      {/* AC-DB-1 Section 3: Shift Alerts */}
+      <section className="rounded-lg border border-[#E8DFD3] bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
+          Shift Alerts
+        </h2>
+        {alerts.length === 0 ? (
+          <p className="text-sm text-[#6B5D52]">
+            No schedule changes since your last visit.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {alerts.map((a) => (
+              <li
+                key={a.id}
+                className="rounded-md border border-[#EFE8DD] bg-[#FAF7F2] p-3"
+              >
+                <Link
+                  href={shiftAlertHref(a)}
+                  className="block text-sm text-[#2B1F17] underline-offset-2 hover:underline"
+                >
+                  {formatShiftAlert(a)}
+                </Link>
+                <p className="mt-0.5 text-xs text-[#6B5D52]">
+                  {a.entity_type === 'task' ? '📋' : '📦'}{' '}
+                  {a.change_type === 'date_moved' ? 'Date shifted' : 'Status changed'}
+                </p>
+              </li>
+            ))}
           </ul>
         )}
       </section>
