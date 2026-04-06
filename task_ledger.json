@@ -6,7 +6,7 @@
         {
           "id": "fix-briefing-project-identity",
           "type": "fix",
-          "status": "pending",
+          "status": "done",
           "priority": "low",
           "title": "Show project name in /briefing header",
           "description": "Add project.name as a subtitle under the Daily Briefing heading so users always know which project context they are in.",
@@ -44,7 +44,7 @@
           "id": "fix-stepper-touch-targets",
           "type": "fix",
           "status": "pending",
-          "priority": "low",
+          "priority": "medium",
           "title": "Increase stepper +/- button touch targets to 44px",
           "description": "Change stepper button classes from w-7 h-7 (~28px) to w-11 h-11 (44px) to meet WCAG 2.5.5 minimum touch target size.",
           "acceptance_criteria": [
