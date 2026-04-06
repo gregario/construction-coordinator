@@ -83,6 +83,119 @@
           "closes_gaps": ["imp-stepper-touch-target"]
         }
       ]
+    },
+    {
+      "id": "planning-tools",
+      "stories": [
+        {
+          "id": "fix-photos-next-image",
+          "type": "fix",
+          "status": "pending",
+          "priority": "medium",
+          "title": "Replace <img> with next/image in photo components",
+          "description": "Two photo-rendering components use raw <img> tags instead of next/image, causing LCP performance risk with large construction photos. Replace with next/image using fill prop and add Supabase storage domain to next.config.ts remotePatterns.",
+          "acceptance_criteria": [
+            {
+              "id": "AC-NI-1",
+              "description": "next/image used in photos gallery",
+              "measurement": "DOM query — photo grid contains <img> elements with srcset attribute (next/image adds srcset)"
+            },
+            {
+              "id": "AC-NI-2",
+              "description": "next/image used in TaskPhotosManager",
+              "measurement": "DOM query — photo thumbnails within [data-testid='photo-thumb'] contain <img> with srcset attribute"
+            },
+            {
+              "id": "AC-NI-3",
+              "description": "Supabase storage domain configured in remotePatterns",
+              "measurement": "Code review — next.config.ts contains images.remotePatterns with supabase hostname pattern"
+            },
+            {
+              "id": "AC-NI-4",
+              "description": "Photo thumbnails retain aspect-square object-cover styling",
+              "measurement": "DOM query — next/image wrapper or img element has aspect-square and object-cover classes"
+            },
+            {
+              "id": "AC-NI-5",
+              "description": "No ESLint @next/next/no-img-element warnings in photo files",
+              "measurement": "ESLint output — 0 no-img-element warnings in photos/page.tsx and TaskPhotosManager.tsx"
+            }
+          ],
+          "scope": {
+            "in_scope": [
+              "app/(app)/photos/page.tsx — replace <img> with next/image Image component",
+              "components/photos/TaskPhotosManager.tsx — replace <img> with next/image Image component",
+              "next.config.ts — add images.remotePatterns for Supabase storage domain"
+            ],
+            "out_of_scope": [
+              "Photo upload UI flow",
+              "Photo delete functionality",
+              "Document components",
+              "Gallery grouping logic",
+              "Any pages not listed above"
+            ],
+            "files_to_touch": [
+              "app/(app)/photos/page.tsx",
+              "components/photos/TaskPhotosManager.tsx",
+              "next.config.ts"
+            ]
+          },
+          "root_cause": {
+            "classification": "implementation_bug",
+            "what_went_wrong": "Builder used raw <img> for photo thumbnails. next/image requires remotePatterns config for Supabase signed URLs, which may have been the blocker. The builder defaulted to <img> without configuring the optimization pipeline.",
+            "do_not_repeat": []
+          },
+          "change_spec_path": "openspec/changes/cc-pt-loop1-photo-optimizations/change-spec.md",
+          "closes_gaps": ["imp-img-next-image"]
+        },
+        {
+          "id": "fix-server-mime-validation",
+          "type": "fix",
+          "status": "pending",
+          "priority": "low",
+          "title": "Add server-side MIME and size validation to uploadPhoto",
+          "description": "The uploadPhoto server action does not validate file type or size before uploading to Supabase Storage. Import and call the existing validatePhotoFile function server-side before storage upload.",
+          "acceptance_criteria": [
+            {
+              "id": "AC-MV-1",
+              "description": "Server action validates MIME type before upload",
+              "measurement": "Unit test — uploadPhoto rejects unsupported MIME types with specific error; no storage upload attempted"
+            },
+            {
+              "id": "AC-MV-2",
+              "description": "Server action validates file size before upload",
+              "measurement": "Unit test — uploadPhoto rejects files > 10 MB with specific error; no storage upload attempted"
+            },
+            {
+              "id": "AC-MV-3",
+              "description": "Valid files still upload successfully",
+              "measurement": "Integration test — uploadPhoto with valid JPEG under 10 MB proceeds to storage upload and returns { ok: true }"
+            }
+          ],
+          "scope": {
+            "in_scope": [
+              "app/actions/photos.ts — add validatePhotoFile call before supabase.storage.upload()"
+            ],
+            "out_of_scope": [
+              "Client-side validation in TaskPhotosManager (already correct)",
+              "validatePhotoFile function itself (already correct and tested)",
+              "Photo delete functionality",
+              "Document upload functionality",
+              "Supabase bucket policy configuration"
+            ],
+            "files_to_touch": [
+              "app/actions/photos.ts"
+            ]
+          },
+          "root_cause": {
+            "classification": "implementation_bug",
+            "what_went_wrong": "validatePhotoFile exists and is called client-side, but was not added to the server action. Supabase bucket policy provides real enforcement, which may have given false confidence that server validation was covered.",
+            "do_not_repeat": []
+          },
+          "change_spec_path": "openspec/changes/cc-pt-loop1-photo-optimizations/change-spec.md",
+          "closes_gaps": ["imp-server-mime-validation"]
+        }
+      ]
     }
   ]
 }
