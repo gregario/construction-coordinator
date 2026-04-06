@@ -16,9 +16,11 @@ export type BriefingTask = {
 }
 
 /**
- * Filter tasks active today: planned_start <= today <= planned_end
- * AND status IN ('not_started', 'in_progress').
- * Returns sorted by planned_start ASC, then name ASC.
+ * Filter tasks for today's briefing: planned_start <= today <= planned_end
+ * AND status IN ('not_started', 'in_progress', 'complete').
+ * Complete tasks are included so the user can undo completion (AC-QA-2)
+ * without the task disappearing from the list.
+ * Returns sorted by: incomplete first, then planned_start ASC, then name ASC.
  */
 export function selectTodayTasks(
   tasks: BriefingTask[],
@@ -27,11 +29,17 @@ export function selectTodayTasks(
   return tasks
     .filter(
       (t) =>
-        (t.status === 'not_started' || t.status === 'in_progress') &&
+        (t.status === 'not_started' ||
+          t.status === 'in_progress' ||
+          t.status === 'complete') &&
         t.planned_start <= today &&
         t.planned_end >= today
     )
     .sort((a, b) => {
+      // Incomplete tasks sort before complete ones
+      const aComplete = a.status === 'complete' ? 1 : 0
+      const bComplete = b.status === 'complete' ? 1 : 0
+      if (aComplete !== bComplete) return aComplete - bComplete
       const d = a.planned_start.localeCompare(b.planned_start)
       if (d !== 0) return d
       return a.name.localeCompare(b.name)
@@ -95,4 +103,26 @@ export function shiftAlertHref(alert: BriefingShiftAlert): string {
     return `/tasks/${alert.entity_id}`
   }
   return '/materials'
+}
+
+// ---------- Task Quick Actions (AC-QA-1, AC-QA-2) ----------
+
+export type ToggleResult = {
+  newStatus: TaskStatus
+  actualEnd: string | null
+}
+
+/**
+ * Compute the new status and actual_end for a task toggle.
+ * - not_started / in_progress / delayed → complete (actual_end = today)
+ * - complete → in_progress (actual_end = null)
+ */
+export function computeToggleResult(
+  currentStatus: TaskStatus,
+  today: string
+): ToggleResult {
+  if (currentStatus === 'complete') {
+    return { newStatus: 'in_progress', actualEnd: null }
+  }
+  return { newStatus: 'complete', actualEnd: today }
 }

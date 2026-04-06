@@ -39,15 +39,17 @@ describe('selectTodayTasks', () => {
     expect(result[1].id).toBe('2')
   })
 
-  it('excludes tasks with status complete or delayed', () => {
+  it('excludes delayed tasks but includes complete tasks (AC-QA-2 undo support)', () => {
     const tasks = [
       makeTask({ id: '1', status: 'complete' }),
       makeTask({ id: '2', status: 'delayed' }),
       makeTask({ id: '3', status: 'in_progress' }),
     ]
     const result = selectTodayTasks(tasks, TODAY)
-    expect(result).toHaveLength(1)
+    expect(result).toHaveLength(2)
+    // Incomplete before complete
     expect(result[0].id).toBe('3')
+    expect(result[1].id).toBe('1')
   })
 
   it('excludes tasks that ended before today', () => {
@@ -82,14 +84,16 @@ describe('selectTodayTasks', () => {
     expect(selectTodayTasks([], TODAY)).toEqual([])
   })
 
-  it('sorts by planned_start ASC, then name ASC', () => {
+  it('sorts incomplete before complete, then planned_start ASC, then name ASC', () => {
     const tasks = [
       makeTask({ id: '1', name: 'Zulu', planned_start: '2026-06-03', planned_end: '2026-06-07' }),
       makeTask({ id: '2', name: 'Alpha', planned_start: '2026-06-03', planned_end: '2026-06-07' }),
       makeTask({ id: '3', name: 'Mike', planned_start: '2026-06-01', planned_end: '2026-06-07' }),
+      makeTask({ id: '4', name: 'Done', planned_start: '2026-06-01', planned_end: '2026-06-07', status: 'complete' }),
     ]
     const result = selectTodayTasks(tasks, TODAY)
-    expect(result.map(t => t.id)).toEqual(['3', '2', '1'])
+    // Incomplete first (sorted by start then name), then complete
+    expect(result.map(t => t.id)).toEqual(['3', '2', '1', '4'])
   })
 })
 

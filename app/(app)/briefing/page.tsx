@@ -16,6 +16,7 @@ import {
 } from '@/lib/briefing/operations'
 import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
 import { RefreshButton } from '@/components/briefing/RefreshButton'
+import { BriefingTaskList } from '@/components/briefing/BriefingTaskList'
 import type { MaterialOrderStatus, TaskStatus } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,33 +185,8 @@ export default async function BriefingPage() {
             )}
           </p>
         ) : (
-          <ul className="space-y-2">
-            {todayTasks.map((t) => (
-              <li
-                key={t.id}
-                className="flex items-center gap-3 rounded-md border border-[#EFE8DD] bg-[#FAF7F2] p-3"
-              >
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: t.stage_color }}
-                  title={t.stage_name}
-                />
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/tasks/${t.id}`}
-                    className="block truncate text-sm font-medium text-[#2B1F17] underline-offset-2 hover:underline"
-                  >
-                    {t.name}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-[#6B5D52]">
-                    {t.stage_name}
-                    {' · '}
-                    {t.status === 'in_progress' ? 'In progress' : 'Not started'}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          /* AC-QA-1/2/3/4: Interactive task list with toggle + quick actions */
+          <BriefingTaskList tasks={todayTasks} projectId={project.id} />
         )}
       </section>
 
