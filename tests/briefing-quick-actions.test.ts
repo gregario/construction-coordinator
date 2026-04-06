@@ -22,8 +22,8 @@ function makeTask(overrides: Partial<BriefingTask> = {}): BriefingTask {
 
 const TODAY = '2026-06-05'
 
-// ---------- computeToggleResult ----------
-
+// @criterion: AC-QA-1, AC-QA-2
+// AC-QA-1: checkbox toggles task to complete (actual_end=today); AC-QA-2: toggled complete reverts to in_progress
 describe('computeToggleResult', () => {
   it('marks a not_started task as complete with actual_end = today (AC-QA-1)', () => {
     const result = computeToggleResult('not_started', TODAY)

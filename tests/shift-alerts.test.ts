@@ -9,8 +9,8 @@ import type { TaskMovement, MaterialMovement } from '@/lib/cascade/engine'
 const PROJECT_ID = 'proj-1'
 const USER_ID = 'user-1'
 
-// ---------- buildTaskShiftAlerts ----------
-
+// @criterion: AC-SA-1
+// AC-SA-1: buildTaskShiftAlerts and buildMaterialShiftAlerts convert cascade movements into ShiftAlertInsert rows
 describe('buildTaskShiftAlerts', () => {
   it('creates a date_moved alert for each non-trigger task movement', () => {
     const movements: TaskMovement[] = [
