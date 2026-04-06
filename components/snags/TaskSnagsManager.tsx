@@ -162,7 +162,7 @@ export function TaskSnagsManager({
             return (
               <li key={snag.id} className="flex items-center gap-2 rounded-md bg-[#FAF7F2] px-3 py-2">
                 <AlertTriangle size={14} className="text-[#C97A3F] shrink-0" />
-                <Link href={`/snags`} className="flex-1 text-xs font-medium text-[#2B1F17] hover:underline truncate">
+                <Link href={`/snags/${snag.id}`} className="flex-1 text-xs font-medium text-[#2B1F17] hover:underline truncate">
                   {snag.title}
                 </Link>
                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${pStyle.bg} ${pStyle.text}`}>
