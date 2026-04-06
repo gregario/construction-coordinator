@@ -194,7 +194,7 @@ export function TaskMaterialsManager({
         <div>
           <h2 className="text-sm font-semibold text-[#2B1F17]">Materials</h2>
           <p className="text-xs text-[#6B5D52]">
-            Items needed for this task, with lead times.
+            Items needed for this substage, with lead times.
           </p>
         </div>
         <button
@@ -219,7 +219,7 @@ export function TaskMaterialsManager({
       {materials.length === 0 && !isFormOpen ? (
         <div className="mt-3 rounded-md border border-dashed border-[#E8DFD3] p-4 text-center">
           <p className="text-sm text-[#6B5D52]">
-            No materials yet. Add the first item needed for this task.
+            No materials yet. Add the first item needed for this substage.
           </p>
         </div>
       ) : (

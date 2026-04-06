@@ -104,7 +104,7 @@ export function TemplateBrowser({ projectId, summaries }: Props) {
                 >
                   <div className="font-medium text-[#2B1F17]">{stage.name}</div>
                   <div className="text-xs text-[#6B5D52] mb-1">
-                    {stage.task_count} {stage.task_count === 1 ? 'task' : 'tasks'}
+                    {stage.task_count} {stage.task_count === 1 ? 'substage' : 'substages'}
                   </div>
                   {stage.sample_tasks.length > 0 && (
                     <ul className="text-sm text-[#6B5D52] list-disc ml-5" role="list">

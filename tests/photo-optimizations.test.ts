@@ -6,18 +6,16 @@ import nextConfig from '../next.config'
 
 // @criterion: AC-NI-1
 // AC-NI-1: next/image used in photos gallery — no raw <img> tags for photo thumbnails.
-describe('photos gallery page (app/(app)/photos/page.tsx)', () => {
-  const source = readFileSync(resolve(__dirname, '../app/(app)/photos/page.tsx'), 'utf8')
+// Photo rendering moved to FilterablePhotoGallery component in v0.3.0.
+describe('photos gallery component (FilterablePhotoGallery)', () => {
+  const source = readFileSync(resolve(__dirname, '../components/photos/FilterablePhotoGallery.tsx'), 'utf8')
 
   it('imports Image from next/image', () => {
     expect(source).toMatch(/import Image from ['"]next\/image['"]/)
   })
 
   it('uses <Image component (not raw <img>) for photo thumbnails', () => {
-    // Verify next/image Image component is used
     expect(source).toContain('<Image')
-    // Verify no raw <img src= pattern exists in the photo rendering section
-    // (allow <img in comments or data attributes, not as JSX elements)
     const rawImgMatches = source.match(/<img\s/g) ?? []
     expect(rawImgMatches).toHaveLength(0)
   })

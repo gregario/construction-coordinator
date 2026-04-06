@@ -70,7 +70,7 @@ export function TaskDelayLogger({ projectId, taskId, currentPlannedEnd }: Props)
         <div>
           <h2 className="text-sm font-semibold text-[#2B1F17]">Delay</h2>
           <p className="mt-1 text-xs text-[#6B5D52]">
-            Push this task&apos;s end date out. Downstream tasks and material
+            Push this substage&apos;s end date out. Downstream substages and material
             order-by dates will shift to match.
           </p>
         </div>

@@ -78,13 +78,21 @@ export default async function SchedulePage() {
     redirect('/setup')
   }
 
+  // Fetch blocks for filtering
+  const blocksRes = await supabase
+    .from('blocks')
+    .select('id, name, order_index')
+    .eq('project_id', project.id)
+    .order('order_index', { ascending: true })
+  const blocks = (blocksRes.data as { id: string; name: string; order_index: number }[] | null) ?? []
+
   const stagesRes = await supabase
     .from('stages')
-    .select('id, name, color, order_index')
+    .select('id, name, color, order_index, block_id')
     .eq('project_id', project.id)
     .order('order_index', { ascending: true })
 
-  const stages = (stagesRes.data as StageRow[] | null) ?? []
+  const stages = (stagesRes.data as (StageRow & { block_id: string | null })[] | null) ?? []
 
   // Fetch tasks for Gantt chart
   const taskRes = await supabase
@@ -175,24 +183,24 @@ export default async function SchedulePage() {
 
   return (
     <div className="p-4 md:p-8">
-      <header className="mb-6">
+      <header className="mb-4">
         <h1 className="text-2xl font-semibold text-[#2B1F17]">Schedule</h1>
         <p className="text-[#6B5D52] text-sm">{project.name}</p>
       </header>
 
+      {/* Stage Manager — above Gantt for navigation */}
+      <section className="mb-4 max-w-2xl">
+        <StageManager projectId={project.id} initialStages={stagesWithCounts} />
+      </section>
+
       {/* Gantt Chart */}
-      <section className="mb-8">
+      <section>
         <GanttChart
           stages={ganttStages}
           tasks={ganttTasks}
           projectId={project.id}
           taskDetails={taskDetailMap}
         />
-      </section>
-
-      {/* Stage Manager */}
-      <section className="max-w-2xl">
-        <StageManager projectId={project.id} initialStages={stagesWithCounts} />
       </section>
     </div>
   )

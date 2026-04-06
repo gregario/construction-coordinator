@@ -4,6 +4,7 @@ import {
   MaterialsListView,
   type MaterialsListRow,
 } from '@/components/materials/MaterialsListView'
+import { ProcurementPipeline } from '@/components/materials/ProcurementPipeline'
 import type { MaterialOrderStatus } from '@/types/database'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
@@ -68,12 +69,32 @@ export default async function MaterialsPage() {
       task: m.tasks,
     }))
 
+  // Compute procurement status counts
+  const statusCounts: Record<string, number> = {}
+  for (const row of rows) {
+    statusCounts[row.order_status] = (statusCounts[row.order_status] || 0) + 1
+  }
+
+  // Count overdue materials (past order_by_date and not yet ordered/delivered)
+  const today = todayIso()
+  const overdueCount = rows.filter(
+    r => r.order_by_date && r.order_by_date < today &&
+    (r.order_status === 'not_quoted' || r.order_status === 'quoted' || r.order_status === 'not_ordered')
+  ).length
+
   return (
     <div className="mx-auto max-w-2xl p-4 md:p-8">
       <h1 className="mb-1 text-2xl font-semibold text-[#2B1F17]">Materials</h1>
-      <p className="mb-6 text-sm text-[#6B5D52]">
-        Order status and deadlines across all tasks
+      <p className="mb-4 text-sm text-[#6B5D52]">
+        Procurement status and deadlines across all substages
       </p>
+
+      {rows.length > 0 && (
+        <div className="mb-6">
+          <ProcurementPipeline counts={statusCounts} overdueCount={overdueCount} />
+        </div>
+      )}
+
       <MaterialsListView materials={rows} today={todayIso()} />
     </div>
   )

@@ -247,7 +247,7 @@ export function TradesManager({ projectId, initialTrades }: Props) {
                       {trade.assigned_task_count > 0 && (
                         <span className="text-[#6B5D52]">
                           · {trade.assigned_task_count}{' '}
-                          {trade.assigned_task_count === 1 ? 'task' : 'tasks'}
+                          {trade.assigned_task_count === 1 ? 'substage' : 'substages'}
                         </span>
                       )}
                     </div>
