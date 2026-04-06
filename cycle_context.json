@@ -1,18 +1,22 @@
 {
   "story_result": {
-    "story_id": "shift-alerts",
+    "story_id": "push-notifications",
     "outcome": "pass",
     "files_changed": [
-      "lib/briefing/shift-alerts.ts",
-      "tests/shift-alerts.test.ts",
-      "app/actions/tasks.ts",
-      "app/actions/briefing.ts",
-      "components/briefing/DismissAlertsButton.tsx",
-      "app/(app)/briefing/page.tsx"
+      "lib/notifications/push.ts",
+      "components/notifications/ServiceWorkerRegistrar.tsx",
+      "components/notifications/PushNotificationToggle.tsx",
+      "app/actions/notifications.ts",
+      "app/(app)/settings/page.tsx",
+      "app/(app)/layout.tsx",
+      "tests/push-notifications.test.ts"
     ],
-    "tests_added": 7,
-    "tests_passing": 298,
-    "env_limitations": []
+    "tests_added": 19,
+    "tests_passing": 317,
+    "env_limitations": [
+      "Push notification subscribe/unsubscribe requires a real browser with PushManager — cannot be exercised in vitest/jsdom. Pure helpers (detectPushCapability, deriveToggleState, serializeSubscription, urlBase64ToUint8Array) are fully tested. Component integration requires manual QA on a device with the PWA installed.",
+      "VAPID keys must be set in Vercel env vars (NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT) for subscriptions to succeed in production. Keys are already configured per foundation eval."
+    ]
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
   "implemented": [
@@ -577,6 +581,29 @@
       "tests_added": 7,
       "tests_passing": 298,
       "details": "AC-SA-1: Pure functions buildTaskShiftAlerts(movements, projectId, userId) and buildMaterialShiftAlerts(movements, projectId, userId) in lib/briefing/shift-alerts.ts convert cascade TaskMovement[] and MaterialMovement[] into ShiftAlertInsert rows. Each task with changed planned_end gets a date_moved alert (old_value=old planned_end, new_value=new planned_end). Each material with non-zero delta_days gets a date_moved alert (old/new order_by_date). Zero-delta and null-delta entries are skipped. Both updateTaskDuration and logTaskDelay server actions now call insertShiftAlerts() after computing the cascade summary, persisting shift_alert rows for every moved entity. Best-effort — a failed insert does not block the cascade result. AC-SA-2: Already implemented by existing formatShiftAlert (\"[name] moved from [old] to [new]\") and shiftAlertHref (task→/tasks/:id, material→/materials) from the daily-briefing-view story. The briefing page renders each alert as a clickable Link. AC-SA-3: dismissShiftAlerts server action in app/actions/briefing.ts sets dismissed=true on all non-dismissed shift_alerts matching the user + project. DismissAlertsButton client component (~1KB) in the Shift Alerts section header shows \"Clear\" when alerts.length > 0, calls dismissShiftAlerts via useTransition + router.refresh(). After dismissal, only alerts created after the dismiss timestamp appear (because the query filters dismissed=false). 7 new unit tests. 298 total passing. Typecheck + production build clean."
+    },
+    {
+      "task": "push-notifications",
+      "story_id": "push-notifications",
+      "acceptance_criteria": [
+        "AC-PN-1",
+        "AC-PN-2",
+        "AC-PN-3",
+        "AC-PN-4",
+        "AC-PN-5"
+      ],
+      "files_changed": [
+        "lib/notifications/push.ts",
+        "components/notifications/ServiceWorkerRegistrar.tsx",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/actions/notifications.ts",
+        "app/(app)/settings/page.tsx",
+        "app/(app)/layout.tsx",
+        "tests/push-notifications.test.ts"
+      ],
+      "tests_added": 19,
+      "tests_passing": 317,
+      "details": "Push notification subscription management for /settings. AC-PN-1: ServiceWorkerRegistrar client component registers /sw.js on app load in (app)/layout.tsx — silently fails if browser lacks SW support. AC-PN-2: PushNotificationToggle on /settings detects browser push capability via detectPushCapability (pure fn testing hasSW, hasPush, Notification.permission), requests Notification.requestPermission() on first enable, subscribes via PushManager.subscribe() with VAPID applicationServerKey (urlBase64ToUint8Array converts base64url to Uint8Array), serializes the subscription (serializeSubscription extracts endpoint + p256dh + auth), and POSTs to /api/push/subscribe to persist in push_subscriptions. Toggle reflects enabled (sage green switch). AC-PN-3: Disable path unsubscribes via PushSubscription.unsubscribe() then DELETEs to /api/push/subscribe to mark is_active=false. Toggle reflects disabled state. AC-PN-4: If Notification.permission is \"denied\", toggle shows \"Notifications Blocked\" disabled state with amber hint text instructing user to enable in browser settings. \"Not Supported\" state for browsers without PushManager. AC-PN-5: ensureNotificationPreferences server action on /settings load upserts a notification_preferences row with defaults (order_deadlines=true, overdue_tasks=true, cascade_summaries=true, order_warning_days=3) — fixes foundation finding where cron INNER JOIN silently excluded users without prefs. Settings page renders current preference state (On/Off badges) for material orders, overdue tasks, cascade summaries. deriveToggleState pure fn maps (capability, hasSubscription) to UI state (label, enabled, disabled, showBlockedHint). 19 new unit tests: 6 for detectPushCapability (unsupported SW, unsupported Push, default/denied/granted/null permission), 5 for deriveToggleState (unsupported/blocked/enable/disable/re-subscribe), 4 for serializeSubscription (valid/missing-p256dh/missing-auth/missing-keys), 4 for urlBase64ToUint8Array (known vectors, padding, url-safe chars, round-trip). Total suite: 317 tests passing. Typecheck + production build clean (19 routes)."
     }
   ],
   "skipped": [
@@ -1572,6 +1599,62 @@
       "affects": [
         "app/actions/tasks.ts"
       ]
+    },
+    {
+      "decision": "Builder-defined acceptance criteria for push-notifications (spec was empty)",
+      "context": "state.json story entry for push-notifications has no acceptance_criteria field — only name, affected_screens (/settings), depends_on (daily-briefing-view). story_context.spec was just {id, name}.",
+      "alternatives_considered": [
+        "Block the story with a factory_question asking a human to write ACs — defeats autonomous loop",
+        "Skip the story entirely — push notifications are in-scope per vision.json"
+      ],
+      "rationale": "Defined AC-PN-1 (SW registration on app load), AC-PN-2 (enable → permission prompt → subscribe → persist), AC-PN-3 (disable → unsubscribe → mark inactive), AC-PN-4 (blocked state with browser settings hint), AC-PN-5 (upsert notification_preferences on first /settings visit). These map directly to the existing foundation infrastructure (sw.js, /api/push/subscribe, push_subscriptions table, notification_preferences table) and the affected screen (/settings).",
+      "confidence": "high",
+      "affects": [
+        "lib/notifications/push.ts",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/(app)/settings/page.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for push-notifications story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 4 BUILD (lib/notifications/push.ts pure helpers, ServiceWorkerRegistrar, PushNotificationToggle, ensureNotificationPreferences server action), 1 EXTEND (app/(app)/settings/page.tsx — placeholder replaced with real notification sections), 3 REUSE (app/api/push/subscribe/route.ts, public/sw.js push handler, app/api/cron/daily-check/route.ts).",
+      "confidence": "high",
+      "affects": [
+        "lib/notifications/push.ts",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/(app)/settings/page.tsx"
+      ]
+    },
+    {
+      "decision": "ServiceWorkerRegistrar placed in (app) layout, not root layout",
+      "context": "SW registration needs to happen once on app load. Could go in root layout (covers auth pages too) or (app) layout (only authenticated pages).",
+      "alternatives_considered": [
+        "Root layout — registers SW on login/signup pages too, wasting a registration call before the user is authenticated",
+        "Individual pages — duplicates the registration call and risks missing it on new pages"
+      ],
+      "rationale": "(app) layout is the authenticated shell. All push-notification features require an authenticated user. Registering the SW here means it only activates after login, and it runs once for the entire app session via useEffect([]).",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/layout.tsx",
+        "components/notifications/ServiceWorkerRegistrar.tsx"
+      ]
+    },
+    {
+      "decision": "ensureNotificationPreferences upserts on /settings page load (not on signup)",
+      "context": "Foundation eval found that cron INNER JOIN on notification_preferences silently excludes users without a prefs row. Options: insert on signup, insert on first /settings visit, or change the JOIN to LEFT JOIN.",
+      "alternatives_considered": [
+        "Insert in signup action — requires modifying auth flow, risk of partial signup if insert fails",
+        "Change cron to LEFT JOIN with defaults — loses the ability to store per-user overrides",
+        "Insert on first /settings visit (chosen) — lazy creation, zero auth flow changes"
+      ],
+      "rationale": "Lazy upsert on /settings is the simplest fix: one server action call, race-condition safe (read-then-insert with conflict retry). Users who never visit /settings still get excluded from cron notifications — which is acceptable since they never expressed interest in configuring notifications. The notification-settings story (next in the milestone) will add toggle editing.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/notifications.ts",
+        "app/(app)/settings/page.tsx"
+      ]
     }
   ],
   "factory_questions": [
@@ -1672,6 +1755,13 @@
       "resolved_as": "Include the trigger. The user may delay task A on /tasks/A, then visit /briefing later and need a reminder that A moved. Excluding it would make the alert list incomplete for multi-device or multi-session workflows.",
       "needs_clarification_from": "spec",
       "severity": "minor"
+    },
+    {
+      "question": "ensureNotificationPreferences lazy-creates on /settings visit, but users who never visit /settings will be excluded from cron push notifications (INNER JOIN). Consider also creating the row on first push subscription (AC-PN-2 flow) or changing the cron to LEFT JOIN.",
+      "found_in": "AC-PN-5 implementation — push-notifications story",
+      "resolved_as": "Accepted for now — users who enable push (AC-PN-2) will visit /settings to do so, triggering the upsert. Edge case: if a future flow enables push from a different page, that page must also call ensureNotificationPreferences.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
     }
   ],
   "foundation_completion": {
@@ -1713,7 +1803,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "daily-experience",
-  "_current_story": "shift-alerts",
+  "_current_story": "push-notifications",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
