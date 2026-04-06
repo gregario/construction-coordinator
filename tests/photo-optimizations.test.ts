@@ -1,6 +1,48 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { validatePhotoFile } from '@/lib/photos/operations'
 import nextConfig from '../next.config'
+
+// @criterion: AC-NI-1
+// AC-NI-1: next/image used in photos gallery — no raw <img> tags for photo thumbnails.
+describe('photos gallery page (app/(app)/photos/page.tsx)', () => {
+  const source = readFileSync(resolve(__dirname, '../app/(app)/photos/page.tsx'), 'utf8')
+
+  it('imports Image from next/image', () => {
+    expect(source).toMatch(/import Image from ['"]next\/image['"]/)
+  })
+
+  it('uses <Image component (not raw <img>) for photo thumbnails', () => {
+    // Verify next/image Image component is used
+    expect(source).toContain('<Image')
+    // Verify no raw <img src= pattern exists in the photo rendering section
+    // (allow <img in comments or data attributes, not as JSX elements)
+    const rawImgMatches = source.match(/<img\s/g) ?? []
+    expect(rawImgMatches).toHaveLength(0)
+  })
+
+  it('uses fill prop on Image for signed URL photos', () => {
+    expect(source).toContain('fill')
+    expect(source).toContain('object-cover')
+  })
+})
+
+// @criterion: AC-NI-5
+// AC-NI-5: No ESLint @next/next/no-img-element warnings in photo files.
+describe('no raw <img> tags in photo components (AC-NI-5 code verification)', () => {
+  it('photos/page.tsx has no raw <img src= elements', () => {
+    const source = readFileSync(resolve(__dirname, '../app/(app)/photos/page.tsx'), 'utf8')
+    const rawImgMatches = source.match(/<img\s/g) ?? []
+    expect(rawImgMatches).toHaveLength(0)
+  })
+
+  it('TaskPhotosManager.tsx has no raw <img src= elements', () => {
+    const source = readFileSync(resolve(__dirname, '../components/photos/TaskPhotosManager.tsx'), 'utf8')
+    const rawImgMatches = source.match(/<img\s/g) ?? []
+    expect(rawImgMatches).toHaveLength(0)
+  })
+})
 
 // @criterion: AC-NI-3
 // AC-NI-3: Supabase storage domain configured in remotePatterns.
