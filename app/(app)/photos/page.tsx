@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import {
   groupPhotosByStage,
@@ -112,12 +113,16 @@ export default async function PhotosPage() {
                     className="group overflow-hidden rounded-lg border border-[#E8DFD3] bg-[#FAF7F2] transition-shadow hover:shadow-md"
                   >
                     {signedUrls[photo.id] ? (
-                      <img
-                        src={signedUrls[photo.id]}
-                        alt={photo.file_name}
-                        className="aspect-square w-full object-cover"
-                        loading="lazy"
-                      />
+                      <div className="relative aspect-square w-full">
+                        <Image
+                          src={signedUrls[photo.id]}
+                          alt={photo.file_name}
+                          fill
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                          className="object-cover"
+                          loading="lazy"
+                        />
+                      </div>
                     ) : (
                       <div className="flex aspect-square w-full items-center justify-center bg-[#FAF7F2]">
                         <span className="text-xs text-[#6B5D52]">No preview</span>

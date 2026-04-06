@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { validatePhotoFile, formatFileSize, formatPhotoDate } from '@/lib/photos/operations'
 import { uploadPhoto, deletePhoto } from '@/app/actions/photos'
 
@@ -138,12 +139,16 @@ export function TaskPhotosManager({
               data-testid="photo-thumb"
             >
               {urls[photo.id] ? (
-                <img
-                  src={urls[photo.id]}
-                  alt={photo.file_name}
-                  className="aspect-square w-full object-cover"
-                  loading="lazy"
-                />
+                <div className="relative aspect-square w-full">
+                  <Image
+                    src={urls[photo.id]}
+                    alt={photo.file_name}
+                    fill
+                    sizes="(max-width: 640px) 50vw, 33vw"
+                    className="object-cover"
+                    loading="lazy"
+                  />
+                </div>
               ) : (
                 <div className="flex aspect-square w-full items-center justify-center bg-[#FAF7F2]">
                   <span className="text-xs text-[#6B5D52]">No preview</span>
