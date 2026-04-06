@@ -20,6 +20,7 @@ import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBa
 import { RefreshButton } from '@/components/briefing/RefreshButton'
 import { BriefingTaskList } from '@/components/briefing/BriefingTaskList'
 import { UpcomingOrderCards, type UpcomingOrderCard } from '@/components/briefing/UpcomingOrderCards'
+import { DismissAlertsButton } from '@/components/briefing/DismissAlertsButton'
 import type { MaterialOrderStatus, TaskStatus } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,11 +228,16 @@ export default async function BriefingPage() {
         </section>
       )}
 
-      {/* AC-DB-1 Section 3: Shift Alerts */}
+      {/* AC-DB-1 Section 3: Shift Alerts / AC-SA-3: Clear button */}
       <section className="rounded-lg border border-[#E8DFD3] bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
-          Shift Alerts
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[#2B1F17]">
+            Shift Alerts
+          </h2>
+          {alerts.length > 0 && (
+            <DismissAlertsButton projectId={project.id} />
+          )}
+        </div>
         {alerts.length === 0 ? (
           <p className="text-sm text-[#6B5D52]">
             No schedule changes since your last visit.
