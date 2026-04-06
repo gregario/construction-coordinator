@@ -23,6 +23,10 @@ import {
   removeStaleDependencies,
   type DependencyEdge,
 } from '@/lib/tasks/dependency-graph'
+import {
+  buildTaskShiftAlerts,
+  buildMaterialShiftAlerts,
+} from '@/lib/briefing/shift-alerts'
 
 // lib/supabase/types.ts lacks Relationships[] on every table (foundation-eval
 // finding). Cast at the call site — same pattern as stages.ts / projects.ts.
@@ -152,6 +156,25 @@ function buildMaterialMovements(
     ),
   }))
   return computeMaterialMovements(withOld, taskNewStarts)
+}
+
+// AC-SA-1: persist shift alert rows for every task and material that moved.
+// Best-effort — a failed insert should not block the cascade result.
+async function insertShiftAlerts(
+  supabase: LooseClient,
+  alerts: Array<{
+    project_id: string
+    user_id: string
+    entity_type: string
+    entity_id: string
+    entity_name: string
+    change_type: string
+    old_value: string
+    new_value: string
+  }>
+): Promise<void> {
+  if (alerts.length === 0) return
+  await supabase.from('shift_alerts').insert(alerts)
 }
 
 async function verifyProjectOwnership(
@@ -449,6 +472,12 @@ export async function updateTaskDuration(
     },
     changes as CascadeResult[]
   )
+
+  // AC-SA-1: record shift alerts for every task + material that moved
+  const taskAlerts = buildTaskShiftAlerts(cascade_summary.movements, input.projectId, user.id)
+  const matAlerts = buildMaterialShiftAlerts(material_movements, input.projectId, user.id)
+  await insertShiftAlerts(supabase, [...taskAlerts, ...matAlerts])
+
   return {
     ok: true,
     task: {
@@ -580,6 +609,11 @@ export async function logTaskDelay(
     },
     changes
   )
+
+  // AC-SA-1: record shift alerts for every task + material that moved
+  const taskAlerts = buildTaskShiftAlerts(cascade_summary.movements, input.projectId, user.id)
+  const matAlerts = buildMaterialShiftAlerts(material_movements, input.projectId, user.id)
+  await insertShiftAlerts(supabase, [...taskAlerts, ...matAlerts])
 
   return { ok: true, cascade_summary, material_movements, materials_moved }
 }
