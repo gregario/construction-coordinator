@@ -2646,7 +2646,7 @@
           "failing": 0
         }
       },
-      "criteria_pass_rate": 1.0,
+      "criteria_pass_rate": 1,
       "env_limited_count": 0,
       "code_quality_baseline": {
         "eslint_errors": 13,
@@ -2954,29 +2954,32 @@
         "timestamp": "2026-04-06T03:45:23.689Z",
         "cycle": 1
       }
-    ]
+    ],
+    "production_url": "https://construction-coordinator.vercel.app",
+    "last_deploy_timestamp": "2026-04-06T04:13:43Z",
+    "last_deploy_version": "0.2.0"
   },
   "analysis_recommendation": {
-    "action": "deepen:improvements",
-    "rationale": "PO PRODUCTION_READY but confidence_adjusted 0.88 < 0.9 promote threshold. 2 validated this-milestone improvement items: imp-img-next-image (medium \u2014 <img> vs next/image in photos, LCP impact) and imp-server-mime-validation (low \u2014 defense-in-depth server MIME check). Both are bounded fixes addressable in one cycle. First evaluation of planning-tools milestone \u2014 no convergence concerns yet."
+    "action": "promote",
+    "rationale": "PO PRODUCTION_READY with confidence_adjusted 0.94 >= 0.9. Both deepen:improvements items (imp-img-next-image, imp-server-mime-validation) closed this cycle. All gates PASS. Health 92. No remaining quality gaps or improvement items. Trend improving (+0.06). Clean promote."
   },
   "analysis_result": {
     "phase": "analyzing",
-    "cycle": 1,
-    "timestamp": "2026-04-06T04:30:00Z",
+    "cycle": 2,
+    "timestamp": "2026-04-06T05:15:00Z",
     "confidence_trend": {
-      "current": 0.88,
-      "previous": null,
-      "delta": null,
-      "direction": "n/a",
-      "consecutive_same_direction": 0,
+      "current": 0.94,
+      "previous": 0.88,
+      "delta": 0.06,
+      "direction": "improving",
+      "consecutive_same_direction": 1,
       "flags": [
         "none"
       ],
-      "note": "First evaluation of planning-tools milestone. No prior data point for trend analysis. Raw confidence 0.82 dragged by 8 env_limited criteria (Gantt visual rendering, scroll behavior, touch gestures, signed URL downloads). Adjusted confidence 0.88 excludes env_limited \u2014 reflects real quality. Health score 86."
+      "note": "Confidence improved from 0.88 to 0.94 after deepen:improvements cycle resolved both photo optimization items. Delta +0.06 is healthy improvement, not steep enough to warrant artifact check. Both gaps closed: imp-img-next-image and imp-server-mime-validation."
     },
-    "recommendation": "deepen:improvements",
-    "recommendation_reasoning": "PO verdict is PRODUCTION_READY, but confidence_adjusted 0.88 falls below the 0.9 promote threshold. No critical quality gaps exist. Two validated this-milestone improvement items would block promotion regardless: (1) imp-img-next-image \u2014 medium severity, using <img> instead of next/image in photos gallery and TaskPhotosManager, causing LCP performance risk with large construction photos; (2) imp-server-mime-validation \u2014 low severity, photos server action trusts client-side validation + Supabase bucket policy without server-side MIME check. Both are bounded, single-file fixes addressable in one cycle. The deepen:improvements route will generate change specs for these items and route to story-building. This is the first deepen:improvements cycle for planning-tools, so no convergence concerns.",
+    "recommendation": "promote",
+    "recommendation_reasoning": "All promote conditions satisfied: (1) PO verdict PRODUCTION_READY. (2) confidence_adjusted 0.94 >= 0.9 threshold. (3) No critical quality gaps \u2014 quality_gaps array empty, no PO gaps. (4) Confidence trend improving (+0.06), not regressing. (5) No validated this-milestone improvement items \u2014 improvement_items array empty, both previous items (imp-img-next-image, imp-server-mime-validation) confirmed closed by PO gaps_closed. Health score 92 (+6 from previous 86). 530 tests passing, 8/8 fix criteria verified. One deepen:improvements cycle was sufficient to resolve both items. Planning-tools milestone is complete: all 6 original stories delivered + 2 fix stories resolved.",
     "decomposition_health": {
       "foundation_gaps": [],
       "integration_gaps": [
@@ -2987,107 +2990,44 @@
       "restructure_scope": "0% \u2014 no structural changes needed",
       "structural_issues_found": false
     },
-    "root_cause_analysis": [
-      {
-        "gap_id": "imp-img-next-image",
-        "gap_description": "Two places use <img> instead of next/image: photos gallery (app/(app)/photos/page.tsx:115) and TaskPhotosManager (components/photos/TaskPhotosManager.tsx:141). Photos are primary content on these screens \u2014 LCP performance impact significant with large HEIC/JPEG construction site photos.",
-        "root_cause": "implementation_bug",
-        "classification_confidence": 0.9,
-        "evidence": "ESLint @next/next/no-img-element warnings on both files. next/image is the standard Next.js component for optimized image loading (lazy loading, sizing, format optimization). No factory_question or factory_decision explains why <img> was chosen over next/image. Photos load from Supabase signed URLs which next/image supports via remotePatterns config. A different builder familiar with Next.js would use next/image by default.",
-        "related_factory_decision": null,
-        "related_factory_question": null,
-        "qa_coverage_gap": true
-      },
-      {
-        "gap_id": "imp-server-mime-validation",
-        "gap_description": "photos.ts server action does not validate MIME type server-side. Client-side validatePhotoFile runs in TaskPhotosManager but the server action trusts the upload directly, relying on Supabase bucket policy (image/* restriction) as the sole server enforcement.",
-        "root_cause": "implementation_bug",
-        "classification_confidence": 0.85,
-        "evidence": "app/actions/photos.ts has no MIME validation before supabase.storage.upload(). validatePhotoFile is only called client-side. Defense-in-depth principle: server actions should validate inputs independently. Supabase bucket policy is a real enforcement layer (making this low severity), but server-side validation is standard practice. No factory_decision explains the omission. Heuristic 5 (Error prevention) scored 'partial' in the PO review citing this gap.",
-        "related_factory_decision": null,
-        "related_factory_question": null,
-        "qa_coverage_gap": true
-      },
-      {
-        "gap_id": "imp-gantt-decompose",
-        "gap_description": "GanttChart.tsx is 827 lines \u2014 exceeds 300-line code quality threshold. Candidate for decomposition into sub-components.",
-        "root_cause": "implementation_bug",
-        "classification_confidence": 0.7,
-        "evidence": "File size check: 827 lines. Component handles rendering, zoom, drag interactions, mobile view, and detail panel \u2014 multiple responsibilities. However, the builder may have intentionally kept it monolithic for this cycle's scope (all 3 Gantt stories touch this file). Classification confidence lower because there's a reasonable argument for co-location during rapid iteration.",
-        "related_factory_decision": null,
-        "related_factory_question": null,
-        "qa_coverage_gap": false
-      }
-    ],
+    "root_cause_analysis": [],
     "cross_cycle_patterns": [
       {
         "pattern": "env_limited ACs are a persistent drag on raw confidence, though adjusted confidence correctly excludes them",
-        "frequency": 5,
+        "frequency": 6,
         "systemic_cause": "No authenticated browser session available for evaluation \u2014 ACs requiring browser APIs (Gantt visual rendering, scroll behavior, touch gestures, signed URL downloads) cannot be verified in the evaluation environment.",
         "recommended_action": "Environment constraint, not quality issue. Adjusted confidence mechanism compensates. No action needed unless browser-capable evaluation becomes available."
       },
       {
         "pattern": "Product walk not executed in any cycle",
-        "frequency": 5,
+        "frequency": 6,
         "systemic_cause": "Production URL requires authentication. No test user credentials available in evaluation context.",
-        "recommended_action": "Consider seeding a test user for evaluation purposes. Currently mitigated by structural code review + 516 unit/component tests."
+        "recommended_action": "Consider seeding a test user for evaluation purposes. Currently mitigated by structural code review + 530 unit/component tests."
       },
       {
-        "pattern": "<img> used instead of next/image in photo-rendering components",
+        "pattern": "deepen:improvements cycle resolved both items in one pass \u2014 loop converging efficiently",
         "frequency": 1,
-        "systemic_cause": "Builder may not be aware of next/image requirements for Supabase signed URLs (needs remotePatterns config). Or builder defaulted to <img> for dynamic URLs without considering the Next.js optimization pipeline.",
-        "recommended_action": "Change spec should include remotePatterns configuration for Supabase storage domain alongside the <img> \u2192 next/image swap. Flag in story context to prevent recurrence in future image-related stories."
+        "systemic_cause": "Bounded implementation_bug fixes with clear specs and existing test infrastructure resolve cleanly in a single cycle.",
+        "recommended_action": "No action needed. This validates the deepen:improvements pathway for bounded fixes."
       }
     ],
-    "change_spec_briefs": [
-      {
-        "gap_id": "imp-img-next-image",
-        "root_cause": "implementation_bug",
-        "priority": "medium",
-        "affected_screens": [
-          "/photos",
-          "/tasks/:id"
-        ],
-        "affected_journeys": [
-          "Upload photo to task",
-          "Browse project photos"
-        ],
-        "what_good_looks_like": "All photo rendering uses next/image with proper width/height or fill props, lazy loading enabled, Supabase storage domain configured in next.config.ts remotePatterns. No ESLint @next/next/no-img-element warnings. LCP on /photos should improve measurably.",
-        "requires_design_mode": false,
-        "approach_hint": "1. Add Supabase storage domain to next.config.ts remotePatterns. 2. Replace <img> with <Image> in app/(app)/photos/page.tsx and components/photos/TaskPhotosManager.tsx. 3. Use fill prop with object-cover for gallery thumbnails (container already has fixed dimensions). 4. Verify signed URLs work with next/image (they do \u2014 next/image fetches from the URL at request time).",
-        "do_not_repeat": []
-      },
-      {
-        "gap_id": "imp-server-mime-validation",
-        "root_cause": "implementation_bug",
-        "priority": "low",
-        "affected_screens": [
-          "/tasks/:id"
-        ],
-        "affected_journeys": [
-          "Upload photo to task"
-        ],
-        "what_good_looks_like": "app/actions/photos.ts calls validatePhotoFile (or equivalent server-side check) on the uploaded file's type and size BEFORE calling supabase.storage.upload(). Invalid files rejected with a descriptive error before reaching storage.",
-        "requires_design_mode": false,
-        "approach_hint": "Import validatePhotoFile from lib/photos/operations.ts into app/actions/photos.ts. Call it on the File object before upload. Return the validation error to the client if it fails. The function already exists and is well-tested \u2014 just needs to be called server-side too.",
-        "do_not_repeat": []
-      }
-    ],
+    "change_spec_briefs": [],
     "escalations": [],
     "improvement_routing": {
-      "this_milestone_count": 2,
-      "global_persisted_count": 1,
+      "this_milestone_count": 0,
+      "global_persisted_count": 0,
       "future_dropped_count": 0,
       "convergence_guardrail_triggered": false,
-      "deepen_improvements_cycle_count": 0
+      "deepen_improvements_cycle_count": 1
     },
     "evaluator_observations": [
-      "Planning-tools milestone first evaluation: PO PRODUCTION_READY, confidence_adjusted 0.88, health 86. 6/6 stories delivered. 516 tests, 27/27 ACs covered.",
-      "2 this-milestone improvement items validated: <img> vs next/image (medium, LCP), server MIME validation (low, defense-in-depth). Routing to deepen:improvements.",
-      "1 global improvement item persisted: GanttChart.tsx decomposition (global-002). No user-facing impact.",
-      "Decomposition health clean \u2014 no foundation gaps, no schema debt, no silent degradation within this milestone.",
-      "Heuristic 5 (Error prevention) scored partial \u2014 directly tied to imp-server-mime-validation gap.",
-      "Overall codebase: 516 tests, 27/27 planning-tools ACs, all gates PASSED. Product is close to promotion \u2014 expect one deepen:improvements cycle to resolve both items and push confidence_adjusted >= 0.9."
+      "Planning-tools milestone re-evaluation after deepen:improvements: PO PRODUCTION_READY, confidence_adjusted 0.94 (+0.06), health 92 (+6). Both gaps closed.",
+      "imp-img-next-image: CLOSED \u2014 next/image in both photo components, remotePatterns configured, 0 ESLint no_img_element warnings. 5 ACs pass.",
+      "imp-server-mime-validation: CLOSED \u2014 validatePhotoFile called server-side before upload. 3 ACs pass.",
+      "All promote conditions met. 530 tests passing. 8/8 fix criteria + 27/27 original planning-tools ACs verified.",
+      "Decomposition health unchanged \u2014 no new structural issues. LLM provider integration remains deferred (not blocking).",
+      "One deepen:improvements cycle was sufficient. Loop convergence efficient for bounded implementation_bug fixes.",
+      "Planning-tools milestone complete: 6 original stories + 2 fix stories delivered. Ready for promotion."
     ]
   },
   "phase_decisions": [
@@ -3191,6 +3131,27 @@
       "cycle": 1,
       "decision": "Dropped future-milestone items: none present",
       "reasoning": "All 3 PO improvement items were scoped to this-milestone or global. No future-milestone items to drop."
+    },
+    {
+      "phase": "analyzing",
+      "milestone": "planning-tools",
+      "cycle": 2,
+      "decision": "Recommended promote \u2014 all conditions met after deepen:improvements cycle",
+      "reasoning": "PO PRODUCTION_READY, confidence_adjusted 0.94 >= 0.9. Both improvement items from cycle 1 (imp-img-next-image, imp-server-mime-validation) confirmed closed by PO gaps_closed. No remaining quality gaps or improvement items. Trend improving (+0.06). No decomposition health issues. 530 tests, 35/35 total ACs verified across milestone. No alternative recommendation considered \u2014 this is a clean promote with all conditions unambiguously satisfied."
+    },
+    {
+      "phase": "analyzing",
+      "milestone": "planning-tools",
+      "cycle": 2,
+      "decision": "No root cause analysis needed \u2014 zero quality gaps in re-evaluation",
+      "reasoning": "PO reported 0 quality gaps and 0 improvement items. Both previous gaps closed. Nothing to classify."
+    },
+    {
+      "phase": "analyzing",
+      "milestone": "planning-tools",
+      "cycle": 2,
+      "decision": "deepen:improvements pathway validated \u2014 single cycle sufficient for bounded implementation_bug fixes",
+      "reasoning": "Cycle 1 recommended deepen:improvements for 2 items. Cycle 2 confirms both resolved with confidence improvement of +0.06. This validates that bounded, well-specified implementation_bug fixes converge in one deepen:improvements cycle. No convergence guardrail needed."
     }
   ],
   "change_specs_pending": [
@@ -3245,5 +3206,63 @@
     "gaps_deferred": [],
     "gaps_escalated": []
   },
-  "quality_gaps": []
+  "quality_gaps": [],
+  "vision_check_results": {
+    "vision_alignment": {
+      "core_promise_delivery": {
+        "score": 0.92,
+        "evidence": "The core promise is \"from checking three apps to one app that shows exactly where your build stands.\" The product delivers: (1) Hierarchical task tree with Stages\u2192Tasks\u2192Materials \u2014 fully implemented with drag-drop Gantt, inline editing, and cascade engine. (2) Material lead times with auto-calculated order-by dates \u2014 implemented with cascade-material-sync. (3) Dependency cascade recalculation \u2014 cascade_task_dates() SQL function wired to task updates with shift-alerts surfacing changes. (4) Mobile daily briefing \u2014 implemented at /briefing with today's tasks, quick-complete toggle, upcoming orders, and shift alerts. (5) Push notifications via PWA \u2014 implemented with subscription management and notification preferences. (6) Interactive Gantt \u2014 827-line component with zoom/navigate/inline-edit. (7) Photo/document storage \u2014 per-task upload with next/image optimization and server-side validation. (8) Project export \u2014 JSON, CSV, and PDF (via print dialog). (9) Trade contacts \u2014 full CRUD with per-task association. (10) Template-based project setup with AI-assist stub.",
+        "gaps": [
+          "AI assist is a keyword stub, not a real LLM \u2014 the \"AI-assisted project setup\" part of the promise is placeholder-quality",
+          "/materials index page is still a seeded placeholder with pulse skeletons \u2014 no ordering queue or delivery dashboard",
+          "Offline delay-logging (AC-DL-4) deferred \u2014 the \"open one app\" promise breaks when offline",
+          "No notes editing UI on /tasks/:id despite Add Note quick action linking there"
+        ]
+      },
+      "persona_fit": {
+        "score": 0.9,
+        "evidence": "Target persona is \"expert owner-builder managing a single residential new construction project\" in Ireland. The product correctly scopes to single-project management (no multi-project switcher complexity). Template seeding covers Irish residential archetypes (Standard Timber Frame, Slab-on-Grade, ICF Two-Storey). Currency is EUR. The daily briefing is mobile-first \u2014 matching the persona of someone on-site. The Gantt is desktop-first \u2014 matching the weekly review workflow at a desk. Trade contacts and material tracking address the coordination pain point directly.",
+        "drift_signals": [
+          "No drift detected \u2014 product remains tightly scoped to the owner-builder persona",
+          "Global improvement global-001 (stepper touch targets) is a minor a11y gap that could affect on-site mobile use \u2014 fix is specced and pending"
+        ]
+      },
+      "identity_consistency": {
+        "score": 0.88,
+        "evidence": "Vision specifies warm earth tones (clay, sage, amber), Inter typography, bottom tab bar on mobile, sidebar on desktop. The design.overall_score of 9 was set during seeding. Factory decisions consistently favor \"boring technology\" (browser print over jspdf, keyword stub over LLM integration) \u2014 this aligns with the \"practical tool for builders\" identity. The product feels purposeful and construction-domain-specific, not generic.",
+        "inconsistencies": [
+          "GanttChart.tsx at 827 lines (global-002) is a maintainability concern \u2014 while not user-facing, a monolithic component risks regression as features are added",
+          "Stepper touch targets (global-001) are below WCAG 2.5.5 \u2014 inconsistent with the mobile-first identity for a tool used on construction sites with gloved/dirty hands",
+          "PDF export uses browser print dialog rather than automatic download \u2014 less polished than the rest of the export experience (JSON/CSV are direct downloads)"
+        ]
+      },
+      "overall_confidence": 0.9,
+      "trajectory": "converging",
+      "summary": "The product is strongly converging on its vision. All 10 in-scope capabilities from vision.json are implemented, with the AI assist being the only one at stub quality. The cascade engine \u2014 the stated killer edge \u2014 works end-to-end from delay logging through dependency recalculation to shift alerts on the daily briefing. The product serves its persona well: single-project focus, Irish residential templates, EUR currency, mobile-first briefing. Two milestones (project-core with 6 stories, daily-experience with 6 stories) plus planning-tools are complete with 530+ tests. Health score 92, PO confidence 0.94. The remaining gaps (AI assist, /materials page, offline support) are documented and scoped \u2014 none threaten the core promise."
+    }
+  },
+  "confidence_history": [
+    {
+      "cycle": "5 (vision-check)",
+      "confidence": 0.9,
+      "timestamp": "2026-04-06T05:30:00Z",
+      "trajectory": "converging"
+    }
+  ],
+  "ship_result": {
+    "success": true,
+    "version": "0.2.0",
+    "pr_number": null,
+    "pr_url": null,
+    "milestone_tag": "milestone/construction-coordinator/planning-tools-v1",
+    "milestone_tag_url": "https://github.com/gregario/construction-coordinator/releases/tag/milestone%2Fconstruction-coordinator%2Fplanning-tools-v1",
+    "deploy_timestamp": "2026-04-06T04:13:43Z",
+    "deploy_url": "https://construction-coordinator.vercel.app",
+    "deploy_platform": "vercel",
+    "deploy_trigger": "git push to main (Vercel Hobby auto-deploy)",
+    "production_http_status": 307,
+    "production_login_http_status": 200,
+    "note": "Single-branch strategy \u2014 loop runs on main. PR creation not applicable (no separate loop branch). Milestone tagged at milestone/construction-coordinator/planning-tools-v1.",
+    "changelog_entry": "## [0.2.0] - 2026-04-06\n\n### Added\n- Gantt chart with inline editing, zoom, and dependency arrows\n- Photo storage with gallery view and next/image rendering\n- Document storage with per-file signed-URL downloads\n- Project data export (JSON/CSV zip, print-to-PDF)\n\n### Fixed\n- Photo images now use next/image (WebP, srcSet, lazy loading)\n- Server-side MIME type and file size validation for uploads"
+  }
 }
