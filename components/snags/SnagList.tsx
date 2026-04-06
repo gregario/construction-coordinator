@@ -11,6 +11,7 @@ import {
   type SnagStatus,
   type CreateSnagInput,
 } from '@/app/actions/snags'
+import { uploadPhoto } from '@/app/actions/photos'
 
 interface SnagListProps {
   projectId: string
@@ -75,6 +76,18 @@ export function SnagList({
       }
       const result = await createSnag(projectId, input)
       if (!result.ok) { setError(result.error); return }
+
+      // Upload photo if one was selected
+      if (photoFile) {
+        const formData = new FormData()
+        formData.append('file', photoFile)
+        formData.append('projectId', projectId)
+        formData.append('snagId', result.id)
+        formData.append('tag', 'snag')
+        if (stageId) formData.append('stageId', stageId)
+        await uploadPhoto(formData)
+      }
+
       const newSnag: SnagRow = {
         id: result.id,
         project_id: projectId,

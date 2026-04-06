@@ -56,6 +56,8 @@ export async function uploadPhoto(formData: FormData): Promise<UploadPhotoResult
   const projectId = formData.get('projectId') as string | null
   const taskId = (formData.get('taskId') as string | null) || null
   const stageId = (formData.get('stageId') as string | null) || null
+  const snagId = (formData.get('snagId') as string | null) || null
+  const tag = (formData.get('tag') as string | null) || 'general'
 
   if (!file || !projectId) {
     return { ok: false, error: 'Missing required fields' }
@@ -93,10 +95,12 @@ export async function uploadPhoto(formData: FormData): Promise<UploadPhotoResult
       project_id: projectId,
       task_id: taskId,
       stage_id: stageId,
+      snag_id: snagId,
       storage_path: storagePath,
       file_name: file.name,
       file_size: file.size,
       taken_at: null,
+      tag: snagId ? 'snag' : tag,
     })
     .select()
     .single()
@@ -110,7 +114,9 @@ export async function uploadPhoto(formData: FormData): Promise<UploadPhotoResult
   // Revalidate affected pages
   if (taskId) revalidatePath(`/tasks/${taskId}`)
   if (stageId) revalidatePath(`/stages/${stageId}`)
+  if (snagId) revalidatePath(`/snags/${snagId}`)
   revalidatePath('/photos')
+  revalidatePath('/snags')
 
   return { ok: true, photo: photo as PhotoRecord }
 }

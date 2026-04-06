@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Plus, AlertTriangle } from 'lucide-react'
+import { Plus, AlertTriangle, Camera } from 'lucide-react'
 import {
   createSnag,
   updateSnagStatus,
@@ -10,6 +10,7 @@ import {
   type SnagPriority,
   type SnagStatus,
 } from '@/app/actions/snags'
+import { uploadPhoto } from '@/app/actions/photos'
 
 interface TaskSnagsManagerProps {
   projectId: string
@@ -35,6 +36,7 @@ export function TaskSnagsManager({
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<SnagPriority>('medium')
   const [tradeId, setTradeId] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -52,6 +54,18 @@ export function TaskSnagsManager({
         trade_id: tradeId || null,
       })
       if (!result.ok) { setError(result.error); return }
+
+      // Upload photo if selected
+      if (photoFile) {
+        const formData = new FormData()
+        formData.append('file', photoFile)
+        formData.append('projectId', projectId)
+        formData.append('snagId', result.id)
+        formData.append('tag', 'snag')
+        formData.append('stageId', stageId)
+        await uploadPhoto(formData)
+      }
+
       setSnags(prev => [{
         id: result.id,
         project_id: projectId,
@@ -70,6 +84,7 @@ export function TaskSnagsManager({
       setTitle('')
       setPriority('medium')
       setTradeId('')
+      setPhotoFile(null)
       setError(null)
     })
   }
@@ -139,6 +154,14 @@ export function TaskSnagsManager({
               {trades.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-[#6B5D52] hover:text-[#2B1F17]">
+            <span className="rounded-md border border-[#E8DFD3] bg-white px-2 py-1 flex items-center gap-1">
+              <Camera size={12} /> Photo
+            </span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) setPhotoFile(f) }} />
+            {photoFile && <span className="text-[10px] text-[#5A8050] truncate max-w-[120px]">{photoFile.name}</span>}
+          </label>
           {error && <p className="text-xs text-[#B85450]">{error}</p>}
           <div className="flex gap-2">
             <button type="button" onClick={handleCreate} disabled={pending}
