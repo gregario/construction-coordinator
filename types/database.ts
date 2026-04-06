@@ -4,7 +4,7 @@
 
 export type ProjectStatus = 'setup' | 'active' | 'complete'
 export type TaskStatus = 'not_started' | 'in_progress' | 'complete' | 'delayed'
-export type MaterialOrderStatus = 'not_ordered' | 'ordered' | 'delivered'
+export type MaterialOrderStatus = 'not_quoted' | 'quoted' | 'ordered' | 'in_transit' | 'delivered'
 export type EntityType = 'task' | 'material'
 export type ChangeType = 'date_moved' | 'status_changed'
 

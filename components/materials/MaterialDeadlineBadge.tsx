@@ -29,7 +29,7 @@ export function MaterialDeadlineBadge({ badge }: Props) {
 }
 
 // AC-MS-1 / AC-MS-2: ordered (green outline) / delivered (solid green) pills.
-// Shown in place of the deadline badge once a material leaves not_ordered.
+// Shown in place of the deadline badge once a material leaves not_quoted.
 export function MaterialStatusBadge({
   status,
 }: {

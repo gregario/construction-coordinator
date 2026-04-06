@@ -59,7 +59,7 @@ export type MaterialInsert = {
   quantity: string | null
   lead_time_days: number
   order_by_date: string | null
-  order_status: 'not_ordered'
+  order_status: 'not_quoted'
   supplier_name: string | null
   notes: string | null
   estimated_cost: number | null
@@ -162,7 +162,7 @@ export function buildTemplateInsertPlan(
             quantity: m.quantity ?? null,
             lead_time_days: leadTime,
             order_by_date: orderByDate,
-            order_status: 'not_ordered',
+            order_status: 'not_quoted',
             supplier_name: m.supplier_name ?? null,
             notes: m.notes ?? null,
             estimated_cost: m.estimated_cost ?? null,

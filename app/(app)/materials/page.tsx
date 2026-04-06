@@ -79,7 +79,7 @@ export default async function MaterialsPage() {
   const today = todayIso()
   const overdueCount = rows.filter(
     r => r.order_by_date && r.order_by_date < today &&
-    (r.order_status === 'not_quoted' || r.order_status === 'quoted' || r.order_status === 'not_ordered')
+    (r.order_status === 'not_quoted' || r.order_status === 'quoted' || r.order_status === 'not_quoted')
   ).length
 
   return (

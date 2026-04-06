@@ -123,7 +123,7 @@ export type MaterialDeadlineInput = {
   id: string
   name: string
   order_by_date: string | null
-  order_status: 'not_ordered' | 'ordered' | 'delivered'
+  order_status: MaterialOrderStatusValue
 }
 
 const UPCOMING_WINDOW_DAYS = 7
@@ -132,7 +132,7 @@ export function materialDeadlineStatus(
   material: MaterialDeadlineInput,
   today: string
 ): MaterialDeadlineBadge | null {
-  if (material.order_status !== 'not_ordered') return null
+  if (material.order_status !== 'not_quoted') return null
   if (!material.order_by_date) return null
   const diff = daysBetweenIso(today, material.order_by_date)
   if (Number.isNaN(diff)) return null
@@ -142,7 +142,7 @@ export function materialDeadlineStatus(
 }
 
 // AC-OB-4: briefing 'Upcoming Orders' — materials whose order_by_date is
-// on or before (today + 7), that are still not_ordered, sorted ascending.
+// on or before (today + 7), that are still not_quoted, sorted ascending.
 // Overdue items naturally sort to the top of the list.
 export function selectUpcomingOrders<T extends MaterialDeadlineInput>(
   materials: T[],
@@ -151,7 +151,7 @@ export function selectUpcomingOrders<T extends MaterialDeadlineInput>(
   const cutoffMs = isoDateToUtcMs(today) + UPCOMING_WINDOW_DAYS * 86_400_000
   return materials
     .filter(m => {
-      if (m.order_status !== 'not_ordered') return false
+      if (m.order_status !== 'not_quoted') return false
       if (!m.order_by_date) return false
       const ms = isoDateToUtcMs(m.order_by_date)
       if (Number.isNaN(ms)) return false
@@ -164,8 +164,8 @@ export function selectUpcomingOrders<T extends MaterialDeadlineInput>(
 }
 
 // AC-MS-1 / AC-MS-2: material order_status transitions.
-// not_ordered → ordered → delivered. Delivered is terminal.
-export type MaterialOrderStatusValue = 'not_ordered' | 'ordered' | 'delivered'
+// not_quoted → ordered → delivered. Delivered is terminal.
+export type MaterialOrderStatusValue = 'not_quoted' | 'quoted' | 'ordered' | 'in_transit' | 'delivered'
 
 export type StatusTransition = {
   nextStatus: MaterialOrderStatusValue
@@ -175,20 +175,28 @@ export type StatusTransition = {
 export function nextStatusTransition(
   status: MaterialOrderStatusValue
 ): StatusTransition | null {
-  if (status === 'not_ordered') {
+  if (status === 'not_quoted') {
+    return { nextStatus: 'quoted', label: 'Mark Quoted' }
+  }
+  if (status === 'quoted') {
     return { nextStatus: 'ordered', label: 'Mark Ordered' }
   }
   if (status === 'ordered') {
+    return { nextStatus: 'in_transit', label: 'Mark In Transit' }
+  }
+  if (status === 'in_transit') {
     return { nextStatus: 'delivered', label: 'Mark Delivered' }
   }
   return null
 }
 
-// AC-MS-3: filter tabs on /materials — All / Not Ordered / Ordered / Delivered.
+// Filter tabs on /materials
 export type MaterialStatusFilter =
   | 'all'
-  | 'not_ordered'
+  | 'not_quoted'
+  | 'quoted'
   | 'ordered'
+  | 'in_transit'
   | 'delivered'
 
 export function filterMaterialsByStatus<

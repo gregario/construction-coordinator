@@ -63,7 +63,7 @@ describe('selectUpcomingOrders with AC-UO-4 context', () => {
   const makeMat = (
     id: string,
     orderByDate: string | null,
-    status: 'not_ordered' | 'ordered' | 'delivered' = 'not_ordered'
+    status: 'not_quoted' | 'ordered' | 'delivered' = 'not_quoted'
   ): MaterialDeadlineInput => ({
     id,
     name: `Material ${id}`,
@@ -87,7 +87,7 @@ describe('selectUpcomingOrders with AC-UO-4 context', () => {
     expect(result).toEqual([])
   })
 
-  it('includes overdue not_ordered materials (they sort first)', () => {
+  it('includes overdue not_quoted materials (they sort first)', () => {
     const overdue = makeMat('1', '2026-06-08')
     const dueSoon = makeMat('2', '2026-06-15')
     const result = selectUpcomingOrders([dueSoon, overdue], '2026-06-10')

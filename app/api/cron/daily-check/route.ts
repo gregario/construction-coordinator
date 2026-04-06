@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       const { data: upcomingMaterials } = await supabase
         .from('materials')
         .select('name, order_by_date, tasks!inner(project_id)')
-        .eq('order_status', 'not_ordered')
+        .eq('order_status', 'not_quoted')
         .lte('order_by_date', warningDate)
         .gte('order_by_date', today)
 

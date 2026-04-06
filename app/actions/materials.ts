@@ -238,7 +238,7 @@ export async function updateMaterial(
 }
 
 // AC-MS-1 / AC-MS-2: update a material's order_status.
-// Valid transitions: not_ordered→ordered, ordered→delivered. Delivered is terminal.
+// Valid transitions: not_quoted→ordered, ordered→delivered. Delivered is terminal.
 // (Also accepts a no-op re-assert for idempotency.)
 export type UpdateMaterialStatusInput = {
   projectId: string
@@ -258,8 +258,10 @@ function isValidTransition(
   next: MaterialOrderStatusValue
 ): boolean {
   if (current === next) return true
-  if (current === 'not_ordered' && next === 'ordered') return true
-  if (current === 'ordered' && next === 'delivered') return true
+  if (current === 'not_quoted' && next === 'quoted') return true
+  if (current === 'quoted' && next === 'ordered') return true
+  if (current === 'ordered' && next === 'in_transit') return true
+  if (current === 'in_transit' && next === 'delivered') return true
   return false
 }
 

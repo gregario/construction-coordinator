@@ -87,7 +87,7 @@ describe('Database type shapes', () => {
   })
 
   it('Material order_status enum covers all values', () => {
-    const statuses: Material['order_status'][] = ['not_ordered', 'ordered', 'delivered']
+    const statuses: Material['order_status'][] = ['not_quoted', 'ordered', 'delivered']
     expect(statuses).toHaveLength(3)
   })
 
@@ -99,7 +99,7 @@ describe('Database type shapes', () => {
       quantity: '22 m³',
       lead_time_days: 3,
       order_by_date: '2026-06-19',
-      order_status: 'not_ordered',
+      order_status: 'not_quoted',
       estimated_cost: 2640,
       supplier_name: 'Roadstone Concrete',
       notes: null,

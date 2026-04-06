@@ -33,7 +33,7 @@ type Tab = { value: MaterialStatusFilter; label: string }
 
 const TABS: Tab[] = [
   { value: 'all', label: 'All' },
-  { value: 'not_ordered', label: 'Not Ordered' },
+  { value: 'not_quoted', label: 'Not Quoted' },
   { value: 'ordered', label: 'Ordered' },
   { value: 'delivered', label: 'Delivered' },
 ]
@@ -44,7 +44,7 @@ export function MaterialsListView({ materials, today }: Props) {
   const counts = useMemo(() => {
     return {
       all: materials.length,
-      not_ordered: materials.filter(m => m.order_status === 'not_ordered').length,
+      not_quoted: materials.filter(m => m.order_status === 'not_quoted').length,
       ordered: materials.filter(m => m.order_status === 'ordered').length,
       delivered: materials.filter(m => m.order_status === 'delivered').length,
     } as Record<MaterialStatusFilter, number>
@@ -103,7 +103,7 @@ export function MaterialsListView({ materials, today }: Props) {
         <ul className="space-y-2" data-testid="materials-list">
           {visible.map(m => {
             const deadline =
-              m.order_status === 'not_ordered'
+              m.order_status === 'not_quoted'
                 ? materialDeadlineStatus(
                     {
                       id: m.id,
@@ -135,7 +135,7 @@ export function MaterialsListView({ materials, today }: Props) {
                       </Link>
                     )}
                   </div>
-                  {m.order_status === 'not_ordered' ? (
+                  {m.order_status === 'not_quoted' ? (
                     <MaterialDeadlineBadge badge={deadline} />
                   ) : (
                     <MaterialStatusBadge status={m.order_status} />

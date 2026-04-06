@@ -180,18 +180,18 @@ function mat(
     id: 'm1',
     name: 'Lumber 2x6',
     order_by_date: '2026-04-10',
-    order_status: 'not_ordered',
+    order_status: 'not_quoted',
     ...overrides,
   }
 }
 
 // @criterion: AC-OB-2
-// AC-OB-2: order_by_date in past + not_ordered → red 'overdue' badge.
+// AC-OB-2: order_by_date in past + not_quoted → red 'overdue' badge.
 describe('materialDeadlineStatus — AC-OB-2 overdue', () => {
-  it("returns 'overdue' when order_by_date is before today and not_ordered", () => {
+  it("returns 'overdue' when order_by_date is before today and not_quoted", () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: '2026-04-04', order_status: 'not_ordered' }),
+        mat({ order_by_date: '2026-04-04', order_status: 'not_quoted' }),
         TODAY
       )
     ).toBe('overdue')
@@ -200,7 +200,7 @@ describe('materialDeadlineStatus — AC-OB-2 overdue', () => {
   it("returns 'overdue' when order_by_date is far in the past", () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: '2025-12-01', order_status: 'not_ordered' }),
+        mat({ order_by_date: '2025-12-01', order_status: 'not_quoted' }),
         TODAY
       )
     ).toBe('overdue')
@@ -226,12 +226,12 @@ describe('materialDeadlineStatus — AC-OB-2 overdue', () => {
 })
 
 // @criterion: AC-OB-3
-// AC-OB-3: order_by_date within next 7 days + not_ordered → amber 'due soon' badge.
+// AC-OB-3: order_by_date within next 7 days + not_quoted → amber 'due soon' badge.
 describe('materialDeadlineStatus — AC-OB-3 due soon', () => {
   it("returns 'due_soon' when order_by_date is exactly 7 days away", () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: '2026-04-12', order_status: 'not_ordered' }),
+        mat({ order_by_date: '2026-04-12', order_status: 'not_quoted' }),
         TODAY
       )
     ).toBe('due_soon')
@@ -240,7 +240,7 @@ describe('materialDeadlineStatus — AC-OB-3 due soon', () => {
   it("returns 'due_soon' when order_by_date is today", () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: TODAY, order_status: 'not_ordered' }),
+        mat({ order_by_date: TODAY, order_status: 'not_quoted' }),
         TODAY
       )
     ).toBe('due_soon')
@@ -249,7 +249,7 @@ describe('materialDeadlineStatus — AC-OB-3 due soon', () => {
   it("returns 'due_soon' for a date 1 day out", () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: '2026-04-06', order_status: 'not_ordered' }),
+        mat({ order_by_date: '2026-04-06', order_status: 'not_quoted' }),
         TODAY
       )
     ).toBe('due_soon')
@@ -258,7 +258,7 @@ describe('materialDeadlineStatus — AC-OB-3 due soon', () => {
   it('returns null when order_by_date is 8 days away (outside window)', () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: '2026-04-13', order_status: 'not_ordered' }),
+        mat({ order_by_date: '2026-04-13', order_status: 'not_quoted' }),
         TODAY
       )
     ).toBeNull()
@@ -267,7 +267,7 @@ describe('materialDeadlineStatus — AC-OB-3 due soon', () => {
   it('returns null when order_by_date is null', () => {
     expect(
       materialDeadlineStatus(
-        mat({ order_by_date: null, order_status: 'not_ordered' }),
+        mat({ order_by_date: null, order_status: 'not_quoted' }),
         TODAY
       )
     ).toBeNull()
@@ -297,7 +297,7 @@ describe('selectUpcomingOrders — AC-OB-4', () => {
     expect(result.map(m => m.id)).toEqual(['b', 'c', 'a'])
   })
 
-  it('includes overdue not_ordered materials at the top (sorted ascending)', () => {
+  it('includes overdue not_quoted materials at the top (sorted ascending)', () => {
     const input: MaterialDeadlineInput[] = [
       mat({ id: 'future', order_by_date: '2026-04-09' }),
       mat({ id: 'overdue-old', order_by_date: '2026-03-20' }),
@@ -329,7 +329,7 @@ describe('selectUpcomingOrders — AC-OB-4', () => {
     const input: MaterialDeadlineInput[] = [
       mat({ id: 'ordered', order_by_date: '2026-04-08', order_status: 'ordered' }),
       mat({ id: 'delivered', order_by_date: '2026-04-09', order_status: 'delivered' }),
-      mat({ id: 'pending', order_by_date: '2026-04-10', order_status: 'not_ordered' }),
+      mat({ id: 'pending', order_by_date: '2026-04-10', order_status: 'not_quoted' }),
     ]
     const result = selectUpcomingOrders(input, TODAY)
     expect(result.map(m => m.id)).toEqual(['pending'])
@@ -341,17 +341,31 @@ describe('selectUpcomingOrders — AC-OB-4', () => {
 })
 
 // @criterion: AC-MS-1 / AC-MS-2
-// Status transitions: not_ordered → ordered → delivered. Delivered is terminal.
+// Status transitions: not_quoted → quoted → ordered → in_transit → delivered. Delivered is terminal.
 describe('nextStatusTransition — AC-MS-1 / AC-MS-2', () => {
-  it('suggests Mark Ordered when status is not_ordered', () => {
-    expect(nextStatusTransition('not_ordered')).toEqual({
+  it('suggests Mark Quoted when status is not_quoted', () => {
+    expect(nextStatusTransition('not_quoted')).toEqual({
+      nextStatus: 'quoted',
+      label: 'Mark Quoted',
+    })
+  })
+
+  it('suggests Mark Ordered when status is quoted', () => {
+    expect(nextStatusTransition('quoted')).toEqual({
       nextStatus: 'ordered',
       label: 'Mark Ordered',
     })
   })
 
-  it('suggests Mark Delivered when status is ordered', () => {
+  it('suggests Mark In Transit when status is ordered', () => {
     expect(nextStatusTransition('ordered')).toEqual({
+      nextStatus: 'in_transit',
+      label: 'Mark In Transit',
+    })
+  })
+
+  it('suggests Mark Delivered when status is in_transit', () => {
+    expect(nextStatusTransition('in_transit')).toEqual({
       nextStatus: 'delivered',
       label: 'Mark Delivered',
     })
@@ -363,14 +377,14 @@ describe('nextStatusTransition — AC-MS-1 / AC-MS-2', () => {
 })
 
 // @criterion: AC-MS-3
-// Status filter tabs on /materials (All / Not Ordered / Ordered / Delivered).
+// Status filter tabs on /materials (All / Not Quoted / Ordered / Delivered).
 describe('filterMaterialsByStatus — AC-MS-3', () => {
-  type Row = { id: string; order_status: 'not_ordered' | 'ordered' | 'delivered' }
+  type Row = { id: string; order_status: 'not_quoted' | 'ordered' | 'delivered' }
   const ROWS: Row[] = [
-    { id: 'a', order_status: 'not_ordered' },
+    { id: 'a', order_status: 'not_quoted' },
     { id: 'b', order_status: 'ordered' },
     { id: 'c', order_status: 'delivered' },
-    { id: 'd', order_status: 'not_ordered' },
+    { id: 'd', order_status: 'not_quoted' },
     { id: 'e', order_status: 'ordered' },
   ]
 
@@ -384,9 +398,9 @@ describe('filterMaterialsByStatus — AC-MS-3', () => {
     ])
   })
 
-  it("returns only not_ordered rows when filter='not_ordered'", () => {
+  it("returns only not_quoted rows when filter='not_quoted'", () => {
     expect(
-      filterMaterialsByStatus(ROWS, 'not_ordered').map(r => r.id)
+      filterMaterialsByStatus(ROWS, 'not_quoted').map(r => r.id)
     ).toEqual(['a', 'd'])
   })
 
@@ -419,7 +433,7 @@ describe('filterMaterialsByStatus — AC-MS-3', () => {
   it('accepts MaterialStatusFilter type values', () => {
     const filters: MaterialStatusFilter[] = [
       'all',
-      'not_ordered',
+      'not_quoted',
       'ordered',
       'delivered',
     ]
