@@ -18,6 +18,8 @@ import {
   TaskDocumentsManager,
   type DocumentListItem,
 } from '@/components/documents/TaskDocumentsManager'
+import { TaskSnagsManager } from '@/components/snags/TaskSnagsManager'
+import { type SnagRow } from '@/app/actions/snags'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,6 +125,20 @@ export default async function TaskDetailPage({ params }: Props) {
     .order('created_at', { ascending: false })
   const taskDocuments = (docsRes.data as DocumentListItem[] | null) ?? []
 
+  // Load snags for this substage
+  const snagsRes = await supabase
+    .from('snags')
+    .select('*')
+    .eq('stage_id', task.stage_id)
+    .order('created_at', { ascending: false })
+  const taskSnags = (snagsRes.data as SnagRow[] | null) ?? []
+
+  // Get block_id for this task's stage
+  const stageBlockRes = stage
+    ? await supabase.from('stages').select('block_id').eq('id', stage.id).maybeSingle()
+    : { data: null }
+  const blockId = (stageBlockRes.data as { block_id: string | null } | null)?.block_id ?? null
+
   // Generate signed URLs for photo previews
   const signedUrls: Record<string, string> = {}
   if (taskPhotos.length > 0) {
@@ -197,6 +213,17 @@ export default async function TaskDetailPage({ params }: Props) {
         initialPhotos={taskPhotos}
         signedUrls={signedUrls}
       />
+
+      {task.stage_id && (
+        <TaskSnagsManager
+          projectId={project.id}
+          taskId={task.id}
+          stageId={task.stage_id}
+          blockId={blockId}
+          trades={trades}
+          initialSnags={taskSnags}
+        />
+      )}
 
       <TaskDocumentsManager
         projectId={project.id}

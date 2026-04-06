@@ -21,7 +21,6 @@ const primaryNav = [
 
 const secondaryNav = [
   { href: '/snags', label: 'Snags', icon: AlertTriangle },
-  { href: '/photos', label: 'Photos', icon: Camera },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
@@ -36,7 +35,6 @@ const moreSheetItems = [
   { href: '/materials', label: 'Materials', icon: Package },
   { href: '/snags', label: 'Snags', icon: AlertTriangle },
   { href: '/trades', label: 'Trades', icon: Users },
-  { href: '/photos', label: 'Photos', icon: Camera },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
