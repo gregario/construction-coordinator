@@ -49,10 +49,13 @@ export default async function SetupPage({
     )
   }
 
-  const result = await supabase
+  // Use loose client to avoid type mismatches with new columns
+  const loose = supabase as any
+  const result = await loose
     .from('projects')
-    .select('*')
+    .select('id, user_id, name, address, start_date, status, created_at, updated_at')
     .eq('user_id', user.id)
+    .neq('status', 'archived')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
