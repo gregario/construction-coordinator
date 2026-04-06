@@ -34,7 +34,7 @@ export function validateDelayDate(
     return { ok: false, error: 'Pick a valid date' }
   }
   if (!currentPlannedEnd || !ISO_DATE_RE.test(currentPlannedEnd)) {
-    return { ok: false, error: 'Task has no current end date' }
+    return { ok: false, error: 'Substage has no current end date' }
   }
   if (newPlannedEnd <= currentPlannedEnd) {
     return { ok: false, error: 'New date must be after the current end date' }
@@ -50,7 +50,7 @@ export function formatCascadeSummaryMessage(
   taskCount: number,
   materialCount: number
 ): string {
-  const tasks = `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'} shifted`
+  const tasks = `${taskCount} ${taskCount === 1 ? 'substage' : 'substages'} shifted`
   const materials = `${materialCount} material order-by ${
     materialCount === 1 ? 'date' : 'dates'
   } moved`

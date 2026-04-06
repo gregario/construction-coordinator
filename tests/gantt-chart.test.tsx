@@ -372,6 +372,6 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
     fireEvent.mouseUp(document)
 
     expect(screen.getByTestId('task-detail-edit')).toBeInTheDocument()
-    expect(screen.getByTestId('task-detail-edit')).toHaveTextContent('Edit Task')
+    expect(screen.getByTestId('task-detail-edit')).toHaveTextContent('Edit Substage')
   })
 })

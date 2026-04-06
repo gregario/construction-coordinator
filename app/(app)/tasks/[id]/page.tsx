@@ -59,9 +59,9 @@ export default async function TaskDetailPage({ params }: Props) {
   if (!task) {
     return (
       <main className="p-4">
-        <h1 className="text-xl font-semibold text-[#2B1F17]">Task not found</h1>
+        <h1 className="text-xl font-semibold text-[#2B1F17]">Substage not found</h1>
         <p className="mt-2 text-sm text-[#6B5D52]">
-          This task no longer exists.{' '}
+          This substage no longer exists.{' '}
           <Link href="/schedule" className="underline">
             Back to Schedule
           </Link>

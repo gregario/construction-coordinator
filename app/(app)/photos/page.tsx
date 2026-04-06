@@ -79,7 +79,7 @@ export default async function PhotosPage() {
       {photos.length === 0 ? (
         <div className="rounded-lg border border-[#E8DFD3] bg-white p-8 text-center">
           <p className="text-sm text-[#6B5D52]">
-            No photos yet. Add photos from task detail pages to track site progress.
+            No photos yet. Add photos from substage detail pages to track site progress.
           </p>
           <Link
             href="/schedule"

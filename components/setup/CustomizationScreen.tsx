@@ -163,7 +163,7 @@ export function CustomizationScreen({
               Customize
             </h2>
             <p className="text-xs text-[#A89A8C]">
-              {activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}
+              {activeTaskCount} active {activeTaskCount === 1 ? 'substage' : 'substages'}
               {toggledOff.size > 0 && ` · ${toggledOff.size} off`}
               {addedTasks.length > 0 && ` · ${addedTasks.length} added`}
             </p>
@@ -196,7 +196,7 @@ export function CustomizationScreen({
                     <span className="font-medium text-[#2B1F17]">{stage.name}</span>
                     <span className="text-xs text-[#A89A8C]">
                       {stage.tasks.length + addedForStage.length}{' '}
-                      {stage.tasks.length + addedForStage.length === 1 ? 'task' : 'tasks'}
+                      {stage.tasks.length + addedForStage.length === 1 ? 'substage' : 'substages'}
                     </span>
                   </div>
                   <span className="text-[#6B5D52] text-sm">

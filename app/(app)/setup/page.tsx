@@ -4,6 +4,8 @@ import type { Database } from '@/lib/supabase/types'
 import { ProjectCreationForm } from '@/components/setup/ProjectCreationForm'
 import { TemplateBrowser } from '@/components/setup/TemplateBrowser'
 import { CustomizationScreen } from '@/components/setup/CustomizationScreen'
+import { BlockManager } from '@/components/setup/BlockManager'
+import { MethodPicker } from '@/components/setup/MethodPicker'
 import {
   summarizeTemplate,
   type TemplateRecord,
@@ -14,6 +16,7 @@ import type {
   CustomizationTask,
   TaskDependencyRow,
 } from '@/lib/customization/tree'
+import type { BlockRow } from '@/app/actions/blocks'
 
 type ProjectRow = Database['public']['Tables']['projects']['Row']
 
@@ -37,18 +40,44 @@ export default async function SetupPage() {
   // Project already active — user shouldn't be on /setup
   if (project && project.status === 'active') redirect('/briefing')
 
-  // Project in setup → show template browser (or template-applied placeholder)
+  // Project in setup → determine which step to show
   if (project && project.status === 'setup') {
-    // If stages already exist for this project, the template was applied.
-    // The customization step (next story) refines the tree; until then,
-    // show a holding view rather than letting the user double-apply.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loose = supabase as any
+
+    // Step 2: Check if blocks exist for this project
+    const blocksRes = await loose
+      .from('blocks')
+      .select('id, name, attachment_type, storeys, order_index, construction_scheme')
+      .eq('project_id', project.id)
+      .order('order_index', { ascending: true })
+    const existingBlocks = (blocksRes.data ?? []) as BlockRow[]
+
+    if (existingBlocks.length === 0) {
+      // No blocks yet → show block manager (Step 2)
+      return (
+        <div className="p-4 md:p-8 max-w-2xl">
+          <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">
+            Add your buildings
+          </h1>
+          <p className="text-[#6B5D52] text-sm mb-6">
+            Each block gets its own construction scheme. Add at least one block to continue.
+          </p>
+          <BlockManager projectId={project.id} initialBlocks={[]} />
+          <div className="mt-6 flex justify-end">
+            <span className="text-xs text-[#6B5D52]">
+              Add a block above, then the construction scheme picker will appear.
+            </span>
+          </div>
+        </div>
+      )
+    }
+
+    // Check if stages exist (template/method applied)
     const stageCountRes = await loose
       .from('stages')
       .select('id', { count: 'exact', head: true })
       .eq('project_id', project.id)
-
     const existingStageCount = (stageCountRes.count as number | null) ?? 0
 
     if (existingStageCount > 0) {
@@ -82,7 +111,7 @@ export default async function SetupPage() {
             Customize &ldquo;{project.name}&rdquo;
           </h1>
           <p className="text-[#6B5D52] text-sm mb-6">
-            Toggle tasks off that don&rsquo;t apply, or describe your build to the AI
+            Toggle substages off that don&rsquo;t apply, or describe your build to the AI
             assistant for tailored suggestions.
           </p>
           <CustomizationScreen
@@ -96,31 +125,23 @@ export default async function SetupPage() {
       )
     }
 
-    // Load templates and build summaries on the server to keep the browser payload small.
-    const tplRes = await loose
-      .from('templates')
-      .select('id, name, description, total_duration_days, stages')
-      .order('name', { ascending: true })
-
-    const templates = (tplRes.data ?? []) as TemplateRecord[]
-    const summaries: TemplateSummary[] = templates.map(summarizeTemplate)
-
+    // Blocks exist but no stages → show construction method picker
     return (
-      <div className="p-4 md:p-8 max-w-5xl">
+      <div className="p-4 md:p-8 max-w-3xl">
         <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">
-          Choose a template
+          Construction Scheme
         </h1>
         <p className="text-[#6B5D52] text-sm mb-6">
-          Pick a residential build template for &ldquo;{project.name}&rdquo;. You can
-          customize it next.
+          Pick your construction methods for &ldquo;{project.name}&rdquo;. Each category
+          generates substages for your schedule.
         </p>
-        {summaries.length === 0 ? (
-          <div className="rounded-lg border border-[#E8DFD3] bg-white p-6">
-            <p className="text-sm text-[#6B5D52]">No templates available yet.</p>
-          </div>
-        ) : (
-          <TemplateBrowser projectId={project.id} summaries={summaries} />
-        )}
+        <div className="bg-white rounded-lg border border-[#E8DFD3] p-4 md:p-6">
+          <MethodPicker
+            projectId={project.id}
+            blocks={existingBlocks}
+            startDate={project.start_date}
+          />
+        </div>
       </div>
     )
   }

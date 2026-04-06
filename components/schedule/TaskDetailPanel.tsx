@@ -70,12 +70,12 @@ export function TaskDetailPanel({
       className="fixed right-0 top-0 z-50 flex h-full w-80 max-w-[90vw] flex-col border-l border-[#E8DFD3] bg-white shadow-xl animate-slide-in-right"
       data-testid="task-detail-panel"
       role="dialog"
-      aria-label={`Task details: ${task.name}`}
+      aria-label={`Substage details: ${task.name}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E8DFD3] px-4 py-3">
         <h2 className="text-sm font-semibold text-[#2B1F17] truncate">
-          Task Details
+          Substage Details
         </h2>
         <button
           type="button"
@@ -183,7 +183,7 @@ export function TaskDetailPanel({
               Dependencies
             </h4>
             <p className="text-sm text-[#2B1F17]">
-              {task.depends_on.length} task{task.depends_on.length !== 1 ? 's' : ''}
+              {task.depends_on.length} substage{task.depends_on.length !== 1 ? 's' : ''}
             </p>
           </div>
         )}
@@ -197,7 +197,7 @@ export function TaskDetailPanel({
           className="w-full rounded-md bg-[#8B5E3C] px-3 py-2 text-sm font-medium text-white hover:bg-[#7A5234] transition-colors"
           data-testid="task-detail-edit"
         >
-          Edit Task
+          Edit Substage
         </button>
       </div>
     </div>

@@ -174,15 +174,15 @@ export default async function BriefingPage() {
       {/* AC-DB-1 Section 1: Today's Tasks */}
       <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-[#2B1F17]">
-          Today&apos;s Tasks
+          Today&apos;s Substages
         </h2>
         {todayTasks.length === 0 ? (
           /* AC-DB-3: empty state */
           <p className="text-sm text-[#6B5D52]">
-            No tasks scheduled today
+            No substages scheduled today
             {nextStart ? (
               <>
-                {' — next task starts '}
+                {' — next substage starts '}
                 <Link
                   href="/schedule"
                   className="font-medium text-[#8B5E3C] underline-offset-2 hover:underline"

@@ -295,9 +295,9 @@ export function StageTasksManager({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-[#2B1F17]">Tasks</h2>
+          <h2 className="text-sm font-semibold text-[#2B1F17]">Substages</h2>
           <p className="text-xs text-[#6B5D52]">
-            Work items in {stageName}. Set dependencies to chain tasks in sequence.
+            Work items in {stageName}. Set dependencies to chain substages in sequence.
           </p>
         </div>
         <button
@@ -306,7 +306,7 @@ export function StageTasksManager({
           disabled={pending}
           className="rounded-md bg-[#2B1F17] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A1E] disabled:opacity-50"
         >
-          + Add Task
+          + Add Substage
         </button>
       </div>
 
@@ -322,7 +322,7 @@ export function StageTasksManager({
       {sortedTasks.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[#E8DFD3] bg-white p-6 text-center">
           <p className="text-sm text-[#6B5D52]">
-            No tasks yet. Add the first task in this stage.
+            No substages yet. Add the first substage in this stage.
           </p>
         </div>
       ) : (
@@ -393,7 +393,7 @@ export function StageTasksManager({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Add task"
+          aria-label="Add substage"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={handleCancelAdd}
         >
@@ -402,8 +402,8 @@ export function StageTasksManager({
             onClick={e => e.stopPropagation()}
             className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
           >
-            <h3 className="text-base font-semibold text-[#2B1F17]">Add Task</h3>
-            <p className="mt-1 text-xs text-[#6B5D52]">Adding a task to {stageName}.</p>
+            <h3 className="text-base font-semibold text-[#2B1F17]">Add Substage</h3>
+            <p className="mt-1 text-xs text-[#6B5D52]">Adding a substage to {stageName}.</p>
 
             <label className="mt-4 block text-xs font-medium text-[#2B1F17]">
               Name
@@ -522,7 +522,7 @@ export function StageTasksManager({
                 disabled={pending}
                 className="rounded-md bg-[#2B1F17] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A1E] disabled:opacity-50"
               >
-                {pending ? 'Saving…' : 'Save task'}
+                {pending ? 'Saving…' : 'Save substage'}
               </button>
             </div>
           </form>
@@ -533,7 +533,7 @@ export function StageTasksManager({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Edit task duration"
+          aria-label="Edit substage duration"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={handleCancelEdit}
         >
@@ -544,7 +544,7 @@ export function StageTasksManager({
           >
             <h3 className="text-base font-semibold text-[#2B1F17]">Edit duration</h3>
             <p className="mt-1 text-xs text-[#6B5D52]">
-              {editTarget.name} — changing this will shift downstream tasks.
+              {editTarget.name} — changing this will shift downstream substages.
             </p>
             <label className="mt-4 block text-xs font-medium text-[#2B1F17]">
               Duration (days)
