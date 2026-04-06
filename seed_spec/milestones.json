@@ -1,0 +1,480 @@
+{
+  "product": "construction-manager",
+  "complexity_profile": {
+    "primary": "full-stack"
+  },
+  "milestones": [
+    {
+      "name": "project-core",
+      "feature_areas": ["project-setup", "task-tree", "trade-contacts"],
+      "depends_on_milestones": [],
+      "stories": [
+        {
+          "id": "project-creation",
+          "name": "Project Creation",
+          "feature_area": "project-setup",
+          "acceptance_criteria": [
+            "AC-PS-1: Given an authenticated user with no active project, WHEN they submit the project-creation form with a non-empty name and a valid start_date, THEN a Project record is created with status='setup' and the user is redirected to /setup template browser.",
+            "AC-PS-2: Given the project-creation form, WHEN the user submits with an empty name field, THEN the form shows an inline validation error 'Project name is required' and no Project record is created.",
+            "AC-PS-3: Given the project-creation form, WHEN the user submits with a start_date in the past, THEN the form shows an inline warning 'Start date is in the past — continue anyway?' and requires explicit confirmation before saving.",
+            "AC-PS-4: Given an authenticated user, WHEN they navigate to / with no existing project, THEN they are redirected to /setup; WHEN they have an active project, THEN they are redirected to /briefing.",
+            "AC-PS-5: Given a project-creation form with name, address (optional), and start_date, WHEN the user closes the browser mid-entry and returns, THEN the form fields are restored from localStorage."
+          ],
+          "user_journeys": ["J1-setup"],
+          "depends_on": [],
+          "affected_entities": ["Project"],
+          "affected_screens": ["/setup"],
+          "notes": "Create project with name, address, start date. Form state persisted in localStorage."
+        },
+        {
+          "id": "template-browser",
+          "name": "Template Browser",
+          "feature_area": "project-setup",
+          "acceptance_criteria": [
+            "AC-TB-1: Given a newly created project, WHEN the user lands on the template browser, THEN at least 3 residential construction templates are displayed (e.g., 'Standard Timber Frame', 'Slab-on-Grade Single Story', 'ICF Two-Story').",
+            "AC-TB-2: Given the template browser, WHEN the user clicks a template card, THEN a preview panel shows the template's stages, sample tasks per stage, and estimated total duration.",
+            "AC-TB-3: Given a template preview, WHEN the user clicks 'Use This Template', THEN the template's stages, tasks, and default materials are copied into the user's project.",
+            "AC-TB-4: Given the template browser, WHEN the page loads, THEN all templates render within 2 seconds with no console errors."
+          ],
+          "user_journeys": ["J1-setup"],
+          "depends_on": ["project-creation"],
+          "affected_entities": ["Project", "Stage", "Task"],
+          "affected_screens": ["/setup"],
+          "notes": "Browse and preview residential construction templates. Seed data for templates."
+        },
+        {
+          "id": "template-customization",
+          "name": "Template Customization + AI Assist",
+          "feature_area": "project-setup",
+          "acceptance_criteria": [
+            "AC-TC-1: Given a project with a selected template, WHEN the user views the customization screen, THEN all stages and tasks are shown in a collapsible tree with on/off toggles for each task.",
+            "AC-TC-2: Given the customization tree, WHEN the user toggles a task off, THEN the task is removed from the project and any downstream tasks that depended on it show a warning icon.",
+            "AC-TC-3: Given the customization screen, WHEN the user types a description in the AI assist chat panel (e.g., 'I'm doing ICF foundation not traditional pour'), THEN the AI suggests specific task/material additions or substitutions with accept/reject buttons.",
+            "AC-TC-4: Given an AI suggestion, WHEN the user clicks 'Accept', THEN the suggested changes are applied to the project tree and the suggestion is removed from the chat.",
+            "AC-TC-5: Given the customization screen, WHEN the user clicks 'Create Project', THEN the project status transitions from 'setup' to 'active' and the user is redirected to /briefing."
+          ],
+          "user_journeys": ["J1-setup"],
+          "depends_on": ["template-browser"],
+          "affected_entities": ["Project", "Stage", "Task", "Material"],
+          "affected_screens": ["/setup"],
+          "notes": "Toggle stages/tasks, AI-assisted adjustments. Requires LLM integration (Claude API or similar)."
+        },
+        {
+          "id": "stage-management",
+          "name": "Stage Management",
+          "feature_area": "task-tree",
+          "acceptance_criteria": [
+            "AC-SM-1: Given an active project, WHEN the user clicks 'Add Stage' on /schedule, THEN a modal opens with name, color, and order fields; on save, a new Stage record is created.",
+            "AC-SM-2: Given a list of stages, WHEN the user drags a stage to reorder it, THEN the stage's order field is updated and the Gantt chart re-renders with the new ordering.",
+            "AC-SM-3: Given a stage with tasks, WHEN the user attempts to delete it, THEN a confirmation dialog warns 'This stage contains N tasks — deleting removes them all' and requires explicit confirmation.",
+            "AC-SM-4: Given an empty stage (no tasks), WHEN the user clicks the delete button, THEN the stage is deleted immediately without confirmation."
+          ],
+          "user_journeys": ["J5-gantt-review"],
+          "depends_on": ["project-creation"],
+          "affected_entities": ["Stage"],
+          "affected_screens": ["/schedule", "/stages/:id"],
+          "notes": "Add, edit, reorder (drag), delete stages. Destructive delete requires confirmation when tasks exist."
+        },
+        {
+          "id": "task-management",
+          "name": "Task Management + Dependencies",
+          "feature_area": "task-tree",
+          "acceptance_criteria": [
+            "AC-TM-1: Given a stage, WHEN the user clicks 'Add Task' within it, THEN a form opens with name, duration_days, depends_on (multi-select), trade_id (optional), and notes fields.",
+            "AC-TM-2: Given a new task form with name='Pour Concrete' and duration_days=2, WHEN the user saves, THEN a Task record is created with planned_start computed from dependencies and planned_end = planned_start + 2 days.",
+            "AC-TM-3: Given a task with no dependencies and no prior task in the stage, WHEN saved, THEN its planned_start defaults to the project's start_date.",
+            "AC-TM-4: Given a task with depends_on=[task-A, task-B], WHEN saved, THEN its planned_start is the maximum of (task-A.planned_end, task-B.planned_end) + 1 day.",
+            "AC-TM-5: Given an existing task, WHEN the user edits the duration_days field and saves, THEN the task's planned_end recalculates and cascades to all downstream tasks (uses cascade-engine).",
+            "AC-TM-6: Given a task, WHEN the user deletes it, THEN the task and all its materials are removed, AND any downstream tasks that depended on it have it removed from their depends_on array."
+          ],
+          "user_journeys": ["J2-briefing", "J3-delay", "J5-gantt-review"],
+          "depends_on": ["stage-management"],
+          "affected_entities": ["Task"],
+          "affected_screens": ["/tasks/:id", "/stages/:id", "/schedule"],
+          "notes": "Add, edit, reorder, delete tasks. Set dependencies between tasks. Assign trade. Editing duration triggers cascade."
+        },
+        {
+          "id": "trade-contacts",
+          "name": "Trade Contact Management",
+          "feature_area": "trade-contacts",
+          "acceptance_criteria": [
+            "AC-TR-1: Given an active project, WHEN the user submits the trade form with name='Joe Framing' and specialty='Framing', THEN a Trade record is created and appears in /trades list.",
+            "AC-TR-2: Given a Trade record, WHEN the user assigns it to a task via task edit form, THEN the task.trade_id is updated and the trade name appears on the task detail screen.",
+            "AC-TR-3: Given a task with an assigned trade that has a phone number, WHEN the user views the task detail on mobile, THEN a tap-to-call link renders using the tel: protocol.",
+            "AC-TR-4: Given a Trade record assigned to 3 tasks, WHEN the user attempts to delete it, THEN a confirmation warns 'This trade is assigned to 3 tasks — they will be unassigned'; on confirm, trade is deleted and task.trade_id is set to null for all 3."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["project-creation"],
+          "affected_entities": ["Trade"],
+          "affected_screens": ["/trades", "/tasks/:id"],
+          "notes": "Add, edit, delete trade contacts. Assign to tasks. Tap-to-call on mobile via tel: protocol."
+        }
+      ]
+    },
+    {
+      "name": "materials-scheduling",
+      "feature_areas": ["material-tracking", "scheduling-engine"],
+      "depends_on_milestones": ["project-core"],
+      "stories": [
+        {
+          "id": "material-line-items",
+          "name": "Material Line Items",
+          "feature_area": "material-tracking",
+          "acceptance_criteria": [
+            "AC-ML-1: Given a task, WHEN the user clicks 'Add Material' on the task detail screen, THEN an inline form appears with name, quantity (freeform string), lead_time_days, estimated_cost (optional), supplier_name (optional), and notes fields.",
+            "AC-ML-2: Given a valid material form with name='Lumber 2x6' and lead_time_days=14, WHEN saved, THEN a Material record is created associated with the task.",
+            "AC-ML-3: Given a material form, WHEN lead_time_days is empty or negative, THEN the form shows validation 'Lead time must be 0 or more days' and the save button is disabled.",
+            "AC-ML-4: Given an existing material, WHEN the user edits any field and saves, THEN the record updates AND if lead_time_days changed, the order_by_date is recalculated.",
+            "AC-ML-5: Given a material, WHEN the user clicks delete, THEN a confirmation dialog opens; on confirm, the material is removed from the task."
+          ],
+          "user_journeys": ["J4-add-material"],
+          "depends_on": [],
+          "affected_entities": ["Material"],
+          "affected_screens": ["/tasks/:id", "/materials"],
+          "notes": "Add, edit, delete materials on tasks. Name, quantity (freeform string), cost, lead time."
+        },
+        {
+          "id": "order-by-calculation",
+          "name": "Order-By Date Calculation",
+          "feature_area": "material-tracking",
+          "acceptance_criteria": [
+            "AC-OB-1: Given a material with lead_time_days=14 and a task with planned_start='2026-06-15', WHEN the material is saved or the task date changes, THEN the material's order_by_date is computed as 2026-06-01 (14 days before task start).",
+            "AC-OB-2: Given a material with order_by_date in the past and order_status='not_ordered', WHEN displayed in /materials or /briefing, THEN it renders with a red 'overdue' badge.",
+            "AC-OB-3: Given a material with order_by_date within the next 7 days and order_status='not_ordered', WHEN displayed, THEN it renders with an amber 'due soon' badge.",
+            "AC-OB-4: Given the /briefing screen, WHEN loaded, THEN the 'Upcoming Orders' section displays all materials with order_by_date within the next 7 days, sorted ascending by order_by_date."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["material-line-items"],
+          "affected_entities": ["Material"],
+          "affected_screens": ["/materials", "/briefing"],
+          "notes": "Calculate order-by dates from task start minus lead time. Surface in briefing with status badges."
+        },
+        {
+          "id": "material-status",
+          "name": "Material Order Status Tracking",
+          "feature_area": "material-tracking",
+          "acceptance_criteria": [
+            "AC-MS-1: Given a material with order_status='not_ordered', WHEN the user clicks 'Mark Ordered' on the material row, THEN order_status updates to 'ordered' and a green 'ordered' badge replaces any deadline badges.",
+            "AC-MS-2: Given a material with order_status='ordered', WHEN the user clicks 'Mark Delivered', THEN order_status updates to 'delivered' and a solid green 'delivered' badge is shown.",
+            "AC-MS-3: Given the /materials screen, WHEN the user clicks a status filter tab (All / Not Ordered / Ordered / Delivered), THEN only materials matching that status render in the list."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["material-line-items"],
+          "affected_entities": ["Material"],
+          "affected_screens": ["/materials", "/tasks/:id"],
+          "notes": "Track not_ordered → ordered → delivered. Visual badges. Filter tabs on materials view."
+        },
+        {
+          "id": "cascade-engine",
+          "name": "Dependency Cascade Engine",
+          "feature_area": "scheduling-engine",
+          "acceptance_criteria": [
+            "AC-CE-1: Given a task T with downstream tasks D1 (depends on T) and D2 (depends on D1), WHEN T's planned_end moves from 2026-06-10 to 2026-06-15 (+5 days), THEN D1.planned_start becomes 2026-06-16 and D2.planned_start shifts by the same 5 days.",
+            "AC-CE-2: Given the cascade engine, WHEN a task's date is updated, THEN the engine uses a recursive CTE (PostgreSQL) to traverse the full downstream dependency graph and update all affected tasks in a single transaction.",
+            "AC-CE-3: Given a task update that triggers cascade, WHEN the cascade completes, THEN the response includes a summary listing all tasks that moved, with their old and new dates.",
+            "AC-CE-4: Given a task with no downstream dependencies, WHEN its date changes, THEN no cascade runs and only that task is updated.",
+            "AC-CE-5: Given a cascade in progress, WHEN another user action triggers a second cascade before the first completes, THEN the second is queued and runs after the first (no race conditions on task dates).",
+            "AC-CE-6: Given a cascade that would move 50+ tasks, WHEN it runs, THEN it completes in under 2 seconds for projects with up to 500 tasks."
+          ],
+          "user_journeys": ["J3-delay"],
+          "depends_on": [],
+          "affected_entities": ["Task", "Material"],
+          "affected_screens": ["/schedule", "/briefing", "/tasks/:id"],
+          "notes": "When a task date changes, cascade all downstream tasks. Core scheduling engine. Uses PostgreSQL recursive CTEs."
+        },
+        {
+          "id": "delay-logging",
+          "name": "Delay Logging + Cascade Trigger",
+          "feature_area": "scheduling-engine",
+          "acceptance_criteria": [
+            "AC-DL-1: Given a task on /tasks/:id or /briefing, WHEN the user clicks 'Log Delay', THEN a date picker opens prefilled with the current planned_end date.",
+            "AC-DL-2: Given the delay date picker, WHEN the user selects a later date and clicks 'Apply', THEN the task's planned_end updates and the cascade engine runs.",
+            "AC-DL-3: Given a delay has been applied, WHEN the cascade completes, THEN a summary overlay displays 'N tasks shifted, M material order-by dates moved' with a list of affected tasks.",
+            "AC-DL-4: Given the user logs a delay while offline, WHEN connectivity is restored, THEN the delay is synced to the server and the cascade runs with a 'Delay synced' toast notification."
+          ],
+          "user_journeys": ["J3-delay"],
+          "depends_on": ["cascade-engine"],
+          "affected_entities": ["Task"],
+          "affected_screens": ["/tasks/:id", "/briefing"],
+          "notes": "Mark task delayed, enter new date, trigger cascade. Show impact summary. Offline-tolerant via service worker."
+        },
+        {
+          "id": "cascade-material-sync",
+          "name": "Cascade Material Order-By Sync",
+          "feature_area": "scheduling-engine",
+          "acceptance_criteria": [
+            "AC-CMS-1: Given a cascade that moves task T's planned_start later by N days, WHEN cascade runs, THEN all materials attached to T have their order_by_date recalculated to the new planned_start minus their lead_time_days.",
+            "AC-CMS-2: Given a material whose order_by_date WAS in the past (overdue) and AFTER cascade is in the future, WHEN cascade completes, THEN its badge transitions from red 'overdue' to amber 'due soon' or no badge accordingly.",
+            "AC-CMS-3: Given a material with order_status='ordered' or 'delivered', WHEN its task date moves via cascade, THEN the order_by_date still recalculates BUT the order_status remains unchanged (the material was already ordered regardless of the new planned date).",
+            "AC-CMS-4: Given a cascade that changes material order_by_dates, WHEN the next /briefing loads, THEN the 'Shift Alerts' section includes entries like 'Lumber 2x6 order-by moved from 2026-06-01 to 2026-06-05'."
+          ],
+          "user_journeys": ["J3-delay"],
+          "depends_on": ["order-by-calculation", "cascade-engine"],
+          "affected_entities": ["Material"],
+          "affected_screens": ["/materials", "/briefing"],
+          "notes": "When cascade moves task dates, recalculate all material order-by dates. Preserve order_status on already-ordered materials."
+        },
+        {
+          "id": "dependency-validation",
+          "name": "Dependency Graph Validation",
+          "feature_area": "scheduling-engine",
+          "acceptance_criteria": [
+            "AC-DV-1: Given a task A that depends on task B, WHEN the user attempts to add A to B's depends_on array (creating a cycle), THEN the save is rejected with an inline error 'This would create a circular dependency: A → B → A'.",
+            "AC-DV-2: Given a task with depends_on including a task ID that no longer exists, WHEN the task is loaded, THEN the stale ID is automatically removed from depends_on and the task is saved.",
+            "AC-DV-3: Given a complex dependency graph with 100+ tasks, WHEN a new dependency is added, THEN cycle detection runs in under 500ms using DFS traversal."
+          ],
+          "user_journeys": ["J5-gantt-review"],
+          "depends_on": ["cascade-engine"],
+          "affected_entities": ["Task"],
+          "affected_screens": ["/tasks/:id", "/schedule"],
+          "notes": "Prevent circular dependencies. Validate DAG on every dependency edit. DFS-based cycle detection."
+        }
+      ]
+    },
+    {
+      "name": "daily-experience",
+      "feature_areas": ["daily-briefing", "notifications"],
+      "depends_on_milestones": ["materials-scheduling"],
+      "stories": [
+        {
+          "id": "daily-briefing-view",
+          "name": "Daily Briefing View",
+          "feature_area": "daily-briefing",
+          "acceptance_criteria": [
+            "AC-DB-1: Given an authenticated user with an active project, WHEN they navigate to /briefing, THEN the page renders three sections: 'Today's Tasks', 'Upcoming Orders' (next 7 days), 'Shift Alerts' (changes since last visit).",
+            "AC-DB-2: Given today is 2026-06-10, WHEN /briefing loads, THEN the 'Today's Tasks' section shows all tasks where planned_start <= 2026-06-10 <= planned_end AND status IN ('not_started', 'in_progress').",
+            "AC-DB-3: Given no tasks are active today, WHEN /briefing loads, THEN 'Today's Tasks' shows an empty state 'No tasks scheduled today — next task starts [date]' with a link to /schedule.",
+            "AC-DB-4: Given the /briefing screen on mobile (viewport < 768px), WHEN rendered, THEN all sections stack vertically, the bottom tab bar is visible, and the primary content is readable without horizontal scrolling.",
+            "AC-DB-5: Given the /briefing screen, WHEN the user pulls down to refresh (mobile) or clicks refresh (desktop), THEN the data reloads from the server.",
+            "AC-DB-6: Given /briefing, WHEN the page loads, THEN First Contentful Paint is under 1.5 seconds on 4G mobile and Time to Interactive is under 3 seconds."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": [],
+          "affected_entities": ["Task", "Material"],
+          "affected_screens": ["/briefing"],
+          "notes": "Mobile-first today view. Tasks checklist, material orders due, shift alerts. Performance-critical."
+        },
+        {
+          "id": "task-quick-actions",
+          "name": "Task Quick Actions from Briefing",
+          "feature_area": "daily-briefing",
+          "acceptance_criteria": [
+            "AC-QA-1: Given a task row on /briefing, WHEN the user taps the checkbox, THEN the task status updates to 'complete', actual_end is set to today, and the row visually strikes through.",
+            "AC-QA-2: Given a completed task on /briefing, WHEN the user taps the checkbox again (undo), THEN the task status reverts to 'in_progress', actual_end is cleared, and the strikethrough is removed.",
+            "AC-QA-3: Given a task row, WHEN the user swipes left (mobile) or clicks the kebab menu (desktop), THEN quick actions appear: 'Log Delay', 'Add Note', 'View Detail'.",
+            "AC-QA-4: Given a quick action triggers cascade (e.g., Log Delay), WHEN cascade completes, THEN the /briefing page updates in place without full reload."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["daily-briefing-view"],
+          "affected_entities": ["Task"],
+          "affected_screens": ["/briefing"],
+          "notes": "Mark complete, log delay, add note — directly from briefing without navigating away."
+        },
+        {
+          "id": "upcoming-orders-view",
+          "name": "Upcoming Material Orders View",
+          "feature_area": "daily-briefing",
+          "acceptance_criteria": [
+            "AC-UO-1: Given materials exist with order_by_date within 7 days, WHEN /briefing loads, THEN the 'Upcoming Orders' section displays them as horizontally-scrollable cards on mobile, grid on desktop.",
+            "AC-UO-2: Given an upcoming order card, WHEN displayed, THEN it shows material name, associated task name, days remaining until order_by_date, and supplier_name if set.",
+            "AC-UO-3: Given an upcoming order card, WHEN the user taps it, THEN an inline expand reveals quantity, estimated_cost, lead_time_days, notes, and a 'Mark Ordered' button.",
+            "AC-UO-4: Given no materials are due in the next 7 days, WHEN /briefing loads, THEN the 'Upcoming Orders' section is hidden (not shown with empty state) to keep briefing focused."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["daily-briefing-view"],
+          "affected_entities": ["Material"],
+          "affected_screens": ["/briefing"],
+          "notes": "This week's material order deadlines as scrollable cards. Tap to expand. Section hides when empty."
+        },
+        {
+          "id": "shift-alerts",
+          "name": "Shift Alerts (What Changed)",
+          "feature_area": "daily-briefing",
+          "acceptance_criteria": [
+            "AC-SA-1: Given cascades have occurred since the user's last /briefing visit, WHEN they return to /briefing, THEN the 'Shift Alerts' section shows a list of changes: '[Task/Material] moved from [old date] to [new date]'.",
+            "AC-SA-2: Given a shift alert, WHEN the user taps it, THEN they are navigated to the affected task (/tasks/:id) or material list (/materials).",
+            "AC-SA-3: Given the user dismisses all shift alerts (via 'Clear' button), WHEN they return to /briefing later, THEN only new shifts since the dismissal are shown."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["daily-briefing-view"],
+          "affected_entities": ["Task", "Material"],
+          "affected_screens": ["/briefing"],
+          "notes": "Show what moved since last visit due to cascade changes. Tap to navigate to source."
+        },
+        {
+          "id": "push-notifications",
+          "name": "Push Notifications",
+          "feature_area": "notifications",
+          "acceptance_criteria": [
+            "AC-PN-1: Given an authenticated user, WHEN they visit /settings and click 'Enable Notifications', THEN the browser's push permission prompt appears; on grant, a push subscription is created and saved to the server.",
+            "AC-PN-2: Given push notifications are enabled and a material's order_by_date is 3 days away (default threshold), WHEN the scheduled server-side check runs daily at 7am user-local, THEN a push notification is sent: 'Order [material] by [date] — 3 days'.",
+            "AC-PN-3: Given push notifications are enabled and a task is overdue (today > planned_end AND status != complete), WHEN the daily check runs, THEN a push notification is sent: '[Task] is overdue'.",
+            "AC-PN-4: Given the user receives a push notification, WHEN they tap it, THEN the PWA opens to the relevant screen (e.g., tapping an order notification opens /materials).",
+            "AC-PN-5: Given a cascade moves 5+ tasks at once, WHEN it completes, THEN a single summary push notification is sent: 'Schedule updated: 5 tasks shifted' (not one per task)."
+          ],
+          "user_journeys": ["J2-briefing"],
+          "depends_on": ["daily-briefing-view"],
+          "affected_entities": [],
+          "affected_screens": ["/settings"],
+          "notes": "Web Push via service worker. Order deadlines, overdue tasks, cascade changes. Daily scheduled check via Supabase Edge Function or Vercel Cron."
+        },
+        {
+          "id": "notification-settings",
+          "name": "Notification Preferences",
+          "feature_area": "notifications",
+          "acceptance_criteria": [
+            "AC-NS-1: Given /settings, WHEN the user views notification preferences, THEN they see toggles for: Order deadlines, Overdue tasks, Cascade summaries; all default ON when notifications are enabled.",
+            "AC-NS-2: Given notification preferences, WHEN the user adjusts the 'Warn me X days before order deadline' slider (range 1-14 days, default 3), THEN the threshold is saved and used for future order deadline notifications.",
+            "AC-NS-3: Given the user disables all notification toggles, WHEN they save, THEN the push subscription is retained but no notifications are sent (soft-disable)."
+          ],
+          "user_journeys": [],
+          "depends_on": ["push-notifications"],
+          "affected_entities": [],
+          "affected_screens": ["/settings"],
+          "notes": "Toggle notification types. Set lead-time warning threshold (e.g., notify 3 days before order-by)."
+        }
+      ]
+    },
+    {
+      "name": "planning-tools",
+      "feature_areas": ["gantt-chart", "photo-storage", "document-storage", "project-export"],
+      "depends_on_milestones": ["materials-scheduling"],
+      "stories": [
+        {
+          "id": "gantt-chart-render",
+          "name": "Gantt Chart Rendering",
+          "feature_area": "gantt-chart",
+          "acceptance_criteria": [
+            "AC-GR-1: Given an active project with stages and tasks, WHEN the user navigates to /schedule on desktop (viewport >= 1024px), THEN a Gantt chart renders with horizontal time axis (days) and vertical axis (stages grouping tasks).",
+            "AC-GR-2: Given the Gantt chart, WHEN rendered, THEN each task appears as a horizontal bar colored by its stage.color, positioned by planned_start and width = duration_days.",
+            "AC-GR-3: Given tasks with depends_on relationships, WHEN the Gantt renders, THEN dependency arrows are drawn from the end of the dependency task to the start of the dependent task.",
+            "AC-GR-4: Given a task with status='complete', WHEN rendered in Gantt, THEN its bar is rendered with a checkmark overlay and slightly desaturated color.",
+            "AC-GR-5: Given a task with status='delayed' (actual_end > planned_end), WHEN rendered, THEN its bar has a red outline and shows the delay amount in days.",
+            "AC-GR-6: Given the Gantt chart on mobile (viewport < 768px), WHEN rendered, THEN stages-only view is shown by default with horizontal scroll; tapping a stage expands to show its tasks."
+          ],
+          "user_journeys": ["J5-gantt-review"],
+          "depends_on": [],
+          "affected_entities": ["Stage", "Task"],
+          "affected_screens": ["/schedule"],
+          "notes": "Interactive Gantt with stages, tasks, dependencies. Color-coded by stage. Dependency arrows. Custom SVG/Canvas implementation."
+        },
+        {
+          "id": "gantt-zoom-navigate",
+          "name": "Gantt Zoom & Navigation",
+          "feature_area": "gantt-chart",
+          "acceptance_criteria": [
+            "AC-GZ-1: Given the Gantt chart, WHEN the user clicks the 'Week' / 'Month' / 'Full' zoom buttons, THEN the time axis rescales accordingly (Week = daily grid, Month = weekly grid, Full = monthly grid).",
+            "AC-GZ-2: Given today falls within the Gantt's date range, WHEN the chart renders, THEN a vertical line marks today's date with a 'Today' label.",
+            "AC-GZ-3: Given the Gantt chart, WHEN the user scrolls horizontally via trackpad, mouse wheel, or touch swipe, THEN the time axis pans smoothly without re-rendering task bars.",
+            "AC-GZ-4: Given the Gantt chart, WHEN the user clicks the 'Jump to Today' button, THEN the viewport scrolls to center today's date."
+          ],
+          "user_journeys": ["J5-gantt-review"],
+          "depends_on": ["gantt-chart-render"],
+          "affected_entities": [],
+          "affected_screens": ["/schedule"],
+          "notes": "Zoom: week / month / full project. Scroll and pan. Today marker. Jump-to-today button."
+        },
+        {
+          "id": "gantt-inline-edit",
+          "name": "Gantt Inline Editing",
+          "feature_area": "gantt-chart",
+          "acceptance_criteria": [
+            "AC-GE-1: Given a task bar on the Gantt, WHEN the user drags the right edge, THEN the task's duration_days is updated based on the new end date and the cascade engine runs on release.",
+            "AC-GE-2: Given a task bar, WHEN the user drags the middle of the bar, THEN both planned_start and planned_end shift by the same delta and cascade runs on release.",
+            "AC-GE-3: Given a task bar, WHEN the user clicks it (without dragging), THEN a detail panel slides in from the right showing task name, dates, duration, materials, trade, and edit buttons.",
+            "AC-GE-4: Given the user is dragging a task bar, WHEN they release over an invalid position (e.g., before its dependencies' end dates), THEN the bar snaps back to its original position with a toast 'Cannot start before dependency completes'."
+          ],
+          "user_journeys": ["J5-gantt-review"],
+          "depends_on": ["gantt-chart-render"],
+          "affected_entities": ["Task"],
+          "affected_screens": ["/schedule"],
+          "notes": "Drag to resize duration, drag to move dates, click for detail panel. Triggers cascade. Constraint validation on drop."
+        },
+        {
+          "id": "photo-storage",
+          "name": "Photo Capture & Storage",
+          "feature_area": "photo-storage",
+          "acceptance_criteria": [
+            "AC-PH-1: Given a task or stage detail screen on mobile, WHEN the user taps the camera icon, THEN the PWA invokes the native camera via <input type='file' accept='image/*' capture='environment'>.",
+            "AC-PH-2: Given the user captures a photo, WHEN they confirm, THEN the image is uploaded to Supabase Storage (bucket 'photos') and a Photo record is created linked to the task_id or stage_id.",
+            "AC-PH-3: Given a task with attached photos, WHEN the user views /tasks/:id, THEN a grid of photo thumbnails renders; tapping a thumbnail opens a full-screen lightbox with swipe navigation.",
+            "AC-PH-4: Given /photos, WHEN the user selects filter 'By Stage' and picks a stage, THEN only photos attached to that stage or its tasks are shown.",
+            "AC-PH-5: Given a photo upload, WHEN the file exceeds 10 MB or is not a supported image type (jpg, png, webp, heic), THEN upload is rejected with a clear error message."
+          ],
+          "user_journeys": ["J6-photo"],
+          "depends_on": [],
+          "affected_entities": ["Photo"],
+          "affected_screens": ["/tasks/:id", "/stages/:id", "/photos"],
+          "notes": "Attach photos to task/stage. Camera capture on mobile via file input capture. Gallery view with filter. Supabase Storage backend."
+        },
+        {
+          "id": "document-storage",
+          "name": "Document Upload & Storage",
+          "feature_area": "document-storage",
+          "acceptance_criteria": [
+            "AC-DS-1: Given a task or stage detail screen, WHEN the user clicks 'Attach Document' and selects a file (PDF, image, docx, xlsx), THEN the file uploads to Supabase Storage bucket 'documents' and a Document record is created.",
+            "AC-DS-2: Given a task with attached documents, WHEN viewed, THEN each document renders as a row with name, file_type icon, upload date, and a 'Download' button.",
+            "AC-DS-3: Given a document row, WHEN the user clicks 'Download', THEN the file is streamed from Supabase Storage with a signed URL valid for 60 seconds.",
+            "AC-DS-4: Given a document upload, WHEN the file exceeds 25 MB, THEN the upload is rejected with a message 'Files must be under 25 MB — consider compressing the document'."
+          ],
+          "user_journeys": [],
+          "depends_on": [],
+          "affected_entities": ["Document"],
+          "affected_screens": ["/tasks/:id", "/stages/:id"],
+          "notes": "Upload documents (PDF, images, docx, xlsx) to task/stage. Signed download URLs. 25 MB size cap."
+        },
+        {
+          "id": "project-export",
+          "name": "Project Data Export",
+          "feature_area": "project-export",
+          "acceptance_criteria": [
+            "AC-EX-1: Given /settings, WHEN the user clicks 'Export Project', THEN a format selection dialog opens with three options: JSON (full data), CSV (tasks + materials bundle), PDF (Gantt snapshot).",
+            "AC-EX-2: Given the user selects JSON, WHEN they click 'Download', THEN a single .json file is generated containing all Project, Stage, Task, Material, Trade, Photo metadata (URLs not binary), and Document metadata.",
+            "AC-EX-3: Given the user selects CSV, WHEN they click 'Download', THEN a .zip archive containing separate CSVs for tasks.csv, materials.csv, stages.csv, trades.csv is generated with headers and human-readable values.",
+            "AC-EX-4: Given the user selects PDF, WHEN they click 'Download', THEN a PDF snapshot of the current Gantt chart (full project zoom) is rendered and downloaded."
+          ],
+          "user_journeys": ["J7-export"],
+          "depends_on": [],
+          "affected_entities": ["Project", "Stage", "Task", "Material", "Trade"],
+          "affected_screens": ["/settings"],
+          "notes": "Export full project as JSON or CSV bundle. Export Gantt as PDF. No vendor lock-in. Key trust signal for user."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_milestones": 4,
+    "total_stories": 25,
+    "total_acceptance_criteria": 109,
+    "stories_per_milestone": {
+      "project-core": 6,
+      "materials-scheduling": 7,
+      "daily-experience": 6,
+      "planning-tools": 6
+    },
+    "acs_per_milestone": {
+      "project-core": 28,
+      "materials-scheduling": 29,
+      "daily-experience": 25,
+      "planning-tools": 27
+    },
+    "longest_dependency_chain": 3,
+    "parallel_milestones": ["daily-experience", "planning-tools"],
+    "foundation_required": true,
+    "foundation_needs": ["supabase-schema", "supabase-auth", "supabase-storage", "pwa-service-worker", "web-push-setup", "shared-ui-shell"]
+  },
+  "deferred_to_m2": [
+    {
+      "name": "budget-dashboard",
+      "description": "Aggregate material costs into a project budget view. Estimated vs actual spend by stage."
+    },
+    {
+      "name": "sharing-collaboration",
+      "description": "Share read-only project view with stakeholders (bank, partner, inspector)."
+    },
+    {
+      "name": "constraint-aware-cascade",
+      "description": "Cascade engine respects real-world constraints: weekends, inspector availability, weather windows."
+    }
+  ]
+}

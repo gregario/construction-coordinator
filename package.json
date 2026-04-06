@@ -26,6 +26,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.18.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -41,6 +42,7 @@
     "shadcn": "^4.1.2",
     "tailwindcss": "^4",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "wrangler": "^4.80.0"
   }
 }

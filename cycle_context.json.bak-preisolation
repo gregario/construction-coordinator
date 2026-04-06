@@ -1,0 +1,1062 @@
+{
+  "story_result": {
+    "story_id": "trade-contacts",
+    "outcome": "pass",
+    "files_changed": [
+      "lib/trades/operations.ts",
+      "app/actions/trades.ts",
+      "components/trades/TradesManager.tsx",
+      "app/(app)/trades/page.tsx",
+      "components/tasks/TaskTradeAssigner.tsx",
+      "app/(app)/tasks/[id]/page.tsx",
+      "tests/trades-operations.test.ts"
+    ],
+    "tests_added": 18,
+    "tests_passing": 18,
+    "env_limitations": [
+      "tel: links (AC-TR-3) verified structurally via formatTelHref unit tests — actual tap-to-call dispatch only works on a real mobile device and was not exercised against iOS/Android. The href is constructed correctly per RFC 3966 (digits + leading +), so a mobile QA pass should just work."
+    ]
+  },
+  "deployment_url": null,
+  "implemented": [
+    {
+      "task": "stage-management",
+      "story_id": "stage-management",
+      "acceptance_criteria": [
+        "AC-SM-1",
+        "AC-SM-2",
+        "AC-SM-3",
+        "AC-SM-4"
+      ],
+      "files_changed": [
+        "app/(app)/schedule/page.tsx",
+        "app/actions/stages.ts",
+        "components/schedule/StageManager.tsx",
+        "lib/stages/operations.ts",
+        "tests/stages-operations.test.ts"
+      ],
+      "tests_added": 20,
+      "tests_passing": 20,
+      "details": "Stage management on /schedule. Server component loads the user's most recent active project, its stages (ordered by order_index), and per-stage task counts via a single grouped select. StageManager client component handles the full lifecycle. AC-SM-1: \"+ Add Stage\" button opens a modal with a text name field (max 80, validated client-side via validateStageInput — pure fn shared with the server action) and a 6-swatch color picker (earth brown default + frame green / ochre / ink / slate blue / brick red). Submit calls createStage server action which revalidates ownership, fetches max(order_index) for the project, and inserts with order_index=max+1 so the new stage appears at the end. AC-SM-2: drag any stage row (draggable=true) onto another → handleDrop calls reorderStages() pure helper which sorts by order_index, splices the moved stage into the target position, and renumbers all stages to a dense 0..N-1 sequence. The new ordering is committed via reorderProjectStages server action which uses a two-phase update (tombstone with negative indices then write final slots) to stay safe under any future UNIQUE(project_id, order_index) constraint. Up/down arrow buttons provide the same reorder path for touch/accessibility users. AC-SM-3: delete on a stage with tasks opens a confirm dialog using buildDeleteWarning(name, taskCount) which produces the exact spec copy (\"N task(s) — deleting removes them all\") with correct 1/N pluralization. Only the \"Delete stage and tasks\" button in the dialog calls deleteStage(..., confirmed=true). AC-SM-4: delete on an empty stage (task_count=0) skips the dialog and calls deleteStage(..., confirmed=false) which the server treats as an unconditional delete because it independently counts tasks and finds zero. deleteStage also re-densifies order_index on remaining stages so gaps never accumulate. 20 new pure unit tests covering validation (empty/whitespace/over-length names, invalid+valid 3/6-digit hex colors), reorderStages (head→tail, tail→head, middle forward/backward, noop, out-of-range clamping, unknown id, non-mutation, unsorted input), normalizeStageColor fallback, and buildDeleteWarning (0/1/N pluralization). Total suite: 85 tests passing. Typecheck + production build + lint all clean."
+    },
+    {
+      "task": "template-customization",
+      "story_id": "template-customization",
+      "acceptance_criteria": [
+        "AC-TC-1",
+        "AC-TC-2",
+        "AC-TC-3",
+        "AC-TC-4",
+        "AC-TC-5"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/customization.ts",
+        "components/setup/CustomizationScreen.tsx",
+        "lib/customization/tree.ts",
+        "lib/customization/assistant.ts",
+        "tests/customization-tree.test.ts",
+        "tests/customization-assistant.test.ts"
+      ],
+      "tests_added": 22,
+      "tests_passing": 22,
+      "details": "Customization screen rendered at /setup for projects where a template has already been applied (status='setup' AND stages exist). Server component loads stages/tasks/task_dependencies (filtered to in-project ids only) and passes to CustomizationScreen client component. buildCustomizationTree (pure) groups tasks under stages by order_index — AC-TC-1 collapsible tree with per-stage header + checkbox per task. tasksWithBrokenDependencies (pure) returns the set of tasks whose direct depends_on_task_id is currently toggled off; the tree renders a ⚠ icon with title tooltip on each — AC-TC-2. Note: template-apply does not yet write task_dependencies rows (templates carry no dep info per prior factory_decision), so the warning is wired + tested but dormant until the task-management cycle adds dep editing. AI assist panel (AC-TC-3): chat textarea → suggestFromMessage keyword match (ICF → toggle_off slab + add ICF wall; insulation → add upgrade task; solar → add PV task) returns AssistantSuggestion with title/rationale/changes; each suggestion renders Accept/Reject buttons. Accept (AC-TC-4) calls applySuggestion merging toggle_off and add_task changes into the client draft state and marks the chat entry applied; Reject marks dismissed. applyCustomization server action persists the draft: deletes removed task ids (cascade removes materials + dep rows), inserts added tasks with max(order_index)+1 per stage and conservative planned_start=project.start_date. finalizeProject server action (AC-TC-5) verifies ownership + at-least-one-stage + at-least-one-task, updates projects.status setup→active, revalidates layout, redirects to /briefing. 22 new unit tests across tree-building ordering, toggle diff, broken-dep detection (including not flagging the off task itself and transitive vs direct), suggestion ICF/insulation/solar/empty-string cases + stable-id determinism, and applySuggestion merging across existing draft state. Total suite: 65 tests passing. Typecheck + production build clean (19 routes, Proxy middleware detected)."
+    },
+    {
+      "task": "template-browser",
+      "story_id": "template-browser",
+      "acceptance_criteria": [
+        "AC-TB-1",
+        "AC-TB-2",
+        "AC-TB-3",
+        "AC-TB-4"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/templates.ts",
+        "components/setup/TemplateBrowser.tsx",
+        "lib/templates/apply.ts",
+        "tests/templates-apply.test.ts"
+      ],
+      "tests_added": 12,
+      "tests_passing": 12,
+      "details": "Template picker UI on /setup loads the 3 seeded residential templates (Standard Timber Frame, Slab-on-Grade Single Storey, ICF Two-Storey) and summarizes each server-side via summarizeTemplate (AC-TB-1). Click-to-select highlights the active card and drives the preview panel showing stages with colored left-border, sample tasks per stage (capped at 3, '+N more' tail), and the template's total duration, stage count, task count (AC-TB-2). 'Use this template' triggers the applyTemplate server action which copies stages, tasks, and materials into the user's project with sequential date scheduling (AC-TB-3): buildTemplateInsertPlan walks a cursor day-by-day starting at project.start_date, planned_end = planned_start + duration_days, next task planned_start = prev planned_end + 1. order_by_date = planned_start - lead_time_days for each material. Server-side summarisation keeps the browser payload small and render under 2s (AC-TB-4). After apply, /setup detects existing stages for the project and shows a 'Template applied' holding view (customization story will refine). 12 new unit tests covering insert plan computation + template summary; all 43 suite tests pass; build + typecheck clean; production deploy smoke-tested (307 → /login on /setup, auth proxy firing)."
+    },
+    {
+      "task": "project-creation",
+      "story_id": "project-creation",
+      "acceptance_criteria": [
+        "AC-PS-1",
+        "AC-PS-2",
+        "AC-PS-3",
+        "AC-PS-4",
+        "AC-PS-5"
+      ],
+      "files_changed": [
+        "app/(app)/setup/page.tsx",
+        "app/actions/projects.ts",
+        "components/setup/ProjectCreationForm.tsx",
+        "lib/projects/validate.ts",
+        "tests/projects-validate.test.ts"
+      ],
+      "tests_added": 13,
+      "tests_passing": 13,
+      "details": "ProjectCreationForm client component with React 19 useTransition for pending state. Pure validation helpers in lib/projects/validate.ts (name required, start_date required + past-date warning with explicit checkbox confirmation, valid date parsing). localStorage draft persistence under versioned key 'cm:project-creation-draft:v1' — restores name/address/start_date on remount, cleared after successful submit. Server action app/actions/projects.ts re-runs validation server-side, inserts Project with user_id from authenticated session and status='setup', revalidates /, redirects to /setup. /setup page routes: no project → creation form; status='setup' → template browser placeholder (next story); status='active' → /briefing. Root / route already handled AC-PS-4 (redirect based on project presence/status) from foundation. Warm earth-tone design tokens applied (clay primary, amber warning, sage accents). 13 unit tests covering all 5 ACs. Total suite: 34 tests passing."
+    },
+    {
+      "task": "supabase-schema",
+      "category": "schema",
+      "acceptance_criteria": [
+        "FC-schema-1",
+        "FC-schema-2",
+        "FC-schema-3",
+        "FC-schema-4"
+      ],
+      "files_changed": [
+        "supabase/migrations/20260405193231_initial_schema.sql",
+        "supabase/migrations/20260405193546_storage_buckets.sql",
+        "supabase/migrations/20260405000002_storage_comment.sql",
+        "supabase/seed.sql",
+        "lib/supabase/types.ts",
+        "types/database.ts"
+      ],
+      "tests_added": 4,
+      "tests_passing": 4,
+      "serves_feature_areas": [
+        "project-setup",
+        "task-tree",
+        "material-tracking",
+        "scheduling-engine",
+        "daily-briefing",
+        "notifications",
+        "gantt-chart",
+        "photo-storage",
+        "document-storage",
+        "project-export"
+      ],
+      "details": "12 tables: projects, stages, trades, tasks, task_dependencies, materials, photos, documents, push_subscriptions, notification_preferences, shift_alerts, templates. RLS on all tables. cascade_task_dates() PostgreSQL function (recursive CTE). 14 performance indexes including partial index on materials.order_by_date WHERE order_status = 'not_ordered'. set_updated_at() trigger on all mutable tables. Storage buckets: photos (10MB, image/*) and documents (25MB, pdf/docx/xlsx). 4 migrations pushed to ***REMOVED*** (eu-west-1). Templates seeded with 3 Irish residential builds (Standard Timber Frame 365d, Slab-on-Grade 280d, ICF Two-Storey 390d). Seed data: O'Brien Timber Frame House, 7 stages, 22 tasks, 10 materials, 3 trades."
+    },
+    {
+      "task": "supabase-auth",
+      "category": "auth",
+      "acceptance_criteria": [
+        "FC-auth-1",
+        "FC-auth-2",
+        "FC-auth-3"
+      ],
+      "files_changed": [
+        "proxy.ts",
+        "lib/supabase/server.ts",
+        "lib/supabase/client.ts",
+        "lib/supabase/service.ts",
+        "lib/supabase/setup-buckets.ts",
+        "app/(auth)/login/page.tsx",
+        "app/(auth)/signup/page.tsx",
+        "app/(auth)/forgot-password/page.tsx",
+        "app/(auth)/layout.tsx",
+        "app/actions/auth.ts",
+        "app/auth/callback/route.ts",
+        "app/page.tsx"
+      ],
+      "tests_added": 3,
+      "tests_passing": 3,
+      "serves_feature_areas": [
+        "project-setup",
+        "task-tree",
+        "material-tracking",
+        "scheduling-engine",
+        "daily-briefing",
+        "notifications",
+        "gantt-chart",
+        "photo-storage",
+        "document-storage",
+        "project-export"
+      ],
+      "details": "Server client (createClient via @supabase/ssr + cookies()), browser singleton client, proxy.ts for Next.js 16 session refresh middleware (replaces middleware.ts). Login/signup/forgot-password pages with warm earth-tone styling. Server action for signout. Root redirect: unauthenticated→/login, no project→/setup, active project→/briefing."
+    },
+    {
+      "task": "supabase-storage",
+      "category": "integration",
+      "acceptance_criteria": [
+        "FC-storage-1",
+        "FC-storage-2"
+      ],
+      "files_changed": [
+        "supabase/migrations/20260405193546_storage_buckets.sql",
+        "lib/supabase/setup-buckets.ts"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": [
+        "photo-storage",
+        "document-storage"
+      ],
+      "details": "photos bucket (10MB, jpeg/png/webp/heic, private) and documents bucket (25MB, pdf/docx/xlsx/images, private). RLS policies: authenticated users can INSERT/SELECT/DELETE. Signed URL pattern for downloads (60s expiry). setup-buckets.ts helper for programmatic bucket creation if needed."
+    },
+    {
+      "task": "pwa-service-worker",
+      "category": "integration",
+      "acceptance_criteria": [
+        "FC-pwa-1",
+        "FC-pwa-2"
+      ],
+      "files_changed": [
+        "public/sw.js",
+        "public/manifest.json",
+        "public/icons/icon-192.png",
+        "public/icons/icon-512.png",
+        "components/sw-register.tsx",
+        "next.config.ts",
+        "vercel.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": [
+        "daily-briefing",
+        "notifications"
+      ],
+      "details": "Custom service worker (not next-pwa — removed as webpack-only incompatible with Next.js 16 Turbopack). Network-first with cache fallback for app routes. Cache-first for /_next/static/ immutable assets. Supabase API: network-only. Offline shell caches /briefing and /materials. Push + notificationclick handlers. Web App Manifest with shortcuts (Briefing, Schedule). sw.js served with no-cache header via vercel.json. ServiceWorkerRegister client component for registration."
+    },
+    {
+      "task": "web-push-setup",
+      "category": "integration",
+      "acceptance_criteria": [
+        "FC-push-1",
+        "FC-push-2",
+        "FC-push-3"
+      ],
+      "files_changed": [
+        "app/api/push/subscribe/route.ts",
+        "app/api/push/send/route.ts",
+        "app/api/cron/daily-check/route.ts",
+        "lib/push/client.ts",
+        "worker/index.ts",
+        "vercel.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": [
+        "notifications"
+      ],
+      "details": "VAPID keys generated and stored in .env.local + Vercel env vars. POST /api/push/subscribe saves subscription to push_subscriptions. DELETE unsubscribes. GET /api/cron/daily-check: Vercel Cron (7am daily), sends push for overdue tasks and upcoming order deadlines, respects notification_preferences. Cron protected by CRON_SECRET. webpush.setVapidDetails moved inside handler (not module level) to avoid Turbopack module evaluation error."
+    },
+    {
+      "task": "shared-ui-shell",
+      "category": "ui-scaffold",
+      "acceptance_criteria": [
+        "FC-ui-1",
+        "FC-ui-2",
+        "FC-ui-3"
+      ],
+      "files_changed": [
+        "app/globals.css",
+        "app/layout.tsx",
+        "app/(app)/layout.tsx",
+        "components/layout/AppShell.tsx",
+        "components/ui/empty-state.tsx",
+        "components/ui/loading-skeleton.tsx",
+        "components/ui/error-boundary.tsx",
+        "app/(app)/briefing/page.tsx",
+        "app/(app)/schedule/page.tsx",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/trades/page.tsx",
+        "app/(app)/stages/page.tsx",
+        "app/(app)/stages/[id]/page.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "app/(app)/photos/page.tsx",
+        "app/(app)/settings/page.tsx",
+        "app/(app)/setup/page.tsx"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": [
+        "project-setup",
+        "task-tree",
+        "material-tracking",
+        "scheduling-engine",
+        "daily-briefing",
+        "notifications",
+        "gantt-chart",
+        "photo-storage",
+        "document-storage",
+        "project-export"
+      ],
+      "details": "Warm earth-tone design tokens: --color-primary #8B5E3C (clay), --color-secondary #87A96B (sage), --color-accent #D4A355 (amber), --color-bg #FAF7F2 (warm off-white). AppShell: fixed sidebar (240px, desktop ≥768px) with primary + secondary nav, sign-out form action. Mobile: fixed bottom tab bar (56px, 4 primary routes). Placeholder pages for all routes with skeleton loading pattern. EmptyState, Skeleton, CardSkeleton, ErrorBoundary components. lucide-react icons throughout."
+    },
+    {
+      "task": "deploy-pipeline",
+      "category": "deploy",
+      "acceptance_criteria": [
+        "FC-deploy-1"
+      ],
+      "files_changed": [
+        "vercel.json",
+        ".vercel/project.json"
+      ],
+      "tests_added": 0,
+      "tests_passing": 0,
+      "serves_feature_areas": [
+        "project-setup"
+      ],
+      "details": "Vercel project prj_S1ciXeW4V0GvMCBkjpRyUeZ6KW6Y (mtgordle). All 7 env vars set in Vercel dashboard (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET). Deployed to production: https://mtgordle.vercel.app. Hobby tier: production deploys only (--prod flag)."
+    },
+    {
+      "task": "test-fixtures",
+      "category": "fixtures",
+      "acceptance_criteria": [
+        "FC-fixtures-1"
+      ],
+      "files_changed": [
+        "supabase/seed.sql",
+        "tests/schema.test.ts",
+        "tests/auth.test.ts",
+        "tests/setup.ts",
+        "vitest.config.ts"
+      ],
+      "tests_added": 7,
+      "tests_passing": 7,
+      "serves_feature_areas": [
+        "project-setup",
+        "task-tree",
+        "material-tracking",
+        "scheduling-engine"
+      ],
+      "details": "Realistic Irish construction seed: O'Brien Timber Frame House, 42 Laragh Lane, Wicklow. 7 stages (Foundation→Finishes), 22 tasks with realistic dependencies (excavation→footings→slab→frame→roof→etc.), 10 materials with lead times (Ready Mix Concrete 3d, Timber Frame Kit 70d, Windows 42d, MVHR 28d, Slates 21d). 3 trades: structural engineer, groundworks contractor, timber frame supplier."
+    },
+    {
+      "task": "task-management",
+      "acceptance_criteria": [
+        "AC-TM-1",
+        "AC-TM-2",
+        "AC-TM-3",
+        "AC-TM-4",
+        "AC-TM-5",
+        "AC-TM-6"
+      ],
+      "files_changed": [
+        "lib/tasks/operations.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/StageTasksManager.tsx",
+        "app/(app)/stages/[id]/page.tsx",
+        "components/schedule/StageManager.tsx",
+        "tests/tasks-operations.test.ts"
+      ],
+      "tests_added": 26,
+      "tests_passing": 111
+    },
+    {
+      "task": "trade-contacts",
+      "acceptance_criteria": [
+        "AC-TR-1",
+        "AC-TR-2",
+        "AC-TR-3",
+        "AC-TR-4"
+      ],
+      "files_changed": [
+        "lib/trades/operations.ts",
+        "app/actions/trades.ts",
+        "components/trades/TradesManager.tsx",
+        "app/(app)/trades/page.tsx",
+        "components/tasks/TaskTradeAssigner.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "tests/trades-operations.test.ts"
+      ],
+      "tests_added": 18,
+      "tests_passing": 18,
+      "details": "Pure trade-validation + phone-formatting in lib/trades/operations.ts (validateTradeInput for name/specialty/phone/email with optional-email regex, formatTelHref strips non-digits preserving a leading +, buildTradeDeleteWarning quotes the assignment count). Server actions (createTrade/updateTrade/deleteTrade/assignTradeToTask) verify project ownership + trade-belongs-to-project on every mutation. deleteTrade recounts assignments server-side (defense in depth) before nulling task.trade_id for all assigned tasks and deleting the trade row. /trades: server component loads trades + counts assignments from tasks.trade_id in one read each, renders the TradesManager client component with add/edit modal, tap-to-call + mailto on each row, and an explicit delete-confirmation dialog for non-empty trades. /tasks/:id: replaced the foundation placeholder with a real task detail (breadcrumb to stage, name, planned dates, notes) + a TaskTradeAssigner that re-assigns on select change with optimistic client state and a rollback on server error. 18 unit tests covering all 4 ACs. Total suite: 129 tests passing."
+    }
+  ],
+  "skipped": [],
+  "divergences": [
+    {
+      "spec_says": "next-pwa for PWA service worker",
+      "actually_did": "Custom hand-written service worker at public/sw.js",
+      "rationale": "next-pwa v5 is webpack-only and incompatible with Next.js 16 Turbopack (default bundler). Custom service worker is actually simpler, has no Workbox dependency, and is fully portable. Push and notification handlers work identically.",
+      "affects_acceptance_criteria": [],
+      "affects_feature_areas": [
+        "notifications"
+      ],
+      "reversible": true
+    },
+    {
+      "spec_says": "middleware.ts for Next.js auth middleware",
+      "actually_did": "proxy.ts with proxy() function and proxyConfig export",
+      "rationale": "Next.js 16 renamed middleware.ts to proxy.ts. Confirmed by Vercel platform context. The ƒ Proxy (Middleware) entry in the build output confirms it is correctly detected.",
+      "affects_acceptance_criteria": [],
+      "affects_feature_areas": [],
+      "reversible": false
+    },
+    {
+      "spec_says": "AI assist chat panel should return suggestions for free-form descriptions (e.g. 'I'm doing ICF foundation not traditional pour')",
+      "actually_did": "Implemented a deterministic keyword-matched suggester (ICF, insulation, solar) behind the same suggestFromMessage(message, snapshot) interface a real LLM call would use",
+      "rationale": "The project has no Anthropic SDK, OpenAI SDK, or API key wiring — shipping a real LLM call would require Vercel env-var plumbing, secret handling, streaming handling, and error/retry logic that belongs in its own story. The rule-based stub demonstrates the accept/reject flow end-to-end for the three seeded template archetypes and can be swapped for a real Claude API call later by replacing the body of suggestFromMessage. This is documented as an env_limitation on the story result.",
+      "affects_acceptance_criteria": [
+        "AC-TC-3"
+      ],
+      "affects_feature_areas": [
+        "project-setup"
+      ],
+      "reversible": true
+    }
+  ],
+  "factory_decisions": [
+    {
+      "decision": "AI Assist implemented as a deterministic keyword-matched suggester (not a live LLM call)",
+      "context": "AC-TC-3 specifies 'the AI suggests specific task/material additions or substitutions with accept/reject buttons' and notes 'Requires LLM integration (Claude API or similar)'. The project has no Anthropic/OpenAI SDK in package.json, no API key in .env.local, and no server-side LLM helper.",
+      "alternatives_considered": [
+        "Add @anthropic-ai/sdk + ANTHROPIC_API_KEY + streaming response handling within this story — doubles the story scope, introduces a new secret to manage, and conflates LLM infra work with the UX story",
+        "Stub with a random/static suggestion regardless of input — fails AC-TC-3's specificity requirement",
+        "Skip AC-TC-3 entirely — leaves the chat panel un-demoable and blocks AC-TC-4"
+      ],
+      "rationale": "suggestFromMessage(message, snapshot) is a pure function with a stable interface — it returns AssistantSuggestion | null. A keyword matcher (ICF → toggle off slab + add ICF wall; insulation → add upgrade; solar → add PV) produces correct, specific, testable output for the three seeded templates. The whole chat UI, accept/reject flow, applySuggestion merger, and downstream applyCustomization are all real and exercised by the stub. The LLM swap is a one-function body replacement in a future llm-integration story.",
+      "confidence": "high",
+      "affects": [
+        "lib/customization/assistant.ts",
+        "components/setup/CustomizationScreen.tsx"
+      ]
+    },
+    {
+      "decision": "Broken-dependency warning fires on DIRECT deps only, not transitive closure",
+      "context": "AC-TC-2: 'any downstream tasks that depended on it show a warning icon'. Could mean direct depends_on rows only, or full transitive closure (A→B→C, toggle A, flag both B and C).",
+      "alternatives_considered": [
+        "Transitive closure via BFS over task_dependencies — O(V+E) per render, correct but hides the actual breakage point from the user",
+        "Flag nothing (leave cascade function to handle) — violates AC-TC-2 explicitly",
+        "Flag every task after the toggled task in order_index — ignores real deps, produces noise"
+      ],
+      "rationale": "Direct-dep flagging has O(deps) complexity and shows the user exactly where a dep broke. As the user toggles off B (now flagged), C becomes flagged next — so transitive breakage surfaces naturally through iterative toggling rather than a single noisy warning cloud. Dormant in this story since template-apply doesn't write task_dependencies rows yet, but the UI is correct and tested for when deps are added in the task-management cycle.",
+      "confidence": "high",
+      "affects": [
+        "lib/customization/tree.ts",
+        "components/setup/CustomizationScreen.tsx"
+      ]
+    },
+    {
+      "decision": "Customization state held in client (React useState) until 'Create project' is clicked",
+      "context": "User toggles tasks + accepts suggestions across multiple interactions. Could persist optimistically on each change, or batch all changes into the final submit.",
+      "alternatives_considered": [
+        "Persist every toggle via server action — N round trips, chat feels sluggish, partial-state DB rows if user abandons",
+        "localStorage draft like project-creation-draft — extra layer of state sync bugs for a flow the user finishes in one sitting",
+        "Supabase Realtime subscriptions for multi-device edit — overkill for single-user setup phase"
+      ],
+      "rationale": "Customization is a single focused step on one device ending in 'Create project'. Client-only state means zero round trips during the customization itself, one round trip on submit (applyCustomization), one redirect (finalizeProject). If the user abandons, no partial DB state. Matches the browser-only draft pattern from TemplateBrowser.",
+      "confidence": "high",
+      "affects": [
+        "components/setup/CustomizationScreen.tsx",
+        "app/actions/customization.ts"
+      ]
+    },
+    {
+      "decision": "Added tasks get planned_start = project.start_date on insert (not scheduled inline)",
+      "context": "applyCustomization inserts new tasks mid-schedule. Could: (a) recompute the cursor-based schedule across all tasks, (b) insert at project.start_date and let cascade_task_dates() refine, (c) compute a new planned_start based on the stage's existing task range.",
+      "alternatives_considered": [
+        "Rebuild the cursor schedule for all tasks (delete+reinsert) — heavy, risks losing user-edited dates from later stories",
+        "Place new task inline at max(planned_end) within the stage — requires a pre-insert SELECT and still doesn't form proper dependencies",
+        "Leave planned_start null — violates tasks.planned_start NOT NULL schema constraint"
+      ],
+      "rationale": "Start-date placeholder + cascade refinement is the pattern the schema was designed for: cascade_task_dates() is the single source of truth for date propagation. This story doesn't need to reinvent scheduling. The user can drag dates in the schedule-management story and cascade will propagate. NOT NULL satisfied; dates self-correct on first cascade.",
+      "confidence": "medium",
+      "affects": [
+        "app/actions/customization.ts"
+      ]
+    },
+    {
+      "decision": "Sequential date scheduling (no dependency graph) for template-apply",
+      "context": "Templates carry stages/tasks/materials but no task-dependency info. Template-apply needs to satisfy tasks.planned_start NOT NULL + planned_end NOT NULL on insert. Options: leave dates null (rejected by schema), chain linearly, or attempt to infer dependencies from task order.",
+      "alternatives_considered": [
+        "Defer date computation to a separate cascade step (breaks schema NOT NULL constraints; would need migration)",
+        "Template carries explicit depends_on — requires reshaping seed JSONB and template-customization story handles dependency editing already",
+        "All tasks share project.start_date — loses the ability to show a meaningful schedule in the Gantt before customization"
+      ],
+      "rationale": "Cursor-based linear schedule: planned_start of task N = planned_end of task N-1 + 1 day, planned_end = planned_start + duration_days. Produces a reasonable initial Gantt immediately after template apply; the user edits durations and dependencies in the template-customization + task-management stories and cascade_task_dates() refines from there. Pure function keeps the scheduling logic unit-testable without DB round-trips.",
+      "confidence": "high",
+      "affects": [
+        "lib/templates/apply.ts",
+        "app/actions/templates.ts"
+      ]
+    },
+    {
+      "decision": "Server-side template summarization (summarizeTemplate) — send TemplateSummary to the browser, not the full JSONB",
+      "context": "Each template stores a fat stages JSONB (whole build with materials). Sending all 3 to the client for list + preview would waste ~15KB and block the 2s render target in AC-TB-4.",
+      "alternatives_considered": [
+        "Ship raw templates array, summarize in the client — duplicates logic + bloats JS bundle",
+        "Paginate / lazy-load preview — overkill for 3 seeded templates",
+        "Render preview server-side with server actions — adds round-trip on every card click"
+      ],
+      "rationale": "/setup computes TemplateSummary (stage/task counts, sample_tasks per stage, total_duration_days with computed fallback) in the RSC, passes only summaries to the TemplateBrowser client component. Apply still reads the full JSONB server-side via templateId. Keeps client payload small, server logic centralized, and preview switching instant.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/setup/page.tsx",
+        "components/setup/TemplateBrowser.tsx",
+        "lib/templates/apply.ts"
+      ]
+    },
+    {
+      "decision": "Detect already-applied-template by counting stages on the project rather than a project flag",
+      "context": "After apply, the project is still status='setup' (customization story flips to 'active'). Navigating back to /setup needs to avoid letting the user apply a second template on top of the first.",
+      "alternatives_considered": [
+        "Add a projects.template_id or projects.template_applied_at column — schema churn for a UI guard",
+        "Redirect to a dedicated /setup/customize route after apply — premature; customization story hasn't defined that route yet",
+        "Client-side localStorage flag — unreliable across devices"
+      ],
+      "rationale": "A quick HEAD count on stages WHERE project_id = X is cheap (partial index exists), stateless, and inherently correct: if any stages exist, the template was applied. Works even if the user opened /setup on a second device. Zero schema changes.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/setup/page.tsx"
+      ]
+    },
+    {
+      "decision": "Use local synthetic ids ('s0', 't0-1') in the insert plan to join inserts across three tables",
+      "context": "applyTemplate has to insert stages, then tasks (needing the stage's real id), then materials (needing the task's real id). supabase.insert().select() returns real ids but not in the same order as input, so a join key is required.",
+      "alternatives_considered": [
+        "Insert stages one at a time to capture each id inline — N round trips instead of 1",
+        "Rely on array index ordering — Supabase does not guarantee it",
+        "Use Postgres CTE with WITH clauses — requires a stored procedure or rpc, more infra than needed"
+      ],
+      "rationale": "Insert plan tags each row with a deterministic _localId ('s{order_index}', 't{stageIdx}-{taskIdx}'), and both stages.order_index and tasks.(stage_id + order_index) are carried through inserts. The server action rebuilds the local→real mapping from the returned rows after each insert. Three round trips total, correct by construction.",
+      "confidence": "high",
+      "affects": [
+        "lib/templates/apply.ts",
+        "app/actions/templates.ts"
+      ]
+    },
+    {
+      "context": "AC-PS-1/2/3 involve branching validation (empty name, past date warning, confirmation flag). The form needs client-side validation for UX; the server action needs identical validation for safety. Two code paths = duplication risk.",
+      "alternatives_considered": [
+        "Validate only server-side (requires round-trip for every validation error — poor mobile UX)",
+        "Validate only client-side (security hole — malicious clients can POST invalid data)",
+        "Schema library (zod) — another dep for 5 rules this simple"
+      ],
+      "rationale": "Pure functions accepting (values, today) return { errors, warnings }. Used by both the form and the server action. 13 unit tests run in <10ms, no mocks needed. McKinley: boring technology — plain TypeScript, no runtime deps.",
+      "confidence": "high",
+      "affects": [
+        "lib/projects/validate.ts",
+        "app/actions/projects.ts",
+        "components/setup/ProjectCreationForm.tsx"
+      ]
+    },
+    {
+      "decision": "Past-date confirmation via checkbox inside an amber warning panel (not browser confirm())",
+      "context": "AC-PS-3 requires 'explicit confirmation' for past start_date. Options: native window.confirm(), inline checkbox, two-step submit.",
+      "alternatives_considered": [
+        "window.confirm() — blocking modal, inaccessible, ugly on mobile",
+        "Two-step submit (first click shows warning, second submits) — confusing UX, easy to double-click through",
+        "Modal dialog — overkill for a single confirmation"
+      ],
+      "rationale": "Inline amber panel with a checkbox: visible, accessible, preserves form context, prevents accidental submits. Confirmation state resets whenever the date changes so the user re-confirms if they adjust.",
+      "confidence": "high",
+      "affects": [
+        "components/setup/ProjectCreationForm.tsx",
+        "lib/projects/validate.ts"
+      ]
+    },
+    {
+      "decision": "localStorage draft persistence stored under versioned key 'cm:project-creation-draft:v1'",
+      "context": "AC-PS-5: form restore across sessions. Need a key that won't collide with other drafts and can be migrated.",
+      "alternatives_considered": [
+        "sessionStorage (lost on tab close, fails AC-PS-5)",
+        "IndexedDB (overkill for 3 string fields)",
+        "Unversioned key 'project-draft' (can't migrate schema without orphaning old drafts)"
+      ],
+      "rationale": "Namespaced + versioned key allows future form schema changes. Draft is cleared after successful createProject redirect (returns to same page, effect unmounts, clearDraft called in the success path).",
+      "confidence": "high",
+      "affects": [
+        "lib/projects/validate.ts",
+        "components/setup/ProjectCreationForm.tsx"
+      ]
+    },
+    {
+      "decision": "Cast-at-site for projects.insert() rather than editing lib/supabase/types.ts",
+      "context": "Foundation eval flagged lib/supabase/types.ts as lacking Relationships[] on every table, which causes typed Postgrest inserts to resolve to 'never'. Options: regenerate types, add Relationships: [] to all 12 tables, or cast at call sites.",
+      "alternatives_considered": [
+        "Edit all 12 tables to add Relationships: [] — touches 12 tables for a single insert, high blast radius",
+        "Regenerate types via supabase gen types — correct long-term fix but requires Supabase CLI auth and migration roundtrip, out of scope for this story",
+        "Disable strict typing globally — defeats the purpose"
+      ],
+      "rationale": "Single targeted cast in app/actions/projects.ts with a comment pointing at the foundation-eval finding. The typed Row/Insert shapes are still used by app/page.tsx and app/(app)/setup/page.tsx for reads. A dedicated types-regeneration pass belongs in a separate chore, not buried inside a feature story.",
+      "confidence": "medium",
+      "affects": [
+        "app/actions/projects.ts"
+      ]
+    },
+    {
+      "decision": "Removed next-pwa, wrote custom service worker",
+      "context": "next-pwa v5 injects webpack config, incompatible with Next.js 16 Turbopack default. Build failed with 'This build is using Turbopack, with a webpack config and no turbopack config.'",
+      "alternatives_considered": [
+        "@ducanh2912/next-pwa — Turbopack-compatible fork, but adds another dependency for a problem solvable with 80 lines of vanilla JS",
+        "next build --webpack — disables Turbopack, slower builds, not idiomatic for Next.js 16"
+      ],
+      "rationale": "A custom sw.js at public/sw.js served with no-cache headers is the recommended Next.js 16 approach. No Workbox dependency, full control over caching strategy, easier to debug.",
+      "confidence": "high",
+      "affects": [
+        "public/sw.js",
+        "next.config.ts",
+        "vercel.json"
+      ]
+    },
+    {
+      "decision": "Supabase project 'mtgordle' (***REMOVED***) used for construction-manager",
+      "context": "Git branch build/mtgordle matched both the Supabase project name and Vercel project name. ACTIVE_HEALTHY status confirmed.",
+      "alternatives_considered": [
+        "Create new Supabase project — would require pausing an existing project (at 2/2 free tier limit) and waiting for activation",
+        "Use 'openfleet' project — wrong project, different product"
+      ],
+      "rationale": "The naming alignment (build/mtgordle branch + mtgordle Supabase + mtgordle Vercel project) is unambiguous. Project was pre-created as part of the build setup.",
+      "confidence": "high",
+      "affects": [
+        "supabase/",
+        "lib/supabase/",
+        ".env.local"
+      ]
+    },
+    {
+      "decision": "webpush.setVapidDetails() moved inside handler functions",
+      "context": "Calling setVapidDetails at module evaluation time caused build failure on Vercel: 'No key set in vapidDetails.privateKey'. Turbopack evaluates route modules during static page generation.",
+      "alternatives_considered": [
+        "Lazy initialization singleton — adds unnecessary complexity",
+        "Dynamic import of web-push — works but slower"
+      ],
+      "rationale": "Moving setVapidDetails inside the handler is the simplest fix. It runs once per cold start in production (Fluid Compute reuses instances). No performance impact.",
+      "confidence": "high",
+      "affects": [
+        "app/api/cron/daily-check/route.ts",
+        "app/api/push/send/route.ts"
+      ]
+    },
+    {
+      "decision": "cascade_task_dates() implemented as PostgreSQL function with recursive CTE",
+      "context": "Cascade engine spec requires single-transaction update of all downstream tasks. Acceptable: under 2s for 500 tasks.",
+      "alternatives_considered": [
+        "Application-layer BFS in TypeScript — multiple round trips, not atomic, slower for large graphs",
+        "PostgreSQL stored procedure with LOOP — not set-based, harder to optimize"
+      ],
+      "rationale": "Recursive CTE traverses the full DAG in one query, updates all affected tasks + materials atomically. PostgreSQL can optimize the traversal with the existing task_dependencies indexes.",
+      "confidence": "high",
+      "affects": [
+        "supabase/migrations/20260405193231_initial_schema.sql"
+      ]
+    },
+    {
+      "decision": "shift_alerts table for briefing delta tracking",
+      "context": "Daily briefing needs to show 'what changed since last visit'. Options: compute on-the-fly (expensive join), event log (append-only), or client-side localStorage.",
+      "alternatives_considered": [
+        "On-the-fly computation — requires tracking last_visit_at per user and joining across all cascades",
+        "localStorage — lost on device switch, not reliable for mobile",
+        "Supabase Realtime subscription — overkill for a daily summary"
+      ],
+      "rationale": "Server-side event log (shift_alerts) written by the cascade function. Dismissed flag per user. Readable from any device. Foundation builds the table; daily-experience feature cycle builds the UI.",
+      "confidence": "high",
+      "affects": [
+        "supabase/migrations/20260405193231_initial_schema.sql"
+      ]
+    },
+    {
+      "decision": "StageManager uses client-side optimistic updates with server-side reorderProjectStages as the persistence truth",
+      "context": "AC-SM-2 requires drag reorder to re-render the Gantt \"with the new ordering.\" Options: (a) drag → server round trip → server returns new list → re-render; (b) client reorders locally, server action confirms in background; (c) server action re-throws errors and force-reverts.",
+      "alternatives_considered": [
+        "Server-first: every drag waits for the server — drag feels laggy, breaks the direct-manipulation UX spec",
+        "Optimistic + rollback on failure: requires snapshot + restore logic; adds state management for a rare failure path",
+        "Supabase Realtime subscription: overkill for single-user project editing"
+      ],
+      "rationale": "Drag updates the local stages state immediately (pure reorderStages produces the renumbered array), then fires reorderProjectStages in a startTransition. If the server fails, serverError banner shows and the user can retry. Single-device single-user editing means conflict is vanishingly rare; the optimistic path keeps drag feeling instant. Matches the client-only draft pattern from ProjectCreationForm + CustomizationScreen.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/StageManager.tsx",
+        "app/actions/stages.ts"
+      ]
+    },
+    {
+      "decision": "Up/down arrow buttons shipped alongside native HTML5 drag-and-drop",
+      "context": "AC-SM-2 says \"drags a stage to reorder\" but this is a PWA and touch devices (iOS Safari) do not reliably fire HTML5 drag events. The alternatives are a heavier touch-drag library (react-dnd, dnd-kit), omitting mobile support, or providing a parallel keyboard/tap interaction.",
+      "alternatives_considered": [
+        "Install dnd-kit or react-dnd for unified touch+mouse drag — new dependency, ~40KB, another abstraction to learn, McKinley says no unless drag is core",
+        "Ship drag-only, leave mobile broken — violates PWA product standard; stage reorder is core enough that mobile parity matters",
+        "Polyfill TouchEvent → DragEvent — fragile, hand-rolled, adds more bugs than it solves"
+      ],
+      "rationale": "Boring-tech drag via draggable=true covers desktop (the primary Gantt-editing environment) at zero cost. The up/down arrow buttons next to each stage row give touch users the same reorder capability through the same reorderStages() pure helper and reorderProjectStages server action. One feature, two input modalities, one code path. When the Gantt story needs true 2-D drag we can swap in dnd-kit then.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/StageManager.tsx"
+      ]
+    },
+    {
+      "decision": "Two-phase reorder update: tombstone-with-negative-indices then write final slots",
+      "context": "reorderProjectStages writes a new order_index to every stage in a project. Today there is no UNIQUE(project_id, order_index) constraint, so a one-pass update would work. But partial densification (e.g., swapping s1 order 0↔1 with s2 order 1) could briefly assign two rows the same index during the sequence of updates.",
+      "alternatives_considered": [
+        "Single-pass update with arbitrary order: works today, breaks silently if a UNIQUE constraint is ever added",
+        "Supabase RPC with a single transactional UPDATE ... FROM: requires a new migration + stored procedure for a 4-stage reorder",
+        "Delete-and-reinsert: loses stage ids, cascades tasks away"
+      ],
+      "rationale": "Two passes — first push each stage to order_index = -(1 + position) as a tombstone, then write the final 0..N-1 index — guarantees no two rows ever share a positive order_index mid-update. No new infrastructure, cheap (2N updates for N stages, N≤~12 typical), and safe if a UNIQUE constraint shows up in a later migration. deleteStage uses the same densification pattern on remaining stages.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/stages.ts"
+      ]
+    },
+    {
+      "decision": "Delete confirmation driven by client-side task_count, server independently re-verifies",
+      "context": "AC-SM-3 vs AC-SM-4 gates on \"stage has tasks.\" The page loads per-stage task counts; the client uses them to decide whether to show the dialog. But the server action also needs to decide whether to allow an unconfirmed delete.",
+      "alternatives_considered": [
+        "Client-only decision, server always deletes when called: a stale/tampered client could delete a populated stage without confirmation",
+        "Server returns requiresConfirmation the first call, client retries with confirmed=true: doubles round trips for every delete",
+        "Skip the dialog entirely, always server-delete with cascade: loses AC-SM-3 warning requirement"
+      ],
+      "rationale": "Client shows the dialog based on the task_count it loaded (fresh render = fresh count). Server action independently re-counts tasks — if taskCount > 0 and confirmed=false, it returns requiresConfirmation without deleting. The client ignores that fallback path in the happy case (it already showed the dialog) but the server guarantee means a stale count or a rogue client cannot delete populated stages without explicit confirmed=true. Defense in depth, one round trip in the common case.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/stages.ts",
+        "components/schedule/StageManager.tsx"
+      ]
+    },
+    {
+      "decision": "Six-swatch color palette (hardcoded) instead of free-form color picker",
+      "context": "AC-SM-1 specifies a \"color\" field. Options: free-form <input type=\"color\">, preset palette, hex text input.",
+      "alternatives_considered": [
+        "Native <input type=\"color\">: gives users infinite options that can clash with the brand palette; color wheel UI is inconsistent across browsers",
+        "Hex text input: requires validation copy + error UX for every typo",
+        "Larger preset (12+ swatches): decision paralysis, the Gantt only needs enough contrast to tell stages apart"
+      ],
+      "rationale": "Six swatches drawn from the product's brand palette (earth brown, frame green, ochre, ink, slate blue, brick red) give every stage a distinct, on-brand color. Picker UI is a row of circular buttons with aria-pressed — accessible, instant, no typing. validateStageInput still accepts any valid hex so a future \"custom color\" story (or a direct DB edit) is not blocked. normalizeStageColor falls back to the earth-brown default if the stored value is ever corrupt.",
+      "confidence": "medium",
+      "affects": [
+        "components/schedule/StageManager.tsx",
+        "lib/stages/operations.ts"
+      ]
+    },
+    {
+      "decision": "Inclusive-day semantics for planned_start/planned_end (end = start + duration − 1)",
+      "context": "AC-TM-2 says \"planned_end = planned_start + 2 days\" for a 2-day task. Two interpretations: exclusive (start=06-01, end=06-03 → 2 nights) or inclusive (start=06-01, end=06-02 → first and last working day, 2 working days).",
+      "alternatives_considered": [
+        "Exclusive: planned_end = planned_start + duration_days. Simpler arithmetic but a 1-day task would render as a zero-width Gantt bar and the end date is a day the task is NOT worked.",
+        "Inclusive: planned_end = planned_start + (duration_days − 1). Matches how humans read a schedule (\"Monday–Tuesday = 2 days\") and matches the existing seed data pattern."
+      ],
+      "rationale": "Checked the seeded O'Brien data + the template-apply cursor schedule — both treat planned_start and planned_end as the first and last working day of the task (inclusive). A 1-day task has planned_start = planned_end. The cursor schedule in lib/templates/apply.ts advances via `start = prev.planned_end + 1`, which is exactly AC-TM-4's \"max(dep.planned_end) + 1 day\" formula — consistent across the codebase.",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/operations.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "AC-TM-3 \"no deps AND no prior task\" resolves to project.start_date for all no-deps cases",
+      "context": "AC-TM-3 specifies the no-deps-no-prior-task case but is silent on no-deps-WITH-prior-tasks-in-stage. template-apply uses a sequential cursor (each task follows the previous one in order_index). template-customization uses project.start_date as a placeholder.",
+      "alternatives_considered": [
+        "Sequential cursor within the stage — infers an implicit dependency chain the user did not author. If the user really wants sequence, they can set depends_on explicitly.",
+        "Max end of prior tasks in stage — leaks \"stage order\" into date computation. Same problem: implicit chain.",
+        "project.start_date uniformly when depends_on is empty — predictable, self-documenting, matches the customization-story placeholder pattern."
+      ],
+      "rationale": "Dependencies are the single source of truth for sequencing. If a user adds a task with no dependencies, they get project.start_date and can fix it by either adding deps or editing the date directly in a later story. Explicit > implicit. Matches the template-customization decision to use start_date as the placeholder for newly-added tasks.",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/operations.ts"
+      ]
+    },
+    {
+      "decision": "AC-TM-6 dependency cleanup relies on ON DELETE CASCADE on task_dependencies.depends_on_task_id",
+      "context": "The spec requires that deleting task A removes it from the depends_on array of every downstream task. Options: handle in application code, use the DB cascade, or both.",
+      "alternatives_considered": [
+        "Application-layer: SELECT dependents, DELETE by task_id = A, then DELETE rows where depends_on_task_id = A. Three round trips, race conditions if another request is editing deps simultaneously.",
+        "DB cascade only: task_dependencies has ON DELETE CASCADE on BOTH foreign keys (task_id, depends_on_task_id). Deleting task A atomically removes every row that references A in either column.",
+        "Both layers for defense in depth: duplicates effort without improving guarantees."
+      ],
+      "rationale": "The schema already guarantees AC-TM-6 via CASCADE. Server action just deletes the task and RLS + CASCADE do the rest. Added a pure removeFromDependencies() helper for the UI to mirror the same behaviour in client state — so the task list re-renders correctly without a round trip.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts",
+        "lib/tasks/operations.ts",
+        "components/tasks/StageTasksManager.tsx"
+      ]
+    },
+    {
+      "decision": "updateTaskDuration holds planned_start fixed and recalculates only planned_end",
+      "context": "AC-TM-5 says \"edits the duration_days field and saves, THEN the task's planned_end recalculates and cascades.\" Options: recompute planned_start from deps then extend end, or keep start stable and extend/shrink end.",
+      "alternatives_considered": [
+        "Recompute planned_start from deps on every duration edit — could shift the start date if deps have changed since task creation, surprising the user when they just edited duration.",
+        "Hold start fixed, shift end only — matches the AC's \"end recalculates\" wording and is what cascade_task_dates() is designed for (it receives new_planned_end and propagates the delta downstream).",
+        "Re-run the full schedule — massive blast radius for a single edit."
+      ],
+      "rationale": "cascade_task_dates(p_task_id, p_new_planned_start, p_new_planned_end) expects the caller to pick the new end. Passing the current planned_start unchanged + new planned_end = start + (duration − 1) gives a clean delta the recursive CTE uses to shift every downstream task by the same offset. One RPC, one transaction, O(downstream) updates.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Add Task lives on /stages/:id, reached via an \"Open\" link on each stage row in /schedule",
+      "context": "AC-TM-1 says \"clicks Add Task within [a stage]\". Three possible homes: inline on /schedule (expand each stage), dedicated /stages/:id detail, or a full modal launched from the schedule list.",
+      "alternatives_considered": [
+        "Inline-on-schedule: every stage on the schedule page expands into a task list. Crowds a Gantt-like screen; doesn't scale past ~3 tasks per stage.",
+        "/stages/:id detail page with full task CRUD: clean single-purpose screen, future-proof for per-stage editing, and the /stages/:id route already exists as a placeholder.",
+        "Global /tasks list: loses the stage scoping AC-TM-1 requires."
+      ],
+      "rationale": "The foundation already scaffolded /stages/[id]/page.tsx as a placeholder route and the /schedule StageManager already has per-stage rows. Adding an \"Open\" link to each row + rewriting the stage detail page as the task-CRUD screen uses existing infrastructure, keeps /schedule lightweight, and gives tasks a natural home for future attributes (materials, photos, trade assignment).",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/stages/[id]/page.tsx",
+        "components/tasks/StageTasksManager.tsx",
+        "components/schedule/StageManager.tsx"
+      ]
+    },
+    {
+      "decision": "Trade delete uses explicit unassign-then-delete (no SET NULL FK)",
+      "context": "AC-TR-4 requires deleting a trade assigned to N tasks to null out task.trade_id for all N tasks. Options: rely on a SET NULL FK, run an UPDATE then DELETE in the server action, or wrap in an RPC/transaction.",
+      "alternatives_considered": [
+        "Add ON DELETE SET NULL to tasks.trade_id FK — requires a new migration for a behaviour the UI already needs to orchestrate around a confirmation dialog; the schema is shared with other stories, migration churn is expensive.",
+        "Single DELETE with a pre-count and trust a future FK cascade — if the FK is ever added with RESTRICT (the default), the delete fails silently for assigned trades.",
+        "RPC wrapping both updates in a transaction — overkill for a two-statement sequence that can't meaningfully partially-fail at this scale."
+      ],
+      "rationale": "UPDATE tasks SET trade_id=null WHERE trade_id=X AND project_id=P, then DELETE FROM trades WHERE id=X. Two statements, both scoped by project_id so cross-project writes are impossible, no schema change, no RPC. Server recounts assignments independently before acting on confirmed=true, so a stale client cannot bypass the confirmation dialog.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/trades.ts"
+      ]
+    },
+    {
+      "decision": "Trade assignment on /tasks/:id is an inline optimistic <select>, not a modal",
+      "context": "AC-TR-2 says 'assigns it to a task via task edit form.' The existing Add Task form already has a trade dropdown; the detail screen needs a standalone control for re-assigning an existing task.",
+      "alternatives_considered": [
+        "Open a full edit-task modal from the detail page — duplicates StageTasksManager's add form, and this story's scope is trade-contacts not task-edit.",
+        "Inline 'Edit' button that opens an edit drawer with every task field — scope creep into task-management follow-up work already flagged in factory_questions.",
+        "Dedicated /tasks/:id/edit route — extra navigation step for a single-field change."
+      ],
+      "rationale": "A single <select> element on the detail page changes trade_id in-place with an optimistic client update + server rollback on error. Matches the lightweight direct-manipulation pattern from StageManager's drag-reorder and avoids opening a form just to change one field. Other fields (name/notes/duration) are explicitly deferred to a future task-edit story per the existing factory_question.",
+      "confidence": "high",
+      "affects": [
+        "components/tasks/TaskTradeAssigner.tsx",
+        "app/(app)/tasks/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "formatTelHref strips all non-digit characters but preserves a single leading +",
+      "context": "AC-TR-3 requires 'a tap-to-call link using the tel: protocol.' Trade phone numbers are free-text — Irish mobile ('087 123 4567'), Irish landline with area code ('01 4567890'), international ('+353 1 456 7890'), US-style with parens ('(555) 123-4567'). tel: URIs accept digits and a leading + (RFC 3966).",
+      "alternatives_considered": [
+        "Pass the raw string through to tel: — spaces and parens break dialer parsing on some Android builds and produce inconsistent behaviour across platforms.",
+        "Full RFC 3966 parser with country-code inference — overkill; we don't know the user's default country and most dialers DTRT with digits+leading-plus.",
+        "Refuse to build a link unless the input matches a strict regex — rejects valid numbers users type naturally, degrades AC-TR-3 to nothing."
+      ],
+      "rationale": "Strip to digits, preserve leading + if present. Returns null if no digits remain so the caller can render the phone as plain text instead of a broken link. Tested against Irish mobile/landline, international +353, US (555) formats. Keeps the raw phone string in the DB for display; only the href is normalized.",
+      "confidence": "high",
+      "affects": [
+        "lib/trades/operations.ts",
+        "components/trades/TradesManager.tsx",
+        "components/tasks/TaskTradeAssigner.tsx"
+      ]
+    },
+    {
+      "decision": "Assignment counts loaded server-side on /trades (no per-row query)",
+      "context": "The trade list needs per-trade assignment counts to render the delete warning with the right task count without a server round trip on every delete attempt. Options: N queries (one per trade), SQL GROUP BY via an RPC, or a single broad select.",
+      "alternatives_considered": [
+        "One count() query per trade — N round trips for N trades; slow with any number of trades.",
+        "Custom rpc get_trade_assignment_counts() — new stored procedure for what one select can do.",
+        "Client-side assignment count derived from a tasks fetch — doubles the client payload for a page that doesn't otherwise need tasks."
+      ],
+      "rationale": "One SELECT trade_id FROM tasks WHERE project_id=P AND trade_id IS NOT NULL, then tally into a Map. One round trip, O(tasks) memory on the server, zero schema change. Projects won't realistically have thousands of tasks in this target domain (residential self-build).",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/trades/page.tsx"
+      ]
+    }
+  ],
+  "factory_questions": [
+    {
+      "question": "AI Assist chat currently uses a keyword-matched suggester stub. A follow-up story should add a real LLM backend (Claude via Anthropic SDK or OpenAI) behind the existing suggestFromMessage(message, snapshot) interface. Need: decision on model (Claude Haiku for cost vs Sonnet for quality), ANTHROPIC_API_KEY provisioning in Vercel env vars, server-action wrapper with streaming, and a structured-output prompt that returns the AssistantSuggestion shape (title, rationale, changes[]).",
+      "found_in": "AC-TC-3 implementation — template-customization story",
+      "resolved_as": "Stubbed with deterministic ICF/insulation/solar rules for this cycle; swap to real LLM in a dedicated llm-integration story",
+      "needs_clarification_from": "human",
+      "severity": "significant"
+    },
+    {
+      "question": "Broken-dependency warning (AC-TC-2) is currently dormant because template-apply does not write task_dependencies rows. The task-management cycle needs to let users author dependencies between tasks before this UI flag will actually fire. UI + logic + tests are already wired correctly.",
+      "found_in": "AC-TC-2 implementation — template-customization story",
+      "resolved_as": "Dormant warning — activates automatically once task_dependencies rows exist for the project",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Supabase Auth email confirmation: Vercel production URL must be added to Supabase allowed redirect URLs before signup emails will work.",
+      "found_in": "auth flow testing",
+      "resolved_as": null,
+      "needs_clarification_from": "human",
+      "severity": "significant"
+    },
+    {
+      "question": "cascade_task_dates() does not currently write to shift_alerts. The cascade function updates task dates and material order_by_dates but does not log the changes to shift_alerts. This must be added when implementing the daily-briefing feature area.",
+      "found_in": "schema design — cascade function",
+      "resolved_as": "Deferred to daily-briefing feature cycle (shift-alerts story)",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Duration-edit cascade (AC-TM-5) is exercised via cascade_task_dates() RPC — the pure date math is unit-tested but the SQL function itself is not hit from Node tests. A Supabase integration smoke test (seed a 3-task dep chain, bump the middle one's duration, assert downstream dates shifted) would close the loop.",
+      "found_in": "app/actions/tasks.ts updateTaskDuration",
+      "resolved_as": "Unit tests cover the pure layer; QA phase should verify the RPC cascade against the live DB",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Task edit UI only surfaces duration_days. Name, notes, trade, and depends_on editing for EXISTING tasks is out of scope for task-management (the spec only calls out duration edits in AC-TM-5) — those edits will want a dedicated /tasks/:id edit screen in a later story.",
+      "found_in": "AC-TM-5 vs user journey J5-gantt-review",
+      "resolved_as": "Deferred — current scope is create + duration-edit + delete. A future task-edit story can extend StageTasksManager or use the /tasks/:id route.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    },
+    {
+      "question": "Trade edit allows editing every field (name, specialty, phone, email, notes) but AC-TR-1 only specifies the create contract. Editing is implied by J2-briefing ('call the trade') but not explicitly required. If editing is ever restricted (e.g. locking name once assigned), the UI in TradesManager needs to react.",
+      "found_in": "AC-TR-1 vs the broader trade-management implied by AC-TR-2/3/4",
+      "resolved_as": "Full CRUD shipped — matching user expectations for a contacts list. Can be narrowed later if a concrete edit-restriction requirement surfaces.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    }
+  ],
+  "foundation_completion": {
+    "schema_ready": true,
+    "auth_ready": true,
+    "integrations_ready": {
+      "supabase-schema": true,
+      "supabase-auth": true,
+      "supabase-storage": true,
+      "pwa-service-worker": true,
+      "web-push": true
+    },
+    "ui_scaffold_ready": true,
+    "deploy_ready": true,
+    "fixtures_ready": true,
+    "blocking_gaps": [],
+    "tables_live": [
+      "projects",
+      "stages",
+      "tasks",
+      "task_dependencies",
+      "materials",
+      "trades",
+      "photos",
+      "documents",
+      "push_subscriptions",
+      "notification_preferences",
+      "shift_alerts",
+      "templates"
+    ],
+    "deployment_smoke_test": "HTTP 307 → /login confirmed on https://mtgordle.vercel.app",
+    "notes": [
+      "cascade_task_dates() SQL function is written but feature build must wire it to task update API routes via supabase.rpc('cascade_task_dates', {p_task_id, p_new_planned_end})",
+      "cascade_task_dates() does NOT yet write to shift_alerts — add that in the shift-alerts story",
+      "AI assist (template-customization story) requires ANTHROPIC_API_KEY — deferred to feature build",
+      "Supabase Auth email confirmation requires production URL in Supabase Redirect URLs config before signup emails work",
+      "Seed data requires real auth.users entry — run locally with supabase db seed after creating dev user"
+    ]
+  },
+  "_cycle_number": 1,
+  "_current_milestone": "project-core",
+  "_current_story": "trade-contacts",
+  "foundation_eval_report": {
+    "verdict": "PASS",
+    "dimensions": {
+      "schema_completeness": {
+        "status": "PASS",
+        "findings": [
+          "All 12 tables present: projects, stages, trades, tasks, task_dependencies, materials, photos, documents, push_subscriptions, notification_preferences, shift_alerts, templates. All feature areas can build without ALTER TABLE.",
+          "cascade_task_dates() PostgreSQL function (recursive CTE) covers scheduling-engine requirements atomically.",
+          "RLS enabled and policies configured on all 12 tables.",
+          "14 performance indexes including the critical partial index on materials.order_by_date WHERE order_status='not_ordered'.",
+          "FINDING (non-blocking): lib/supabase/types.ts was not regenerated after the templates migration (20260405194448_add_templates_table.sql). The templates table is absent from the Database type. Feature builders querying templates via the typed Supabase client will need 'as any' casts. types/database.ts is authoritative and correct.",
+          "FINDING (non-blocking): lib/supabase/types.ts has materials.quantity typed as 'number | null' but the SQL schema defines it as TEXT. types/database.ts correctly types it as 'string | null'. Feature code should import from types/database.ts.",
+          "FINDING (non-blocking): cascade_task_dates() does not yet write to shift_alerts — explicitly deferred to daily-briefing feature cycle and documented in factory_questions."
+        ]
+      },
+      "integration_scaffolds": {
+        "status": "PASS",
+        "findings": [
+          "lib/supabase/server.ts: createClient() uses @supabase/ssr with cookie-aware session handling. setAll() swallows errors in Server Component context (correct pattern).",
+          "lib/supabase/client.ts: Browser singleton pattern, correct for client-side use.",
+          "lib/supabase/service.ts: createServiceClient() uses SUPABASE_SERVICE_ROLE_KEY with autoRefreshToken:false. Clear warning comment present.",
+          "proxy.ts: Session refresh via getUser() on every request. Auth route protection and static asset bypass configured correctly. proxyConfig matcher excludes api/push and api/cron.",
+          "web-push: webpush.setVapidDetails() called inside handler (not at module level) — correct fix for Turbopack module evaluation issue. CRON_SECRET protection on cron and send routes. 410 (expired subscription) handling present.",
+          "FINDING (non-blocking): Cron handler uses INNER JOIN for notification_preferences (.select('*, notification_preferences!inner(*)')). Users with push subscriptions but no notification_preferences row will be silently excluded from notifications. Feature build should ensure notification_preferences is created on signup.",
+          "FINDING (non-blocking): Storage RLS policies check auth.uid() IS NOT NULL only — not project ownership. Any authenticated user with a direct storage path can read/delete another user's files. The signed URL pattern (60s expiry) and application-layer path construction provide practical protection, but this is weaker than the table-level RLS which joins through projects.",
+          "All env vars referenced by name (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET). No hardcoded values found."
+        ]
+      },
+      "auth_flows": {
+        "status": "PASS",
+        "findings": [
+          "Login: app/(auth)/login/page.tsx — signInWithPassword with error handling and loading state. Redirects to /briefing on success.",
+          "Signup: app/(auth)/signup/page.tsx — present per files_changed.",
+          "Forgot password: app/(auth)/forgot-password/page.tsx — present.",
+          "Logout: signOut server action in app/actions/auth.ts — supabase.auth.signOut() + redirect('/login').",
+          "Session persistence: proxy.ts calls supabase.auth.getUser() on every request, forwarding all cookies via supabaseResponse. Correct @supabase/ssr pattern.",
+          "Protected routes: proxy.ts redirects unauthenticated users → /login for all non-static, non-api paths.",
+          "Auth callback: app/auth/callback/route.ts — handles email confirmation code exchange.",
+          "FINDING (configuration, non-blocking): Supabase Auth email confirmation requires the production URL (https://mtgordle.vercel.app) to be added to Supabase's Site URL and Redirect URLs allowlist before signup confirmation emails will complete. This is a manual configuration step, not a code failure. Flagged as 'significant' in factory_questions."
+        ]
+      },
+      "shared_components": {
+        "status": "PASS",
+        "findings": [
+          "AppShell: Fixed 240px sidebar (desktop ≥768px) with primary nav (Briefing, Schedule, Materials, Trades) and secondary nav (Stages, Photos, Settings). Mobile bottom tab bar (4 primary routes, 56px).",
+          "Design tokens applied consistently: --color-primary #8B5E3C (clay), --color-secondary #87A96B (sage), --color-accent #D4A355 (amber), --color-bg #FAF7F2.",
+          "ErrorBoundary: Proper React class component with getDerivedStateFromError and 'Try again' recovery action.",
+          "Loading states: Skeleton, CardSkeleton, EmptyState components present.",
+          "Placeholder pages for all feature routes (briefing, schedule, materials, trades, stages, photos, settings, setup, stages/[id], tasks/[id]).",
+          "Navigation covers all feature areas accessible to the owner-builder. No document-specific top-level route — documents are accessed via task/stage detail pages per the vision scope."
+        ]
+      },
+      "deployment_pipeline": {
+        "status": "PASS",
+        "findings": [
+          "Production deployment confirmed: https://mtgordle.vercel.app returns HTTP 307 → /login (auth middleware firing correctly in production).",
+          "All 7 env vars set in Vercel dashboard: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET.",
+          "vercel.json: sw.js served with no-cache header (Cache-Control: no-store, must-revalidate). Cron job at /api/cron/daily-check scheduled 0 7 * * * (7am daily).",
+          "Hobby tier limitation documented: production-only deploys, --prod flag required."
+        ]
+      },
+      "test_fixtures": {
+        "status": "PASS",
+        "findings": [
+          "21 tests passing across 2 test files (2 test files, schema.test.ts + auth.test.ts). All 21 pass.",
+          "Seed data: O'Brien Timber Frame House, 42 Laragh Lane, Wicklow — realistic Irish address, project starting 2026-06-01.",
+          "7 stages matching a genuine Irish residential build sequence (Foundation, Frame, Roof, External Envelope, Internal Works, Services, Finishes).",
+          "22 tasks with authentic Irish construction terminology (ETICS, MVHR, PIR, Blower door test, Bangor Blue slate, Zehnder ComfoAir).",
+          "10 materials with realistic Irish suppliers (Roadstone Concrete Bray, Ennio Steel Dublin, Wicklow Timber Systems, Xtratherm, Welsh Slate Ltd, Zehnder Ireland, Internorm via Passive House Systems).",
+          "Lead times domain-appropriate: 3d concrete, 5d mesh, 70d timber frame kit, 42d windows, 21d slate, 28d MVHR.",
+          "Task dependency chain is a valid, realistic DAG covering the full build sequence.",
+          "3 residential templates seeded (Standard Timber Frame 365d, Slab-on-Grade 280d, ICF Two-Storey 390d) with nested JSONB stage/task/material definitions.",
+          "Notification preferences seeded for test user."
+        ]
+      }
+    },
+    "silent_degradation_check": {
+      "status": "PASS",
+      "evidence": [
+        "next-pwa replaced with custom service worker: fully documented divergence with technical justification (Turbopack incompatibility). Not degradation — simpler and more maintainable.",
+        "middleware.ts renamed to proxy.ts: Next.js 16 platform requirement, documented. Not degradation.",
+        "templates.stages uses JSONB: appropriate design for a template catalog (exploded into rows at project creation). Not a case of avoidance — the actual data tables (tasks, materials, stages) all use typed columns.",
+        "No TODO comments found in integration wrappers.",
+        "No always-passing test stubs found. Auth tests use explicit mocks with correct @supabase/ssr mock structure.",
+        "FINDING (quality issue, not silent degradation): lib/supabase/types.ts has schema drift — missing templates table, materials.quantity typed as number|null (should be string|null), tasks.planned_start/planned_end typed as nullable (should be non-null). The database type file was not regenerated after the templates migration. Feature builders should use types/database.ts for domain types. The typed Supabase client will require 'as any' for templates queries."
+      ]
+    },
+    "structural_gaps": [
+      "lib/supabase/types.ts missing templates table — will force 'as any' casts in feature code querying templates",
+      "lib/supabase/types.ts has materials.quantity: number|null vs TEXT in SQL — incorrect type inference for Supabase client queries",
+      "cascade_task_dates() does not write to shift_alerts — known gap, deferred to daily-briefing cycle",
+      "Supabase Auth redirect URL configuration outstanding — signup email confirmation won't complete without manual config in Supabase dashboard"
+    ],
+    "integration_gaps": [
+      "Storage RLS allows any authenticated user to read/delete any storage object by path — weaker than table-level RLS. Acceptable for foundation; tighten in photo-storage feature cycle if needed.",
+      "Cron INNER JOIN on notification_preferences will silently skip users without a preferences record — daily-briefing feature cycle must ensure preferences are created on user signup."
+    ],
+    "recommendations": [
+      "Update lib/supabase/types.ts to include the templates table and fix materials.quantity type before the project-setup feature cycle begins. Run: npx supabase gen types typescript or manually add templates to the Database interface.",
+      "Add Vercel production URL to Supabase Auth redirect URLs before testing end-to-end signup flow.",
+      "In the daily-briefing cycle, ensure notification_preferences row is inserted on first auth (upsert in the auth callback or signup action).",
+      "In the photo-storage cycle, consider tightening storage RLS to restrict by path prefix (user_id) rather than just auth.uid() IS NOT NULL."
+    ]
+  },
+  "infrastructure": {
+    "readiness": {
+      "posthog": true,
+      "sentry": false,
+      "supabase": false,
+      "cloudflare": false
+    }
+  }
+}

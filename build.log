@@ -1,0 +1,14 @@
+[2026-04-06T01:12:33Z] [deploy] Deploying construction-coordinator to staging (target: vercel)
+[2026-04-06T01:12:33Z] [deploy]   $ npx vercel deploy --yes --prod
+[2026-04-06T01:13:19Z] [deploy] Deployed to https://construction-coordinator.vercel.app
+[2026-04-06T01:13:19Z] [deploy] Running post-deploy health check...
+[2026-04-06T01:13:20Z] [deploy] Health check PASSED
+[2026-04-06T01:13:20Z] [deploy]   $ npx wrangler deployments list --env staging 2>/dev/null || true
+[screenshot] Capturing 1 screens for construction-coordinator (loop 0)
+[browse] Starting server...
+[screenshot]   home: https://construction-coordinator.vercel.app/
+Unknown snapshot flag: --reset
+[screenshot] Browse command failed: snapshot --reset — Command failed: /Users/gregario/.claude/skills/gstack/browse/dist/browse snapshot --reset
+Unknown sn
+[screenshot]   ✓ home.png (20KB)
+[screenshot] Captured 1/1 screenshots
