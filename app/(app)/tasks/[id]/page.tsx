@@ -14,6 +14,10 @@ import {
   TaskPhotosManager,
   type PhotoListItem as PhotoItem,
 } from '@/components/photos/TaskPhotosManager'
+import {
+  TaskDocumentsManager,
+  type DocumentListItem,
+} from '@/components/documents/TaskDocumentsManager'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,6 +115,14 @@ export default async function TaskDetailPage({ params }: Props) {
     .order('created_at', { ascending: false })
   const taskPhotos = (photosRes.data as PhotoItem[] | null) ?? []
 
+  // Load task documents (AC-DS-1, AC-DS-2)
+  const docsRes = await supabase
+    .from('documents')
+    .select('id, storage_path, file_name, file_type, file_size, created_at')
+    .eq('task_id', task.id)
+    .order('created_at', { ascending: false })
+  const taskDocuments = (docsRes.data as DocumentListItem[] | null) ?? []
+
   // Generate signed URLs for photo previews
   const signedUrls: Record<string, string> = {}
   if (taskPhotos.length > 0) {
@@ -181,6 +193,14 @@ export default async function TaskDetailPage({ params }: Props) {
         stageId={task.stage_id}
         initialPhotos={taskPhotos}
         signedUrls={signedUrls}
+      />
+
+      <TaskDocumentsManager
+        projectId={project.id}
+        entityId={task.id}
+        entityType="task"
+        stageId={task.stage_id}
+        initialDocuments={taskDocuments}
       />
     </main>
   )
