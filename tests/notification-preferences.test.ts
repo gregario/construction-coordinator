@@ -16,6 +16,11 @@ const DEFAULT_PREFS: NotificationPrefs = {
   order_warning_days: 3,
 }
 
+// @criterion: AC-NS-1, AC-NS-2, AC-NS-4
+// AC-NS-1: toggle switches for order_deadlines/overdue_tasks/cascade_summaries;
+// AC-NS-2: order_warning_days stepper with 1-14 clamp;
+// AC-NS-4: validateWarningDays rejects non-integer, out-of-range, NaN, Infinity inputs
+
 // ---------- validateWarningDays ----------
 
 describe('validateWarningDays', () => {

@@ -30,6 +30,7 @@ function makeCard(overrides: Partial<UpcomingOrderCard> = {}): UpcomingOrderCard
   }
 }
 
+// @criterion: AC-UO-2, AC-UO-3
 // AC-UO-2: card shows material name, task name, days remaining, supplier
 describe('UpcomingOrderCards — AC-UO-2', () => {
   it('renders material name, task name, days remaining, and supplier', () => {

@@ -7,6 +7,12 @@ import {
   type PushCapability,
 } from '@/lib/notifications/push'
 
+// @criterion: AC-PN-1, AC-PN-2, AC-PN-3, AC-PN-4
+// AC-PN-1: SW registration capability detection; AC-PN-2: subscribe with VAPID key (pure helpers);
+// AC-PN-3: unsubscribe path (pure helpers); AC-PN-4: blocked/unsupported UI states (pure helpers)
+// Note: actual PushManager.subscribe/unsubscribe require a real browser — pure helpers are fully tested here.
+// Browser integration is env-limited.
+
 // ---------- detectPushCapability ----------
 
 describe('detectPushCapability', () => {

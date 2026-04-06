@@ -25,8 +25,8 @@ function makeTask(overrides: Partial<BriefingTask> = {}): BriefingTask {
 
 const TODAY = '2026-06-05'
 
-// ---------- selectTodayTasks ----------
-
+// @criterion: AC-DB-2
+// AC-DB-2: selectTodayTasks filters tasks where planned_start<=today<=planned_end AND status IN (not_started,in_progress,complete)
 describe('selectTodayTasks', () => {
   it('returns tasks where today is within planned_start..planned_end and status is not_started or in_progress', () => {
     const tasks = [
@@ -97,8 +97,8 @@ describe('selectTodayTasks', () => {
   })
 })
 
-// ---------- nextTaskStartDate ----------
-
+// @criterion: AC-DB-3
+// AC-DB-3: When no tasks match today, empty state shows 'No tasks scheduled today — next task starts [date]'
 describe('nextTaskStartDate', () => {
   it('returns the earliest future planned_start', () => {
     const tasks = [
@@ -136,8 +136,8 @@ describe('nextTaskStartDate', () => {
   })
 })
 
-// ---------- formatShiftAlert ----------
-
+// @criterion: AC-SA-2
+// AC-SA-2: formatShiftAlert formats "[name] moved from [old] to [new]"; shiftAlertHref routes task→/tasks/:id, material→/materials
 describe('formatShiftAlert', () => {
   it('formats a date_moved alert', () => {
     const alert: BriefingShiftAlert = {

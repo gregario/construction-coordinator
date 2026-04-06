@@ -6,6 +6,9 @@ import {
   type MaterialDeadlineInput,
 } from '@/lib/materials/operations'
 
+// @criterion: AC-UO-2, AC-UO-3, AC-UO-4
+// AC-UO-2: card shows days remaining; AC-UO-3: expand shows cost/lead-time/mark-ordered; AC-UO-4: section hidden when empty
+
 // --- AC-UO-2: days remaining until order_by_date ---
 
 describe('daysUntilOrderBy — AC-UO-2', () => {
