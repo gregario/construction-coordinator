@@ -1,16 +1,17 @@
 {
   "story_result": {
-    "story_id": "upcoming-orders-view",
+    "story_id": "shift-alerts",
     "outcome": "pass",
     "files_changed": [
-      "lib/materials/operations.ts",
-      "components/briefing/UpcomingOrderCards.tsx",
-      "app/(app)/briefing/page.tsx",
-      "tests/upcoming-orders.test.ts",
-      "tests/upcoming-orders-cards.test.tsx"
+      "lib/briefing/shift-alerts.ts",
+      "tests/shift-alerts.test.ts",
+      "app/actions/tasks.ts",
+      "app/actions/briefing.ts",
+      "components/briefing/DismissAlertsButton.tsx",
+      "app/(app)/briefing/page.tsx"
     ],
-    "tests_added": 21,
-    "tests_passing": 291,
+    "tests_added": 7,
+    "tests_passing": 298,
     "env_limitations": []
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
@@ -556,6 +557,26 @@
       "tests_added": 21,
       "tests_passing": 291,
       "details": "Upcoming Material Orders View on /briefing. AC-UO-1: replaced plain list with horizontally-scrollable cards on mobile (flex + overflow-x-auto, min-w-[220px] per card) and responsive grid on desktop (md:grid-cols-2, lg:grid-cols-3). AC-UO-2: each card shows material name, associated task name, days remaining until order_by_date (computed by daysUntilOrderBy pure helper using existing daysBetweenIso), and supplier_name when set. Days label: \"Xd left\" / \"Due today\" / \"Xd overdue\" with color-coded text (red for overdue, amber for <=2d). AC-UO-3: tap/click toggles inline expansion below the card showing quantity, estimated_cost (formatted via formatMaterialCost as EUR with Intl.NumberFormat), lead_time_days with singular/plural, notes, and a \"Mark Ordered\" button that calls the existing updateMaterialStatus server action (not_ordered→ordered transition) then router.refresh(). Only one card expanded at a time (accordion pattern). AC-UO-4: entire Upcoming Orders section conditionally rendered — hidden when upcomingCards.length === 0, no empty state message shown. Briefing page material query extended to fetch quantity, estimated_cost, lead_time_days, supplier_name, notes alongside existing fields. 13 pure unit tests (daysUntilOrderBy: future/today/overdue/null/malformed/month-boundary; formatMaterialCost: formatted/zero/null/whole; selectUpcomingOrders: empty/ordered-excluded/overdue-sorting). 8 component tests (card rendering: name/task/days/supplier/overdue-label/due-today/no-supplier; expand: hidden-by-default/expand-shows-all-fields/collapse-on-second-click/singular-day). 291 total tests passing. Typecheck + production build clean."
+    },
+    {
+      "task": "shift-alerts",
+      "story_id": "shift-alerts",
+      "acceptance_criteria": [
+        "AC-SA-1",
+        "AC-SA-2",
+        "AC-SA-3"
+      ],
+      "files_changed": [
+        "lib/briefing/shift-alerts.ts",
+        "tests/shift-alerts.test.ts",
+        "app/actions/tasks.ts",
+        "app/actions/briefing.ts",
+        "components/briefing/DismissAlertsButton.tsx",
+        "app/(app)/briefing/page.tsx"
+      ],
+      "tests_added": 7,
+      "tests_passing": 298,
+      "details": "AC-SA-1: Pure functions buildTaskShiftAlerts(movements, projectId, userId) and buildMaterialShiftAlerts(movements, projectId, userId) in lib/briefing/shift-alerts.ts convert cascade TaskMovement[] and MaterialMovement[] into ShiftAlertInsert rows. Each task with changed planned_end gets a date_moved alert (old_value=old planned_end, new_value=new planned_end). Each material with non-zero delta_days gets a date_moved alert (old/new order_by_date). Zero-delta and null-delta entries are skipped. Both updateTaskDuration and logTaskDelay server actions now call insertShiftAlerts() after computing the cascade summary, persisting shift_alert rows for every moved entity. Best-effort — a failed insert does not block the cascade result. AC-SA-2: Already implemented by existing formatShiftAlert (\"[name] moved from [old] to [new]\") and shiftAlertHref (task→/tasks/:id, material→/materials) from the daily-briefing-view story. The briefing page renders each alert as a clickable Link. AC-SA-3: dismissShiftAlerts server action in app/actions/briefing.ts sets dismissed=true on all non-dismissed shift_alerts matching the user + project. DismissAlertsButton client component (~1KB) in the Shift Alerts section header shows \"Clear\" when alerts.length > 0, calls dismissShiftAlerts via useTransition + router.refresh(). After dismissal, only alerts created after the dismiss timestamp appear (because the query filters dismissed=false). 7 new unit tests. 298 total passing. Typecheck + production build clean."
     }
   ],
   "skipped": [
@@ -1523,6 +1544,34 @@
       "affects": [
         "app/(app)/briefing/page.tsx"
       ]
+    },
+    {
+      "decision": "Shift alerts record planned_end (not planned_start) as old_value/new_value for task movements",
+      "context": "AC-SA-1 says show \"[Task] moved from [old date] to [new date]\". Could use start or end dates.",
+      "alternatives_considered": [
+        "planned_start — shows when work begins, but a duration change moves the end without moving the start",
+        "Both start and end as a range — more info but clutters the alert text",
+        "planned_end — shows when the task finishes, which is what downstream deps and the user care about"
+      ],
+      "rationale": "planned_end is what cascade_task_dates() propagates and what determines downstream impact. A 3-day delay on task A means task B (which depends on A) starts 3 days later — the relevant signal is A's new finish date. Matches the formatShiftAlert template which shows a single date pair.",
+      "confidence": "high",
+      "affects": [
+        "lib/briefing/shift-alerts.ts"
+      ]
+    },
+    {
+      "decision": "Shift alert inserts are best-effort — failure does not block the cascade result",
+      "context": "insertShiftAlerts runs after the cascade RPC succeeds. If the insert fails (e.g. RLS issue, network), the cascade already committed.",
+      "alternatives_considered": [
+        "Wrap cascade + alert insert in a transaction — requires a stored procedure or RPC, adds migration complexity for a non-critical write",
+        "Fail the whole action if alerts fail — makes a UX notification more important than the actual data update",
+        "Best-effort insert, ignore errors — cascade is the authoritative mutation; alerts are informational"
+      ],
+      "rationale": "The cascade is the source of truth for dates. Shift alerts are a convenience display. Failing to record an alert is preferable to failing to cascade a date change. The briefing page still renders correctly with or without alerts.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
     }
   ],
   "factory_questions": [
@@ -1616,6 +1665,13 @@
       "resolved_as": "Link to /tasks/:id#notes — the notes editing section will be added in a future task-edit story. The quick action is functional as navigation.",
       "needs_clarification_from": "spec",
       "severity": "minor"
+    },
+    {
+      "question": "Trigger task is included in shift alerts — should it be excluded since the user initiated the change?",
+      "found_in": "AC-SA-1: \"cascades have occurred since the user's last /briefing visit\" — ambiguous whether the trigger task counts as a cascade change",
+      "resolved_as": "Include the trigger. The user may delay task A on /tasks/A, then visit /briefing later and need a reminder that A moved. Excluding it would make the alert list incomplete for multi-device or multi-session workflows.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
     }
   ],
   "foundation_completion": {
@@ -1657,7 +1713,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "daily-experience",
-  "_current_story": "upcoming-orders-view",
+  "_current_story": "shift-alerts",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
