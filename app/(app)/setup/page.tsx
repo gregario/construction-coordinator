@@ -34,6 +34,7 @@ export default async function SetupPage({
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  try {
   // If explicitly creating a new project, skip to the creation form
   if (isNewProject) {
     return (
@@ -183,4 +184,22 @@ export default async function SetupPage({
       </div>
     </div>
   )
+
+  } catch (err) {
+    // Surface the actual error in production instead of generic 500
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : ''
+    return (
+      <div className="p-4 md:p-8 max-w-2xl">
+        <h1 className="text-2xl font-semibold text-[#B85450] mb-2">Setup Error</h1>
+        <div className="rounded-lg border border-[#B85450]/30 bg-[#B85450]/5 p-4">
+          <p className="text-sm text-[#2B1F17] font-mono">{message}</p>
+          {stack && <pre className="mt-2 text-xs text-[#6B5D52] whitespace-pre-wrap">{stack}</pre>}
+        </div>
+        <a href="/briefing" className="mt-4 inline-block text-sm text-[#8B5E3C] underline">
+          ← Back to Briefing
+        </a>
+      </div>
+    )
+  }
 }
