@@ -1,19 +1,17 @@
 {
   "story_result": {
-    "story_id": "daily-briefing-view",
+    "story_id": "upcoming-orders-view",
     "outcome": "pass",
     "files_changed": [
-      "lib/briefing/operations.ts",
-      "tests/briefing-operations.test.ts",
-      "components/briefing/RefreshButton.tsx",
-      "app/(app)/briefing/page.tsx"
+      "lib/materials/operations.ts",
+      "components/briefing/UpcomingOrderCards.tsx",
+      "app/(app)/briefing/page.tsx",
+      "tests/upcoming-orders.test.ts",
+      "tests/upcoming-orders-cards.test.tsx"
     ],
-    "tests_added": 18,
-    "tests_passing": 264,
-    "env_limitations": [
-      "Shift Alerts section is wired to the shift_alerts DB table but will show empty until cascade_task_dates() or another writer populates shift_alerts rows. This is a known deferred gap (documented in factory_questions from the foundation cycle). The section renders correctly when rows exist.",
-      "Pull-to-refresh (AC-DB-5) uses router.refresh() which triggers a full RSC re-render server-side. Native pull-down gesture is not implemented (requires a touch event handler or a library like react-pull-to-refresh) — the Refresh button works on both mobile and desktop."
-    ]
+    "tests_added": 21,
+    "tests_passing": 291,
+    "env_limitations": []
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
   "implemented": [
@@ -517,6 +515,47 @@
       "tests_added": 18,
       "tests_passing": 264,
       "details": "AC-DB-1: /briefing now renders three sections — Today's Tasks, Upcoming Orders, Shift Alerts — each in a card with warm earth-tone styling matching the design system. AC-DB-2: selectTodayTasks pure function filters tasks where planned_start <= today <= planned_end AND status IN ('not_started', 'in_progress'), sorted by planned_start ASC then name ASC. Server component queries tasks joined through stages.project_id. AC-DB-3: When no tasks match today, empty state shows 'No tasks scheduled today — next task starts [date]' with a link to /schedule. nextTaskStartDate finds the earliest future planned_start among active tasks. If no future tasks exist, shows 'View schedule' link instead. AC-DB-4: Mobile-first layout — max-w-2xl container, sections stack vertically with mb-4 spacing, all text truncates via Tailwind truncate class, no horizontal overflow. Bottom tab bar inherited from AppShell layout. AC-DB-5: RefreshButton client component (~1KB) uses useRouter().refresh() + useTransition for loading state. Spinner animates during refresh. Positioned in the page header. AC-DB-6: Server component with zero client JS for data sections. Promise.all parallelizes the 3 DB queries (tasks, materials, shift_alerts). Only client component is RefreshButton. Build output confirms /briefing is ƒ Dynamic (server-rendered on demand). 18 new unit tests in tests/briefing-operations.test.ts covering selectTodayTasks (8 tests: date range filtering, status filtering, boundary cases, sorting, empty input), nextTaskStartDate (5 tests: earliest future, no future, excludes complete/delayed, empty, today boundary), formatShiftAlert (3 tests: date_moved, null old_value, status_changed), shiftAlertHref (2 tests: task → /tasks/:id, material → /materials). Total suite: 264 tests passing. Typecheck + ESLint + production build clean."
+    },
+    {
+      "task": "task-quick-actions",
+      "story_id": "task-quick-actions",
+      "acceptance_criteria": [
+        "AC-QA-1",
+        "AC-QA-2",
+        "AC-QA-3",
+        "AC-QA-4"
+      ],
+      "files_changed": [
+        "lib/briefing/operations.ts",
+        "app/actions/briefing.ts",
+        "components/briefing/BriefingTaskList.tsx",
+        "app/(app)/briefing/page.tsx",
+        "tests/briefing-quick-actions.test.ts",
+        "tests/briefing-operations.test.ts"
+      ],
+      "tests_added": 6,
+      "tests_passing": 270,
+      "details": "Task Quick Actions on /briefing. AC-QA-1: checkbox per task row toggles status to complete via toggleTaskComplete server action (verifies project ownership, sets actual_end=today, revalidates /briefing+/tasks/:id+/schedule). Row visually strikes through with line-through class and muted text color. AC-QA-2: tapping completed checkbox reverts to in_progress via computeToggleResult pure fn (complete→in_progress, actualEnd→null). BriefingTaskList uses optimistic state so the toggle is instant, then router.refresh() syncs RSC truth. selectTodayTasks updated to include complete tasks (sorted after incomplete) so toggled tasks remain visible for undo. AC-QA-3: desktop kebab menu (three-dot button, outside-click dismissal) shows View Detail, Log Delay, Add Note — each links to /tasks/:id with hash anchors. Mobile: swipe left (60px threshold via touchStart/touchEnd tracking) slides the row to reveal three colored action buttons (Detail=clay, Log Delay=amber, Add Note=sage). Swipe right or outside tap dismisses. AC-QA-4: optimistic UI + useTransition wrapping toggleTaskComplete + router.refresh() updates the briefing in place without full page reload. Quick action links navigate to /tasks/:id where Log Delay and other actions already exist from prior stories. 6 new unit tests (4 for computeToggleResult, 2 for selectTodayTasks with complete-task inclusion). 270 total tests passing. Typecheck + production build clean (19 routes, Proxy middleware detected)."
+    },
+    {
+      "task": "upcoming-orders-view",
+      "story_id": "upcoming-orders-view",
+      "acceptance_criteria": [
+        "AC-UO-1",
+        "AC-UO-2",
+        "AC-UO-3",
+        "AC-UO-4"
+      ],
+      "files_changed": [
+        "lib/materials/operations.ts",
+        "components/briefing/UpcomingOrderCards.tsx",
+        "app/(app)/briefing/page.tsx",
+        "tests/upcoming-orders.test.ts",
+        "tests/upcoming-orders-cards.test.tsx"
+      ],
+      "tests_added": 21,
+      "tests_passing": 291,
+      "details": "Upcoming Material Orders View on /briefing. AC-UO-1: replaced plain list with horizontally-scrollable cards on mobile (flex + overflow-x-auto, min-w-[220px] per card) and responsive grid on desktop (md:grid-cols-2, lg:grid-cols-3). AC-UO-2: each card shows material name, associated task name, days remaining until order_by_date (computed by daysUntilOrderBy pure helper using existing daysBetweenIso), and supplier_name when set. Days label: \"Xd left\" / \"Due today\" / \"Xd overdue\" with color-coded text (red for overdue, amber for <=2d). AC-UO-3: tap/click toggles inline expansion below the card showing quantity, estimated_cost (formatted via formatMaterialCost as EUR with Intl.NumberFormat), lead_time_days with singular/plural, notes, and a \"Mark Ordered\" button that calls the existing updateMaterialStatus server action (not_ordered→ordered transition) then router.refresh(). Only one card expanded at a time (accordion pattern). AC-UO-4: entire Upcoming Orders section conditionally rendered — hidden when upcomingCards.length === 0, no empty state message shown. Briefing page material query extended to fetch quantity, estimated_cost, lead_time_days, supplier_name, notes alongside existing fields. 13 pure unit tests (daysUntilOrderBy: future/today/overdue/null/malformed/month-boundary; formatMaterialCost: formatted/zero/null/whole; selectUpcomingOrders: empty/ordered-excluded/overdue-sorting). 8 component tests (card rendering: name/task/days/supplier/overdue-label/due-today/no-supplier; expand: hidden-by-default/expand-shows-all-fields/collapse-on-second-click/singular-day). 291 total tests passing. Typecheck + production build clean."
     }
   ],
   "skipped": [
@@ -570,6 +609,17 @@
       "rationale": "Native pull-to-refresh requires either a touch event handler with rubber-band physics or a third-party library. The Refresh button using router.refresh() + useTransition provides the same data reload capability on both form factors. The native gesture can be added in a follow-up without changing the data flow.",
       "affects_acceptance_criteria": [
         "AC-DB-5"
+      ],
+      "reversible": true
+    },
+    {
+      "spec_says": "AC-DB-2: selectTodayTasks filters to status IN (not_started, in_progress)",
+      "actually_did": "selectTodayTasks now also includes status=complete tasks within the date range",
+      "rationale": "AC-QA-1/AC-QA-2 require toggling completion on the briefing and undoing it. If complete tasks were excluded, checking a task would remove it from the list instantly, preventing undo. Complete tasks sort after incomplete ones to keep the active work prominent.",
+      "affects_acceptance_criteria": [
+        "AC-DB-2",
+        "AC-QA-1",
+        "AC-QA-2"
       ],
       "reversible": true
     }
@@ -1381,6 +1431,98 @@
       "affects": [
         "app/(app)/briefing/page.tsx"
       ]
+    },
+    {
+      "decision": "Search Before Building audit for task-quick-actions story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (toggleTaskComplete server action + computeToggleResult pure fn + BriefingTaskList client component), 2 EXTEND (selectTodayTasks to include complete tasks, briefing page to use client component), 3 REUSE (logTaskDelay action, RefreshButton useTransition+router.refresh pattern, warm earth-tone design tokens). Key reuse: existing router.refresh() pattern from RefreshButton for AC-QA-4 in-place updates.",
+      "confidence": "high",
+      "affects": [
+        "task-quick-actions"
+      ]
+    },
+    {
+      "decision": "selectTodayTasks includes complete tasks for undo support",
+      "context": "AC-QA-2 requires undoing completion from the briefing. If complete tasks were filtered out (original AC-DB-2 behavior), toggling a task would make it disappear immediately.",
+      "alternatives_considered": [
+        "Keep original filter (exclude complete) and re-fetch on toggle — task disappears during the round trip, confusing UX",
+        "Client-side local filter override — diverges from server truth, breaks on page refresh",
+        "Include complete tasks sorted after incomplete (chosen) — task stays visible with strikethrough, user can undo"
+      ],
+      "rationale": "Including complete tasks with a sort bias (incomplete first) preserves the undo flow while keeping active work prominent. The empty-state message still shows correctly when ALL tasks are out of range. This is a minor behavioral change logged as a divergence for the evaluator.",
+      "confidence": "high",
+      "affects": [
+        "lib/briefing/operations.ts",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Quick actions link to /tasks/:id with hash anchors rather than inline modals",
+      "context": "AC-QA-3 specifies Log Delay, Add Note, View Detail as quick actions. Log Delay already exists on /tasks/:id as TaskDelayLogger. Add Note needs a notes-editing UI that does not yet exist.",
+      "alternatives_considered": [
+        "Inline modal per quick action on /briefing — duplicates TaskDelayLogger and creates a new notes editor; bloats briefing client JS",
+        "Navigate to /tasks/:id (chosen) — reuses existing per-task controls, keeps briefing lightweight",
+        "Bottom sheet on mobile — custom animation + portal complexity for what is a simple navigation"
+      ],
+      "rationale": "Link to /tasks/:id (with #delay and #notes hash anchors) reuses the existing delay logger on the detail page and avoids building a duplicate. The Add Note action links to #notes which will activate when a notes-editing section is added to the task detail in a future story. View Detail is a plain navigation. Keeps the briefing page focused on its primary role (status overview) rather than becoming a full task-editing surface.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/BriefingTaskList.tsx"
+      ]
+    },
+    {
+      "decision": "Swipe gesture uses 60px threshold with native touchStart/touchEnd tracking",
+      "context": "AC-QA-3 requires swipe left on mobile to reveal quick actions. Options: CSS-only with scroll-snap, JS touch tracking, or a gesture library.",
+      "alternatives_considered": [
+        "Install a gesture library (react-swipeable, use-gesture) — adds a dependency for one component",
+        "CSS scroll-snap with overflow-x — limited control over snap points, hard to wire dismiss behavior",
+        "Native touch tracking with 60px threshold (chosen) — zero dependencies, full control over swipe/dismiss"
+      ],
+      "rationale": "60px threshold is comfortable for intentional swipes on mobile (avoids false positives from scroll jitter). touchStartX ref tracks per-task independently so multiple rows can be swiped. Swiping right or tapping outside dismisses. CSS translateX transition provides smooth slide animation. No third-party dependency for a single interaction pattern.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/BriefingTaskList.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for upcoming-orders-view story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (UpcomingOrderCards component + daysUntilOrderBy + formatMaterialCost), 1 EXTEND (briefing page — added card rendering + extra material fields to query). Reused: selectUpcomingOrders + materialDeadlineStatus from lib/materials/operations.ts, MaterialDeadlineBadge component, updateMaterialStatus server action from app/actions/materials.ts, existing material query pattern from briefing page.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "components/briefing/UpcomingOrderCards.tsx",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Accordion pattern (one expanded card at a time) for order detail expansion",
+      "context": "AC-UO-3 says tap to expand with inline detail. Multiple cards could be expanded simultaneously or exclusively.",
+      "alternatives_considered": [
+        "Allow multiple cards expanded at once — clutters the horizontal scroll on mobile, harder to scan",
+        "Modal overlay on tap — heavier UI, blocks the rest of the briefing, overkill for 4-5 fields",
+        "Navigate to /materials/:id detail page — extra navigation, breaks the briefing-as-dashboard flow"
+      ],
+      "rationale": "Single expanded card at a time (accordion) keeps the horizontal scroll tight on mobile and focuses attention on one order. Expanding a different card auto-collapses the previous one. State is a single expandedId string, minimal React re-renders.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/UpcomingOrderCards.tsx"
+      ]
+    },
+    {
+      "decision": "Section hidden entirely when empty (AC-UO-4) — no empty state message",
+      "context": "AC-UO-4 explicitly says section is hidden (not shown with empty state) to keep briefing focused. Previous implementation showed \"No orders due in the next 7 days.\" message.",
+      "alternatives_considered": [
+        "Keep the empty state message — contradicts AC-UO-4 literally",
+        "Collapse header but keep a thin placeholder — still visible, still clutters"
+      ],
+      "rationale": "Conditional rendering: {upcomingCards.length > 0 && <section>...}. When no materials due in 7 days, the section is entirely absent from the DOM. Briefing flows directly from Today Tasks to Shift Alerts. Matches the spec requirement to keep the briefing focused on actionable information.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/briefing/page.tsx"
+      ]
     }
   ],
   "factory_questions": [
@@ -1467,6 +1609,13 @@
       "resolved_as": "Satisfied via Refresh button on both mobile and desktop. Native gesture deferred — requires touch event handling or a third-party library.",
       "needs_clarification_from": "spec",
       "severity": "minor"
+    },
+    {
+      "question": "Add Note quick action (AC-QA-3) links to /tasks/:id#notes but no notes editing section exists on the task detail page yet. The task model has a notes field and createTask accepts notes, but there is no inline edit-notes UI on /tasks/:id. A future story should add an editable notes section.",
+      "found_in": "AC-QA-3 — Add Note quick action",
+      "resolved_as": "Link to /tasks/:id#notes — the notes editing section will be added in a future task-edit story. The quick action is functional as navigation.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
     }
   ],
   "foundation_completion": {
@@ -1508,7 +1657,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "daily-experience",
-  "_current_story": "daily-briefing-view",
+  "_current_story": "upcoming-orders-view",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
