@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ensureNotificationPreferences } from '@/app/actions/notifications'
 import { PushNotificationToggle } from '@/components/notifications/PushNotificationToggle'
 import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel'
+import { ExportButton } from '@/components/export/ExportButton'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -14,11 +15,28 @@ export default async function SettingsPage() {
   // AC-PN-5: ensure notification_preferences row exists on first visit
   const prefs = await ensureNotificationPreferences()
 
+  // Fetch project name for export dialog — cast for missing Relationships[]
+  const { data: project } = await (supabase.from('projects') as any)
+    .select('name')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single() as { data: { name: string } | null }
+
   return (
     <div className="p-4 md:p-8 max-w-2xl">
       <h1 className="text-2xl font-semibold text-[#2B1F17] mb-1">Settings</h1>
       <p className="text-[#6B5D52] text-sm mb-6">Project preferences and account configuration</p>
       <div className="space-y-4">
+        {/* Export Section — AC-EX-1 */}
+        {project && (
+          <div className="bg-white rounded-lg border border-[#E8DFD3] p-4">
+            <h2 className="text-sm font-semibold text-[#2B1F17] mb-3">Data</h2>
+            <ExportButton projectName={project.name} />
+          </div>
+        )}
+
         {/* Notifications Section */}
         <div className="bg-white rounded-lg border border-[#E8DFD3] p-4">
           <h2 className="text-sm font-semibold text-[#2B1F17] mb-3">Notifications</h2>
