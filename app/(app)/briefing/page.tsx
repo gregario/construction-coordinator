@@ -17,10 +17,10 @@ import {
   type BriefingShiftAlert,
 } from '@/lib/briefing/operations'
 import { MaterialDeadlineBadge } from '@/components/materials/MaterialDeadlineBadge'
-import { RefreshButton } from '@/components/briefing/RefreshButton'
 import { BriefingTaskList } from '@/components/briefing/BriefingTaskList'
 import { UpcomingOrderCards, type UpcomingOrderCard } from '@/components/briefing/UpcomingOrderCards'
 import { DismissAlertsButton } from '@/components/briefing/DismissAlertsButton'
+import { BriefingHeader } from '@/components/briefing/BriefingHeader'
 import type { MaterialOrderStatus, TaskStatus } from '@/types/database'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,18 +168,8 @@ export default async function BriefingPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 md:p-8">
-      {/* Header with refresh (AC-DB-5) */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="mb-1 text-2xl font-semibold text-[#2B1F17]">
-            Daily Briefing
-          </h1>
-          <p className="text-sm text-[#6B5D52]">
-            Today&apos;s tasks, orders, and alerts
-          </p>
-        </div>
-        <RefreshButton />
-      </div>
+      {/* Header with project name (AC-PI-1/2/3) and refresh (AC-DB-5) */}
+      <BriefingHeader projectName={project.name} />
 
       {/* AC-DB-1 Section 1: Today's Tasks */}
       <section className="mb-4 rounded-lg border border-[#E8DFD3] bg-white p-4">
