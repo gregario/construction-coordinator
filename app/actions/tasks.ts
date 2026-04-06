@@ -17,6 +17,12 @@ import {
   type MaterialMovement,
 } from '@/lib/cascade/engine'
 import type { CascadeResult } from '@/types/database'
+import {
+  detectCycle,
+  formatCyclePath,
+  removeStaleDependencies,
+  type DependencyEdge,
+} from '@/lib/tasks/dependency-graph'
 
 // lib/supabase/types.ts lacks Relationships[] on every table (foundation-eval
 // finding). Cast at the call site — same pattern as stages.ts / projects.ts.
@@ -617,4 +623,224 @@ export async function deleteTask(
   revalidatePath('/schedule')
   revalidatePath(`/stages/${task.stage_id}`)
   return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// AC-DV-1: Add a dependency to an existing task with cycle detection.
+// ---------------------------------------------------------------------------
+
+export type AddDependencyInput = {
+  projectId: string
+  taskId: string
+  dependsOnTaskId: string
+}
+
+export type AddDependencyResult =
+  | { ok: true }
+  | { ok: false; error: string; field?: 'depends_on' }
+
+export async function addDependency(
+  input: AddDependencyInput
+): Promise<AddDependencyResult> {
+  if (!input.projectId || !input.taskId || !input.dependsOnTaskId) {
+    return { ok: false, error: 'Project, task, and dependency required' }
+  }
+  if (input.taskId === input.dependsOnTaskId) {
+    return {
+      ok: false,
+      error: 'A task cannot depend on itself',
+      field: 'depends_on',
+    }
+  }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const owned = await verifyProjectOwnership(supabase, input.projectId, user.id)
+  if (!owned.ok) return owned
+
+  // Verify both tasks belong to the project.
+  const tasksRes = await supabase
+    .from('tasks')
+    .select('id, name, project_id, stage_id')
+    .in('id', [input.taskId, input.dependsOnTaskId])
+  if (tasksRes.error || !tasksRes.data) {
+    return { ok: false, error: 'Task not found' }
+  }
+  const rows = tasksRes.data as Array<{
+    id: string; name: string; project_id: string; stage_id: string
+  }>
+  if (rows.length !== 2) {
+    return { ok: false, error: 'Task not found', field: 'depends_on' }
+  }
+  for (const row of rows) {
+    if (row.project_id !== input.projectId) {
+      return { ok: false, error: 'Task not found', field: 'depends_on' }
+    }
+  }
+
+  // Build task name map for error message.
+  const allTasksRes = await supabase
+    .from('tasks')
+    .select('id, name')
+    .eq('project_id', input.projectId)
+  const taskNames: Record<string, string> = {}
+  for (const t of (allTasksRes.data ?? []) as Array<{ id: string; name: string }>) {
+    taskNames[t.id] = t.name
+  }
+
+  // Load all project dependency edges for cycle detection.
+  const projectTaskIds = Object.keys(taskNames)
+  const allDepsRes = await supabase
+    .from('task_dependencies')
+    .select('task_id, depends_on_task_id')
+    .in('task_id', projectTaskIds)
+  const existingEdges: DependencyEdge[] = (allDepsRes.data ?? []) as DependencyEdge[]
+
+  // AC-DV-1 + AC-DV-3: DFS cycle detection.
+  const cycleResult = detectCycle(existingEdges, {
+    taskId: input.taskId,
+    newDependency: input.dependsOnTaskId,
+  })
+  if (cycleResult) {
+    return {
+      ok: false,
+      error: formatCyclePath(cycleResult.cycle, taskNames),
+      field: 'depends_on',
+    }
+  }
+
+  // Check for duplicate edge (idempotent — don't error, just succeed).
+  const existing = existingEdges.find(
+    e => e.task_id === input.taskId && e.depends_on_task_id === input.dependsOnTaskId
+  )
+  if (existing) {
+    return { ok: true }
+  }
+
+  const ins = await supabase.from('task_dependencies').insert({
+    task_id: input.taskId,
+    depends_on_task_id: input.dependsOnTaskId,
+  })
+  if (ins.error) {
+    return { ok: false, error: `Failed to add dependency: ${ins.error.message}` }
+  }
+
+  const taskRow = rows.find(r => r.id === input.taskId)!
+  revalidatePath('/schedule')
+  revalidatePath(`/stages/${taskRow.stage_id}`)
+  revalidatePath(`/tasks/${input.taskId}`)
+
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// AC-DV-1: Remove a dependency from an existing task.
+// ---------------------------------------------------------------------------
+
+export type RemoveDependencyResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export async function removeDependency(
+  projectId: string,
+  taskId: string,
+  dependsOnTaskId: string
+): Promise<RemoveDependencyResult> {
+  if (!projectId || !taskId || !dependsOnTaskId) {
+    return { ok: false, error: 'Project, task, and dependency required' }
+  }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const owned = await verifyProjectOwnership(supabase, projectId, user.id)
+  if (!owned.ok) return owned
+
+  // Verify task belongs to project.
+  const taskRes = await supabase
+    .from('tasks')
+    .select('id, project_id, stage_id')
+    .eq('id', taskId)
+    .single()
+  if (taskRes.error || !taskRes.data) {
+    return { ok: false, error: 'Task not found' }
+  }
+  const task = taskRes.data as { id: string; project_id: string; stage_id: string }
+  if (task.project_id !== projectId) {
+    return { ok: false, error: 'Task not found' }
+  }
+
+  const del = await supabase
+    .from('task_dependencies')
+    .delete()
+    .eq('task_id', taskId)
+    .eq('depends_on_task_id', dependsOnTaskId)
+  if (del.error) {
+    return { ok: false, error: `Failed to remove dependency: ${del.error.message}` }
+  }
+
+  revalidatePath('/schedule')
+  revalidatePath(`/stages/${task.stage_id}`)
+  revalidatePath(`/tasks/${taskId}`)
+
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// AC-DV-2: Clean stale dependencies for a set of tasks (remove edges
+// referencing task IDs that no longer exist). Called on page load.
+// ---------------------------------------------------------------------------
+
+export type CleanStaleDepsResult =
+  | { ok: true; removed_count: number }
+  | { ok: false; error: string }
+
+export async function cleanStaleDependencies(
+  projectId: string
+): Promise<CleanStaleDepsResult> {
+  if (!projectId) return { ok: false, error: 'Project required' }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const owned = await verifyProjectOwnership(supabase, projectId, user.id)
+  if (!owned.ok) return owned
+
+  // Load all project task IDs.
+  const tasksRes = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('project_id', projectId)
+  if (tasksRes.error) return { ok: false, error: 'Failed to load tasks' }
+  const validTaskIds = new Set(
+    (tasksRes.data as Array<{ id: string }>).map(t => t.id)
+  )
+
+  // Load all dependency edges for these tasks.
+  const depsRes = await supabase
+    .from('task_dependencies')
+    .select('task_id, depends_on_task_id')
+    .in('task_id', [...validTaskIds])
+  if (depsRes.error) return { ok: false, error: 'Failed to load dependencies' }
+
+  const allEdges: DependencyEdge[] = (depsRes.data ?? []) as DependencyEdge[]
+  const { removed } = removeStaleDependencies(allEdges, validTaskIds)
+
+  if (removed.length === 0) return { ok: true, removed_count: 0 }
+
+  // Delete stale edges one by one (composite PK, no batch delete by PK pair).
+  for (const edge of removed) {
+    await supabase
+      .from('task_dependencies')
+      .delete()
+      .eq('task_id', edge.task_id)
+      .eq('depends_on_task_id', edge.depends_on_task_id)
+  }
+
+  revalidatePath('/schedule')
+  return { ok: true, removed_count: removed.length }
 }

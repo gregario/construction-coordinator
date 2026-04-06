@@ -8,6 +8,7 @@ import {
   type TradeRow,
   type ProjectTaskOption,
 } from '@/components/tasks/StageTasksManager'
+import { removeStaleDependencies, type DependencyEdge } from '@/lib/tasks/dependency-graph'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding);
 // cast at the call site — same pattern as /setup and /schedule pages.
@@ -97,9 +98,9 @@ export default async function StageDetailPage({ params }: Props) {
     )
   )
 
-  const stageTaskIds = new Set(initialTasks.map(t => t.id))
+  // All project tasks available as dependency targets (the UI excludes the
+  // task-being-edited from its own list via filter).
   const availableTasks: ProjectTaskOption[] = allProjectTasks
-    .filter(t => !stageTaskIds.has(t.id))
     .map(t => ({
       id: t.id,
       name: t.name,
@@ -107,6 +108,8 @@ export default async function StageDetailPage({ params }: Props) {
     }))
 
   // Dependencies involving this stage's tasks.
+  // AC-DV-2: Auto-remove stale dependency IDs on load.
+  const validProjectTaskIds = new Set(allProjectTasks.map(t => t.id))
   let initialDependencies: TaskDependencyRow[] = []
   if (initialTasks.length > 0) {
     const depsRes = await supabase
@@ -116,8 +119,22 @@ export default async function StageDetailPage({ params }: Props) {
         'task_id',
         initialTasks.map(t => t.id)
       )
-    initialDependencies =
-      (depsRes.data as TaskDependencyRow[] | null) ?? []
+    const rawDeps = (depsRes.data as DependencyEdge[] | null) ?? []
+
+    // Filter out stale edges referencing deleted tasks.
+    const { cleaned, removed } = removeStaleDependencies(rawDeps, validProjectTaskIds)
+    initialDependencies = cleaned
+
+    // Delete stale edges from the DB (fire-and-forget, best effort).
+    if (removed.length > 0) {
+      for (const edge of removed) {
+        await supabase
+          .from('task_dependencies')
+          .delete()
+          .eq('task_id', edge.task_id)
+          .eq('depends_on_task_id', edge.depends_on_task_id)
+      }
+    }
   }
 
   return (
