@@ -25,6 +25,7 @@ export function SetupWizard({ projectId, initialBlocks, startDate, projectName }
   const [allSelections, setAllSelections] = useState<Record<string, SchemeSelection>>({})
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [blockFormOpen, setBlockFormOpen] = useState(false)
 
   // Step 1: Blocks
   if (step === 'blocks') {
@@ -45,13 +46,19 @@ export function SetupWizard({ projectId, initialBlocks, startDate, projectName }
           projectId={projectId}
           initialBlocks={blocks}
           onBlocksChange={setBlocks}
+          onFormOpenChange={setBlockFormOpen}
         />
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-end gap-3 pt-2">
+          {blockFormOpen && (
+            <span className="text-xs text-[#D4A355] font-medium">
+              Save or cancel your block edit before continuing
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setStep('scheme')}
-            disabled={blocks.length === 0}
+            disabled={blocks.length === 0 || blockFormOpen}
             className="rounded-md bg-[#8B5E3C] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#754C30] disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Continue to Construction Scheme →

@@ -95,51 +95,55 @@ export function MethodPicker({ projectId, blocks, startDate, onComplete }: Metho
   function handleApplySame() {
     const sourceBlock = blocks[currentBlockIndex]
     const nextBlock = blocks[currentBlockIndex + 1]
-    // Copy source selections to next block
-    setSelections(prev => ({
-      ...prev,
-      [nextBlock.id]: { ...(prev[sourceBlock.id] || {}) },
-    }))
-    moveToNextBlock(true)
+    // Build the updated selections INCLUDING the copy
+    const updatedSelections = {
+      ...selections,
+      [nextBlock.id]: { ...(selections[sourceBlock.id] || {}) },
+    }
+    setSelections(updatedSelections)
+
+    // Check if there are more blocks after the next one
+    if (currentBlockIndex + 2 < blocks.length) {
+      // More blocks — move to next and show copy prompt
+      setCurrentBlockIndex(prev => prev + 1)
+      setCategoryIndex(0)
+      setPhase('picking')
+      setTimeout(() => setPhase('copy-prompt'), 100)
+    } else {
+      // This was the last block — go to review with ALL selections
+      if (onComplete) {
+        onComplete(updatedSelections)
+      } else {
+        applyAllSchemesWithSelections(updatedSelections)
+      }
+    }
   }
 
   function handleEditNext() {
     const sourceBlock = blocks[currentBlockIndex]
     const nextBlock = blocks[currentBlockIndex + 1]
-    // Pre-fill next block with source selections as defaults
     setSelections(prev => ({
       ...prev,
       [nextBlock.id]: { ...(prev[sourceBlock.id] || {}) },
     }))
-    moveToNextBlock(false)
-  }
-
-  function moveToNextBlock(applySame: boolean) {
     setCurrentBlockIndex(prev => prev + 1)
     setCategoryIndex(0)
     setPhase('picking')
-
-    if (applySame && currentBlockIndex + 1 >= blocks.length - 1) {
-      // This was the last block to apply to — go to final apply
-      // Need a slight delay to let state update
-      setTimeout(() => applyAllSchemes(), 100)
-    } else if (applySame && currentBlockIndex + 2 < blocks.length) {
-      // More blocks after this one — show copy prompt again
-      setTimeout(() => setPhase('copy-prompt'), 100)
-    }
   }
 
   function applyAllSchemes() {
     if (onComplete) {
-      // Return selections to parent wizard for review step
       onComplete(selections)
       return
     }
-    // Fallback: apply directly (if used without wizard)
+    applyAllSchemesWithSelections(selections)
+  }
+
+  function applyAllSchemesWithSelections(sels: Record<string, SchemeSelection>) {
     setPhase('applying')
     startTransition(async () => {
       for (const block of blocks) {
-        const scheme = selections[block.id]
+        const scheme = sels[block.id]
         if (!scheme || Object.keys(scheme).length === 0) continue
 
         const result = await applySchemeToBlock(block.id, projectId, scheme, startDate)

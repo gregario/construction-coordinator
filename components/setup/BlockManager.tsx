@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Building2, Pencil, Trash2, Plus } from 'lucide-react'
 import { createBlock, updateBlock, deleteBlock, type BlockRow } from '@/app/actions/blocks'
 
@@ -8,6 +8,7 @@ interface BlockManagerProps {
   projectId: string
   initialBlocks: BlockRow[]
   onBlocksChange?: (blocks: BlockRow[]) => void
+  onFormOpenChange?: (isOpen: boolean) => void
 }
 
 type FormState = {
@@ -18,7 +19,7 @@ type FormState = {
 
 const defaultForm: FormState = { name: '', attachment_type: 'attached', storeys: 2 }
 
-export function BlockManager({ projectId, initialBlocks, onBlocksChange }: BlockManagerProps) {
+export function BlockManager({ projectId, initialBlocks, onBlocksChange, onFormOpenChange }: BlockManagerProps) {
   const [blocks, setBlocks] = useState<BlockRow[]>(initialBlocks)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -26,6 +27,11 @@ export function BlockManager({ projectId, initialBlocks, onBlocksChange }: Block
   const [error, setError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  // Notify parent when a form is open
+  useEffect(() => {
+    onFormOpenChange?.(showAddForm || editingId !== null)
+  }, [showAddForm, editingId, onFormOpenChange])
 
   function updateLocalBlocks(updated: BlockRow[]) {
     setBlocks(updated)
