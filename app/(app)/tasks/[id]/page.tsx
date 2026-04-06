@@ -180,7 +180,7 @@ export default async function TaskDetailPage({ params }: Props) {
           taskName={task.name}
           currentPlannedStart={task.planned_start}
           currentPlannedEnd={task.planned_end}
-          durationDays={task.duration_days}
+          durationDays={task.duration_days ?? 1}
         />
       )}
 

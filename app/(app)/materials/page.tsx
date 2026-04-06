@@ -95,7 +95,7 @@ export default async function MaterialsPage() {
         </div>
       )}
 
-      <MaterialsListView materials={rows} today={todayIso()} />
+      <MaterialsListView materials={rows} today={todayIso()} projectId={project.id} />
     </div>
   )
 }

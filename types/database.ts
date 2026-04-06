@@ -2,7 +2,7 @@
 // These align with the actual database schema in supabase/migrations/
 // Note: task dependencies use a join table (task_dependencies), not an array column.
 
-export type ProjectStatus = 'setup' | 'active' | 'complete'
+export type ProjectStatus = 'setup' | 'active' | 'complete' | 'archived'
 export type TaskStatus = 'not_started' | 'in_progress' | 'complete' | 'delayed'
 export type MaterialOrderStatus = 'not_quoted' | 'quoted' | 'ordered' | 'in_transit' | 'delivered'
 export type EntityType = 'task' | 'material'

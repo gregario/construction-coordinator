@@ -128,7 +128,15 @@ $$;
 ALTER TABLE tasks ADD COLUMN delay_reason TEXT;
 
 -- ============================================================
--- 3. CASCADE PREVIEW function (read-only, no side effects)
+-- 3. EXPAND project status to include 'archived'
+-- ============================================================
+
+ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_status_check;
+ALTER TABLE projects ADD CONSTRAINT projects_status_check
+  CHECK (status IN ('setup', 'active', 'complete', 'archived'));
+
+-- ============================================================
+-- 4. CASCADE PREVIEW function (read-only, no side effects)
 -- Returns what WOULD happen if a task's end date shifted,
 -- without actually applying any changes.
 -- ============================================================
