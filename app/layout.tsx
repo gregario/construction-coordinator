@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'Self-Self-Build Manager',
+  title: 'Self-Build Manager',
   description: 'Dynamic build scheduling for expert owner-builders',
   manifest: '/manifest.json',
   appleWebApp: {

@@ -1,9 +1,9 @@
 {
   "project": "construction-manager",
   "status": "ready",
-  "current_state": "analyzing",
-  "current_milestone": "daily-experience",
-  "current_story": "notification-settings",
+  "current_state": "complete",
+  "current_milestone": "planning-tools",
+  "current_story": "change-spec",
   "milestones": [
     {
       "name": "project-core",
@@ -386,7 +386,7 @@
     },
     {
       "name": "daily-experience",
-      "status": "pending",
+      "status": "complete",
       "stories": [
         {
           "id": "daily-briefing-view",
@@ -542,17 +542,36 @@
             "app/(app)/settings/page.tsx",
             "tests/notification-preferences.test.ts"
           ]
+        },
+        {
+          "id": "change-spec",
+          "name": "Add project.name as text-sm subtitle under the Daily Briefing h1 — project data already loaded in RSC",
+          "status": "done",
+          "attempts": 0,
+          "depends_on": [],
+          "affected_entities": [],
+          "affected_screens": [
+            "/briefing"
+          ],
+          "acceptance_criteria": [],
+          "completed_at": "2026-04-06T01:42:26.273Z",
+          "files_changed": [
+            "components/briefing/BriefingHeader.tsx",
+            "app/(app)/briefing/page.tsx",
+            "tests/briefing-header.test.tsx"
+          ],
+          "env_limitations": []
         }
       ]
     },
     {
       "name": "planning-tools",
-      "status": "pending",
+      "status": "complete",
       "stories": [
         {
           "id": "gantt-chart-render",
           "name": "Gantt Chart Rendering",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [],
@@ -564,13 +583,19 @@
             "/schedule"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T02:18:18.990Z",
+          "files_changed": [
+            "lib/gantt/compute.ts",
+            "components/schedule/GanttChart.tsx",
+            "app/(app)/schedule/page.tsx",
+            "tests/gantt-compute.test.ts",
+            "tests/gantt-chart.test.tsx"
+          ]
         },
         {
           "id": "gantt-zoom-navigate",
           "name": "Gantt Zoom & Navigation",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [
@@ -581,13 +606,18 @@
             "/schedule"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T02:25:34.979Z",
+          "files_changed": [
+            "lib/gantt/compute.ts",
+            "components/schedule/GanttChart.tsx",
+            "tests/gantt-compute.test.ts",
+            "tests/gantt-chart.test.tsx"
+          ]
         },
         {
           "id": "gantt-inline-edit",
           "name": "Gantt Inline Editing",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [
@@ -600,13 +630,22 @@
             "/schedule"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T02:37:56.085Z",
+          "files_changed": [
+            "lib/gantt/drag.ts",
+            "components/schedule/GanttChart.tsx",
+            "components/schedule/TaskDetailPanel.tsx",
+            "app/actions/tasks.ts",
+            "app/(app)/schedule/page.tsx",
+            "app/globals.css",
+            "tests/gantt-drag.test.ts",
+            "tests/gantt-chart.test.tsx"
+          ]
         },
         {
           "id": "photo-storage",
           "name": "Photo Capture & Storage",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [],
@@ -619,13 +658,21 @@
             "/photos"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T02:46:30.625Z",
+          "files_changed": [
+            "lib/photos/operations.ts",
+            "app/actions/photos.ts",
+            "components/photos/TaskPhotosManager.tsx",
+            "app/(app)/photos/page.tsx",
+            "app/(app)/tasks/[id]/page.tsx",
+            "tests/photos-operations.test.ts",
+            "tests/task-photos-manager.test.tsx"
+          ]
         },
         {
           "id": "document-storage",
           "name": "Document Upload & Storage",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [],
@@ -637,13 +684,21 @@
             "/stages/:id"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T02:57:45.967Z",
+          "files_changed": [
+            "lib/documents/operations.ts",
+            "app/actions/documents.ts",
+            "components/documents/TaskDocumentsManager.tsx",
+            "app/(app)/tasks/[id]/page.tsx",
+            "app/(app)/stages/[id]/page.tsx",
+            "tests/documents-operations.test.ts",
+            "tests/task-documents-manager.test.tsx"
+          ]
         },
         {
           "id": "project-export",
           "name": "Project Data Export",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
           "blocked_by": null,
           "depends_on": [],
@@ -658,8 +713,41 @@
             "/settings"
           ],
           "env_limitations": [],
-          "completed_at": null,
-          "files_changed": []
+          "completed_at": "2026-04-06T03:07:14.349Z",
+          "files_changed": [
+            "lib/export/json-export.ts",
+            "lib/export/csv-export.ts",
+            "lib/export/zip.ts",
+            "app/actions/export.ts",
+            "components/export/ExportDialog.tsx",
+            "components/export/ExportButton.tsx",
+            "app/(app)/settings/page.tsx",
+            "tests/export.test.ts",
+            "tests/export-dialog.test.tsx"
+          ]
+        },
+        {
+          "id": "change-spec",
+          "name": "Replace <img> with next/image in 2 photo components, add Supabase remotePatterns to next.config.ts, and add server-side validatePhotoFile call in uploadPhoto server action",
+          "status": "done",
+          "attempts": 0,
+          "depends_on": [],
+          "affected_entities": [],
+          "affected_screens": [
+            "/photos",
+            "/tasks/:id"
+          ],
+          "acceptance_criteria": [],
+          "completed_at": "2026-04-06T03:44:36.419Z",
+          "files_changed": [
+            "next.config.ts",
+            "app/(app)/photos/page.tsx",
+            "components/photos/TaskPhotosManager.tsx",
+            "app/actions/photos.ts",
+            "tests/photo-optimizations.test.ts",
+            "tests/task-photos-manager.test.tsx"
+          ],
+          "env_limitations": []
         }
       ]
     }
@@ -718,14 +806,14 @@
   "seeded_at": "2026-04-05T16:30:00.000Z",
   "seeded_by": "rouge-seeding-swarm",
   "human_approved": true,
-  "timestamp": "2026-04-06T01:29:06.024Z",
+  "timestamp": "2026-04-06T04:23:02.720Z",
   "costs": {
-    "cumulative_tokens": 545168,
-    "cumulative_cost_usd": 23.092560000000002,
+    "cumulative_tokens": 1178608,
+    "cumulative_cost_usd": 49.24519200000002,
     "phase_tokens": 10000,
-    "phase_cost_usd": 0.09
+    "phase_cost_usd": 0.45
   },
-  "last_build_delta": 3,
+  "last_build_delta": 1,
   "stories_executed": [
     {
       "name": "Project Creation",
@@ -821,13 +909,56 @@
       "name": "Notification Preferences",
       "delta": 3,
       "duration_ms": 0
+    },
+    {
+      "name": "Add project.name as text-sm subtitle under the Daily Briefing h1 — project data already loaded in RSC",
+      "delta": 2,
+      "duration_ms": 0
+    },
+    {
+      "name": "Gantt Chart Rendering",
+      "delta": 4,
+      "duration_ms": 0
+    },
+    {
+      "name": "Gantt Zoom & Navigation",
+      "delta": 0,
+      "duration_ms": 0
+    },
+    {
+      "name": "Gantt Inline Editing",
+      "delta": 5,
+      "duration_ms": 0
+    },
+    {
+      "name": "Photo Capture & Storage",
+      "delta": 5,
+      "duration_ms": 0
+    },
+    {
+      "name": "Document Upload & Storage",
+      "delta": 7,
+      "duration_ms": 0
+    },
+    {
+      "name": "Project Data Export",
+      "delta": 8,
+      "duration_ms": 0
+    },
+    {
+      "name": "Replace <img> with next/image in 2 photo components, add Supabase remotePatterns to next.config.ts, and add server-side validatePhotoFile call in uploadPhoto server action",
+      "delta": 1,
+      "duration_ms": 0
     }
   ],
-  "last_meaningful_progress_at": 1775437953798,
+  "last_meaningful_progress_at": 1775447076419,
   "_last_screenshots": [
     "/Users/gregario/Projects/ClaudeCode/The-Rouge/projects/construction-coordinator/screenshots/loop-0/home.png"
   ],
   "promoted_milestones": [
-    "project-core"
-  ]
+    "project-core",
+    "daily-experience",
+    "planning-tools"
+  ],
+  "final_review_attempts": 0
 }

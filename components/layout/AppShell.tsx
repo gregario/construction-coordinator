@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2 px-4 py-5 border-b border-[#E8DFD3]">
           <Building2 size={20} className="text-[#8B5E3C]" aria-hidden />
           <span className="font-semibold text-[#2B1F17] text-sm leading-tight">
-            Construction<br />Manager
+            Self-Build<br />Manager
           </span>
         </div>
 

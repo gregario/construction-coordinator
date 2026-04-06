@@ -1,87 +1,101 @@
 {
   "_type": "milestone_context",
-  "_assembled_at": "2026-04-06T01:13:57.833Z",
+  "_assembled_at": "2026-04-06T03:45:54.006Z",
   "milestone": {
-    "name": "daily-experience",
+    "name": "planning-tools",
     "stories_completed": [
       {
-        "id": "daily-briefing-view",
-        "name": "Daily Briefing View",
+        "id": "gantt-chart-render",
+        "name": "Gantt Chart Rendering",
         "files_changed": [
-          "lib/briefing/operations.ts",
-          "tests/briefing-operations.test.ts",
-          "components/briefing/RefreshButton.tsx",
-          "app/(app)/briefing/page.tsx"
-        ],
-        "env_limitations": [
-          "Shift Alerts section is wired to the shift_alerts DB table but will show empty until cascade_task_dates() or another writer populates shift_alerts rows. This is a known deferred gap (documented in factory_questions from the foundation cycle). The section renders correctly when rows exist.",
-          "Pull-to-refresh (AC-DB-5) uses router.refresh() which triggers a full RSC re-render server-side. Native pull-down gesture is not implemented (requires a touch event handler or a library like react-pull-to-refresh) — the Refresh button works on both mobile and desktop."
-        ]
-      },
-      {
-        "id": "task-quick-actions",
-        "name": "Task Quick Actions from Briefing",
-        "files_changed": [
-          "lib/briefing/operations.ts",
-          "app/actions/briefing.ts",
-          "components/briefing/BriefingTaskList.tsx",
-          "app/(app)/briefing/page.tsx",
-          "tests/briefing-quick-actions.test.ts",
-          "tests/briefing-operations.test.ts"
+          "lib/gantt/compute.ts",
+          "components/schedule/GanttChart.tsx",
+          "app/(app)/schedule/page.tsx",
+          "tests/gantt-compute.test.ts",
+          "tests/gantt-chart.test.tsx"
         ],
         "env_limitations": []
       },
       {
-        "id": "upcoming-orders-view",
-        "name": "Upcoming Material Orders View",
+        "id": "gantt-zoom-navigate",
+        "name": "Gantt Zoom & Navigation",
         "files_changed": [
-          "lib/materials/operations.ts",
-          "components/briefing/UpcomingOrderCards.tsx",
-          "app/(app)/briefing/page.tsx",
-          "tests/upcoming-orders.test.ts",
-          "tests/upcoming-orders-cards.test.tsx"
+          "lib/gantt/compute.ts",
+          "components/schedule/GanttChart.tsx",
+          "tests/gantt-compute.test.ts",
+          "tests/gantt-chart.test.tsx"
         ],
         "env_limitations": []
       },
       {
-        "id": "shift-alerts",
-        "name": "Shift Alerts (What Changed)",
+        "id": "gantt-inline-edit",
+        "name": "Gantt Inline Editing",
         "files_changed": [
-          "lib/briefing/shift-alerts.ts",
-          "tests/shift-alerts.test.ts",
+          "lib/gantt/drag.ts",
+          "components/schedule/GanttChart.tsx",
+          "components/schedule/TaskDetailPanel.tsx",
           "app/actions/tasks.ts",
-          "app/actions/briefing.ts",
-          "components/briefing/DismissAlertsButton.tsx",
-          "app/(app)/briefing/page.tsx"
+          "app/(app)/schedule/page.tsx",
+          "app/globals.css",
+          "tests/gantt-drag.test.ts",
+          "tests/gantt-chart.test.tsx"
         ],
         "env_limitations": []
       },
       {
-        "id": "push-notifications",
-        "name": "Push Notifications",
+        "id": "photo-storage",
+        "name": "Photo Capture & Storage",
         "files_changed": [
-          "lib/notifications/push.ts",
-          "components/notifications/ServiceWorkerRegistrar.tsx",
-          "components/notifications/PushNotificationToggle.tsx",
-          "app/actions/notifications.ts",
-          "app/(app)/settings/page.tsx",
-          "app/(app)/layout.tsx",
-          "tests/push-notifications.test.ts"
+          "lib/photos/operations.ts",
+          "app/actions/photos.ts",
+          "components/photos/TaskPhotosManager.tsx",
+          "app/(app)/photos/page.tsx",
+          "app/(app)/tasks/[id]/page.tsx",
+          "tests/photos-operations.test.ts",
+          "tests/task-photos-manager.test.tsx"
         ],
-        "env_limitations": [
-          "Push notification subscribe/unsubscribe requires a real browser with PushManager — cannot be exercised in vitest/jsdom. Pure helpers (detectPushCapability, deriveToggleState, serializeSubscription, urlBase64ToUint8Array) are fully tested. Component integration requires manual QA on a device with the PWA installed.",
-          "VAPID keys must be set in Vercel env vars (NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT) for subscriptions to succeed in production. Keys are already configured per foundation eval."
-        ]
+        "env_limitations": []
       },
       {
-        "id": "notification-settings",
-        "name": "Notification Preferences",
+        "id": "document-storage",
+        "name": "Document Upload & Storage",
         "files_changed": [
-          "lib/notifications/preferences.ts",
-          "app/actions/notifications.ts",
-          "components/notifications/NotificationPreferencesPanel.tsx",
+          "lib/documents/operations.ts",
+          "app/actions/documents.ts",
+          "components/documents/TaskDocumentsManager.tsx",
+          "app/(app)/tasks/[id]/page.tsx",
+          "app/(app)/stages/[id]/page.tsx",
+          "tests/documents-operations.test.ts",
+          "tests/task-documents-manager.test.tsx"
+        ],
+        "env_limitations": []
+      },
+      {
+        "id": "project-export",
+        "name": "Project Data Export",
+        "files_changed": [
+          "lib/export/json-export.ts",
+          "lib/export/csv-export.ts",
+          "lib/export/zip.ts",
+          "app/actions/export.ts",
+          "components/export/ExportDialog.tsx",
+          "components/export/ExportButton.tsx",
           "app/(app)/settings/page.tsx",
-          "tests/notification-preferences.test.ts"
+          "tests/export.test.ts",
+          "tests/export-dialog.test.tsx"
+        ],
+        "env_limitations": []
+      },
+      {
+        "id": "change-spec",
+        "name": "Replace <img> with next/image in 2 photo components, add Supabase remotePatterns to next.config.ts, and add server-side validatePhotoFile call in uploadPhoto server action",
+        "files_changed": [
+          "next.config.ts",
+          "app/(app)/photos/page.tsx",
+          "components/photos/TaskPhotosManager.tsx",
+          "app/actions/photos.ts",
+          "tests/photo-optimizations.test.ts",
+          "tests/task-photos-manager.test.tsx"
         ],
         "env_limitations": []
       }
@@ -1102,6 +1116,318 @@
         "components/notifications/NotificationPreferencesPanel.tsx",
         "app/(app)/settings/page.tsx"
       ]
+    },
+    {
+      "decision": "Extracted BriefingHeader as a separate component rather than adding inline JSX",
+      "context": "AC-PI-1/2/3 required adding project name to /briefing header. The inline header JSX was simple enough to modify directly, but extracting a component enables testing with @testing-library/react (server component page.tsx cannot be rendered in vitest).",
+      "alternatives_considered": [
+        "Inline JSX change only — untestable in vitest since page.tsx is an async RSC",
+        "Pure helper function for header text — over-engineering for a one-line text addition"
+      ],
+      "rationale": "BriefingHeader component encapsulates the header layout (h1 + subtitle + RefreshButton), is testable via @testing-library/react, and keeps page.tsx focused on data fetching. The component is also reusable if the header pattern appears on other pages.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/BriefingHeader.tsx",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for gantt-chart-render",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (GanttChart component + pure computation), 1 EXTEND (/schedule page.tsx to add Gantt rendering + task/dep fetching), 0 REUSE, 0 REFACTOR-THEN-BUILD. Key reuse: existing StageManager stayed in place, types/database.ts Task and TaskDependency types informed the GanttTask shape, stage color palette from StageManager reused in Gantt bars.",
+      "confidence": "high",
+      "affects": [
+        "lib/gantt/compute.ts",
+        "components/schedule/GanttChart.tsx",
+        "app/(app)/schedule/page.tsx"
+      ]
+    },
+    {
+      "decision": "Pure computation + client component architecture for Gantt chart (no Canvas/SVG-only approach)",
+      "context": "AC-GR-1 requires an interactive Gantt chart. Options: full SVG/Canvas rendering, HTML div-based bars with SVG overlay for arrows, or a third-party Gantt library.",
+      "alternatives_considered": [
+        "Third-party Gantt library (e.g. frappe-gantt, dhtmlx-gantt) — heavy dependencies, hard to style to match the warm earth-tone design, McKinley says no for non-core infra",
+        "Full SVG rendering — more control but harder to add interactive features later (tooltips, click handlers, accessibility), slower to implement",
+        "Full Canvas rendering — best performance for 1000+ tasks but no DOM accessibility, overkill for typical 20-50 task projects"
+      ],
+      "rationale": "HTML divs for bars (positioned absolutely, styled with Tailwind) + SVG overlay for dependency arrows. Bars are real DOM elements with title attributes, testable via data-testid, and extensible for click handlers in the gantt-inline-edit story. Pure computation functions in lib/gantt/compute.ts (date range, bar positioning, arrow coordinates) are fully unit-testable. SVG arrows use a simple right-angle path with arrowhead markers.",
+      "confidence": "high",
+      "affects": [
+        "lib/gantt/compute.ts",
+        "components/schedule/GanttChart.tsx"
+      ]
+    },
+    {
+      "decision": "Inclusive-day bar width: widthDays = duration_days (matching existing inclusive-day semantics)",
+      "context": "AC-GR-2 says 'width = duration_days'. The project uses inclusive-day semantics (planned_end = planned_start + duration - 1). A 5-day task starting Apr 1 ends Apr 5 and the bar should span 5 day columns.",
+      "alternatives_considered": [
+        "Exclusive: width = planned_end - planned_start → 4 columns for a 5-day task — misleading visual",
+        "Width from dates: daysBetween(planned_start, planned_end) + 1 — correct but redundant since duration_days already encodes this"
+      ],
+      "rationale": "Using duration_days directly as widthDays is the simplest correct approach, consistent with how tasks were inserted (planned_end = planned_start + duration_days - 1). The Gantt bar visually represents the actual working days.",
+      "confidence": "high",
+      "affects": [
+        "lib/gantt/compute.ts"
+      ]
+    },
+    {
+      "decision": "Mobile Gantt shows stages-only accordion (not a scaled-down full Gantt)",
+      "context": "AC-GR-6 specifies 'stages-only view shown by default with horizontal scroll; tapping a stage expands to show its tasks'. Two interpretations: a miniaturized full Gantt with pinch-zoom, or a list of stages that expand to show task bars.",
+      "alternatives_considered": [
+        "Miniaturized full Gantt with pinch-zoom — complex touch handling, bars become unreadable at phone widths",
+        "Table/list view with no bars — simpler but loses the visual timeline which is the point of a Gantt"
+      ],
+      "rationale": "Accordion with per-stage horizontal-scrollable task bars matches the spec literally (stages-only default, tap to expand) and is usable on phone screens. Each expanded stage shows its task bars within a scrollable container at the same DAY_WIDTH as desktop, so the visual language is consistent. Dependency arrows are omitted on mobile for clarity — they add visual noise on small screens and the gantt-inline-edit story is desktop-only anyway.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/GanttChart.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for gantt-zoom-navigate",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (zoom toolbar + config), 2 REUSE (TodayMarker for AC-GZ-2, overflow-x-auto for AC-GZ-3), 1 EXTEND (DateHeader to support weekly/monthly modes). Key reuse: existing TodayMarker component served AC-GZ-2 without modification. Existing overflow-x-auto CSS served AC-GZ-3 without modification. computeTodayOffset shares daysBetween from existing compute.ts.",
+      "confidence": "high",
+      "affects": [
+        "lib/gantt/compute.ts",
+        "components/schedule/GanttChart.tsx"
+      ]
+    },
+    {
+      "decision": "Zoom dayWidth values: week=28, month=8, full=3",
+      "context": "AC-GZ-1 requires three zoom levels. Need to choose pixel-per-day scaling that keeps the chart usable at each level.",
+      "alternatives_considered": [
+        "Logarithmic scaling — complex, harder to reason about bar positioning",
+        "Larger month/full values (e.g. 14, 6) — still too wide for year-long projects",
+        "Smaller full value (1px) — bars become invisible at low task counts"
+      ],
+      "rationale": "Week=28 matches original DAY_WIDTH (proven readable for daily labels). Month=8 gives a 365-day project ~2920px width (fits in ~2 scroll lengths on 1440px screen). Full=3 gives a 365-day project ~1095px (fits on screen without scroll). Labels auto-hide below 30px span width to prevent overflow.",
+      "confidence": "high",
+      "affects": [
+        "lib/gantt/compute.ts"
+      ]
+    },
+    {
+      "decision": "InteractiveTaskBar uses document-level mousemove/mouseup listeners for drag tracking",
+      "context": "AC-GE-1/AC-GE-2 require drag interactions on Gantt bars. Options: HTML5 drag-and-drop, pointer events with setPointerCapture, or manual mousemove/mouseup on document.",
+      "alternatives_considered": [
+        "HTML5 drag-and-drop: designed for drag-to-target, not pixel-precise resize/move. dragImage snap is jarring.",
+        "Pointer capture: cleaner API but less browser support and no natural click-vs-drag threshold.",
+        "dnd-kit library: full library for a two-interaction feature; boring tech principle says no new deps for simple drags"
+      ],
+      "rationale": "Document-level mousemove/mouseup with a 4px threshold to distinguish click from drag. Gives pixel-precise preview updates via React state, works on all desktop browsers, zero new dependencies.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/GanttChart.tsx"
+      ]
+    },
+    {
+      "decision": "Dependency constraint validation runs client-side before server action (AC-GE-4)",
+      "context": "AC-GE-4 requires snapping back to original position on invalid drop. Options: validate client-side and block the server call, or call the server and rollback on error.",
+      "alternatives_considered": [
+        "Server-side validation only: requires a round trip, bar visually jumps then snaps back, feels janky",
+        "Both client and server: validate client-side for instant feedback, server validates again as safety net"
+      ],
+      "rationale": "Client-side check via validateTaskDrop (pure function) gives instant snap-back with no server round trip. The server action still goes through verifyProjectOwnership and cascade_task_dates which would fail on genuine constraint violations. Dependency data is fresh from the server render.",
+      "confidence": "high",
+      "affects": [
+        "components/schedule/GanttChart.tsx",
+        "lib/gantt/drag.ts"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for gantt-inline-edit",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 2 BUILD (lib/gantt/drag.ts, TaskDetailPanel.tsx), 3 EXTEND (GanttChart.tsx, tasks.ts actions, schedule/page.tsx, globals.css). Key reuse: existing updateTaskDuration for AC-GE-1 resize, existing cascade_task_dates RPC for both resize and move, existing computeTaskBars/computeDateRange from lib/gantt/compute.ts.",
+      "confidence": "high",
+      "affects": [
+        "gantt-inline-edit"
+      ]
+    },
+    {
+      "decision": "Builder-defined acceptance criteria for photo-storage (spec was empty)",
+      "context": "state.json story entry for photo-storage has no acceptance_criteria field — only name, affected_entities (Photo), affected_screens (/tasks/:id, /stages/:id, /photos). story_context.spec was just {id, name}.",
+      "alternatives_considered": [
+        "Block the story with a factory_question asking a human to write ACs — defeats autonomous loop",
+        "Skip the story as already covered by storage bucket setup — ignores the UI and upload flow"
+      ],
+      "rationale": "Defined AC-PS-1 (upload with validation), AC-PS-2 (thumbnails on task detail), AC-PS-3 (gallery grouped by stage), AC-PS-4 (delete removes storage + DB row), AC-PS-5 (client-side file validation). These map directly to the story name and affected screens.",
+      "confidence": "high",
+      "affects": [
+        "lib/photos/operations.ts",
+        "app/actions/photos.ts",
+        "components/photos/TaskPhotosManager.tsx",
+        "app/(app)/photos/page.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for photo-storage",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 2 BUILD (lib/photos/operations.ts pure fns, components/photos/TaskPhotosManager.tsx), 2 EXTEND (/tasks/:id page to add photo query + component, /photos page to replace skeleton placeholder), 1 REUSE (existing Photo type from types/database.ts, photos table schema, storage bucket config). Key reuse: Supabase Storage photos bucket already configured with RLS, Photo interface from types/database.ts informed the server action types, createClient/LooseClient pattern from other actions.",
+      "confidence": "high",
+      "affects": [
+        "lib/photos/operations.ts",
+        "app/actions/photos.ts",
+        "components/photos/TaskPhotosManager.tsx"
+      ]
+    },
+    {
+      "decision": "Signed URLs with 60s expiry for photo previews (not public bucket)",
+      "context": "Photos bucket is private (set during foundation). Options: make bucket public, use signed URLs, or use a proxy route.",
+      "alternatives_considered": [
+        "Make bucket public — violates private storage design from foundation, exposes all project photos",
+        "Proxy route (/api/photos/:id) — adds server load for every image request, slower than direct CDN",
+        "Long-lived signed URLs (1 hour) — risk of URL sharing/leaking"
+      ],
+      "rationale": "60s signed URLs generated server-side in RSC. Photos are only viewable while the page is fresh. Short expiry limits exposure if a URL is shared. Batch generation via createSignedUrls keeps the query count at 1 regardless of photo count.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/photos/page.tsx",
+        "app/(app)/tasks/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for document-storage story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 0 BUILD (all adapted from existing), 3 EXTEND (server actions, component, pages), 2 REUSE (buildStoragePath pattern, formatFileSize). Key reuse: photo-storage patterns (operations.ts, server actions, component structure) directly adapted for documents. Same Supabase Storage pattern, same project ownership verification, same signed URL approach.",
+      "confidence": "high",
+      "affects": [
+        "lib/documents/operations.ts",
+        "app/actions/documents.ts",
+        "components/documents/TaskDocumentsManager.tsx"
+      ]
+    },
+    {
+      "decision": "Documents render as rows (list) not thumbnails (grid) unlike photos",
+      "context": "AC-DS-2 says each document renders as a row with name, icon, date, download button. Photos use a grid of image thumbnails. Documents are non-visual files — a list layout is more appropriate.",
+      "alternatives_considered": [
+        "Grid layout like photos — wastes space since documents have no visual preview",
+        "Table layout — too formal for a mobile-first construction app",
+        "Card layout — each document as a card with icon and metadata"
+      ],
+      "rationale": "AC-DS-2 explicitly says \"row\" — a compact list with icon + name + date + download button matches the spec and the mobile-first interaction pattern. Each row is a flex container with icon, truncated filename, date/size metadata, download button, and delete button.",
+      "confidence": "high",
+      "affects": [
+        "components/documents/TaskDocumentsManager.tsx"
+      ]
+    },
+    {
+      "decision": "TaskDocumentsManager is entity-agnostic (works for both tasks and stages)",
+      "context": "AC-DS-1 says documents can be attached from task OR stage detail screen. Options: two components, one component with entity type prop.",
+      "alternatives_considered": [
+        "Separate TaskDocumentsManager and StageDocumentsManager — duplicates 95% of the code",
+        "Single component with entityId + entityType props — one source of truth, test once"
+      ],
+      "rationale": "The upload logic only differs in which FormData field (taskId vs stageId) is populated. A single component with entityType prop eliminates duplication. The stage detail page passes entityType=\"stage\" and the task detail page passes entityType=\"task\".",
+      "confidence": "high",
+      "affects": [
+        "components/documents/TaskDocumentsManager.tsx",
+        "app/(app)/tasks/[id]/page.tsx",
+        "app/(app)/stages/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "Stage documents query filters task_id IS NULL to avoid showing task-level docs at stage level",
+      "context": "A document attached to a task within a stage has both task_id and stage_id set. On the stage detail page, we only want stage-level documents (no task_id), not documents attached to individual tasks.",
+      "alternatives_considered": [
+        "Show all documents with this stage_id including task-level ones — confusing, user already sees them on each task page",
+        "Filter by stage_id AND task_id IS NULL — clean separation of scope"
+      ],
+      "rationale": "Stage-level documents (e.g., stage permits, stage completion certificates) are conceptually different from task-level documents (e.g., material specs, inspection reports). The IS NULL filter keeps the scope clear.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/stages/[id]/page.tsx"
+      ]
+    },
+    {
+      "decision": "Zero-dependency ZIP builder using STORE method for CSV bundle",
+      "context": "AC-EX-3 requires a .zip archive. No zip library in package.json. Options: add jszip (~45KB), build a minimal zip encoder, or download CSVs individually.",
+      "alternatives_considered": [
+        "Add jszip dependency — another runtime dependency for a single export feature",
+        "Download 4 separate CSV files — violates AC-EX-3 which specifies a single .zip archive",
+        "Use server-side zip generation — adds server compute cost and a new API route"
+      ],
+      "rationale": "ZIP STORE format (uncompressed) is a well-documented binary format. The implementation is ~100 lines of pure TypeScript using Uint8Array and TextEncoder — no external deps, fully unit-tested (CRC-32, file headers, EOCD record). CSVs are small text files where compression adds minimal value. Zero-dep = zero supply chain risk for a feature that runs client-side.",
+      "confidence": "high",
+      "affects": [
+        "lib/export/zip.ts",
+        "components/export/ExportDialog.tsx"
+      ]
+    },
+    {
+      "decision": "PDF export via window.print() instead of html2canvas + jspdf",
+      "context": "AC-EX-4 asks for a downloadable PDF of the Gantt chart. The Gantt is a DOM-based component (divs + SVG arrows), not a canvas.",
+      "alternatives_considered": [
+        "Add html2canvas + jspdf (~700KB combined) — capture DOM to canvas then to PDF. Heavy deps, known issues with SVG rendering, adds significant bundle size.",
+        "Use puppeteer/playwright server-side screenshot — requires a headless browser runtime on the server, not available in Vercel Functions.",
+        "Use @react-pdf/renderer — requires rewriting the Gantt as React-PDF components, massive scope creep."
+      ],
+      "rationale": "window.print() is zero-dep, produces high-quality PDF via the browser engine, handles SVG arrows correctly, and works on all target platforms (Chrome, Safari). The user experience is familiar (print dialog → Save as PDF). Logged as a divergence since it opens a dialog rather than auto-downloading.",
+      "confidence": "high",
+      "affects": [
+        "components/export/ExportDialog.tsx"
+      ]
+    },
+    {
+      "decision": "Export data fetched via server action, formatted client-side",
+      "context": "The export flow needs authenticated data access + file generation. Options: server generates the file and returns it, or server returns raw data and client formats.",
+      "alternatives_considered": [
+        "Server-side file generation via API route returning a Blob — requires streaming the response, content-type headers, and a dedicated route per format",
+        "Client-side fetch + format — one server action returns all data, client builds JSON/CSV/ZIP using pure functions"
+      ],
+      "rationale": "One fetchExportData server action returns the complete ExportPayload. Client-side pure functions (buildJsonExport, buildStagesCsv, buildZip) format the data and trigger download via createObjectURL. This keeps the server action simple (data only) and makes the formatting logic fully unit-testable without mocking server infrastructure.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/export.ts",
+        "components/export/ExportDialog.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for fix-photos-next-image + fix-server-mime-validation",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 0 BUILD, 3 EXTEND (photos/page.tsx, TaskPhotosManager.tsx, app/actions/photos.ts), 1 REUSE (lib/photos/operations.ts validatePhotoFile already exists and tested), 0 REFACTOR-THEN-BUILD. Key reuse: validatePhotoFile already existed as a pure function with full test coverage — just imported it into the server action.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/photos/page.tsx",
+        "components/photos/TaskPhotosManager.tsx",
+        "app/actions/photos.ts",
+        "next.config.ts"
+      ]
+    },
+    {
+      "decision": "Use fill prop with relative container instead of explicit width/height for next/image",
+      "context": "User-uploaded construction photos have unknown dimensions. next/image requires either width+height or fill.",
+      "alternatives_considered": [
+        "Set explicit width={300} height={300} — forces a fixed layout that may not match the aspect-square container, adds CLS risk if actual images differ",
+        "Use unoptimized prop — loses all image optimization benefits (srcset, lazy loading, format conversion)",
+        "Use fill with relative parent (chosen) — image fills the aspect-square container, object-cover crops to fit, no CLS"
+      ],
+      "rationale": "fill + aspect-square parent + object-cover preserves the exact same visual layout as the original raw <img> while enabling srcset optimization. The parent container defines the aspect ratio, the image fills it. This is the documented Next.js pattern for images with unknown intrinsic dimensions.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/photos/page.tsx",
+        "components/photos/TaskPhotosManager.tsx"
+      ]
+    },
+    {
+      "decision": "Supabase remotePatterns uses wildcard hostname *.supabase.co for portability",
+      "context": "Project uses ***REMOVED***.supabase.co. Could hardcode the project ref or use a wildcard.",
+      "alternatives_considered": [
+        "Hardcode project ref hostname — breaks if project changes or a second project is added",
+        "Use process.env.NEXT_PUBLIC_SUPABASE_URL to derive hostname at build time — requires dynamic next.config.ts with env parsing",
+        "Use *.supabase.co wildcard (chosen) — covers any Supabase project, still restricted to /storage/v1/** path"
+      ],
+      "rationale": "Wildcard hostname is safe because the pathname restriction /storage/v1/** limits to storage-only URLs. This is more portable across environments (dev, staging, prod may use different Supabase projects) without requiring env variable parsing in config.",
+      "confidence": "high",
+      "affects": [
+        "next.config.ts"
+      ]
     }
   ],
   "factory_questions": [
@@ -1209,6 +1535,13 @@
       "resolved_as": "Accepted for now — users who enable push (AC-PN-2) will visit /settings to do so, triggering the upsert. Edge case: if a future flow enables push from a different page, that page must also call ensureNotificationPreferences.",
       "needs_clarification_from": "spec",
       "severity": "minor"
+    },
+    {
+      "question": "/stages/:id page does not yet show a photos section. The affected_screens for photo-storage includes /stages/:id but only /tasks/:id has the upload UI. A future story could add a StagePhotosManager to /stages/:id that aggregates photos from all tasks in that stage.",
+      "found_in": "story affected_screens vs implemented scope",
+      "resolved_as": "Deferred — /photos gallery already groups by stage, and /tasks/:id is the primary upload surface. Per-stage photo section can be added when stage detail pages get richer.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
     }
   ],
   "divergences": [
@@ -1261,6 +1594,15 @@
         "AC-QA-2"
       ],
       "reversible": true
+    },
+    {
+      "spec_says": "AC-EX-4: a PDF snapshot of the current Gantt chart (full project zoom) is rendered and downloaded",
+      "actually_did": "PDF export triggers window.print() which opens the browser print dialog. The user can select Save as PDF to download. No automatic PDF file generation.",
+      "rationale": "Generating a true PDF programmatically would require adding html2canvas (~400KB) + jspdf (~300KB) — two new dependencies for a single feature. The browser print dialog produces higher-quality output with native PDF rendering. McKinley principle: spend innovation tokens on the core differentiator (export data portability via JSON/CSV), use boring technology (browser print) for the visual snapshot. The Gantt is DOM-based, not canvas-based, so print CSS can style it appropriately.",
+      "affects_acceptance_criteria": [
+        "AC-EX-4"
+      ],
+      "reversible": true
     }
   ],
   "previous_milestones": [
@@ -1270,6 +1612,13 @@
       "stories_done": 6,
       "stories_blocked": 0,
       "stories_total": 6
+    },
+    {
+      "name": "daily-experience",
+      "status": "complete",
+      "stories_done": 7,
+      "stories_blocked": 0,
+      "stories_total": 7
     }
   ],
   "infrastructure": {
@@ -1293,6 +1642,27 @@
         "previous": null,
         "url": "https://construction-coordinator.vercel.app",
         "timestamp": "2026-04-06T01:13:27.513Z",
+        "cycle": 1
+      },
+      {
+        "version": null,
+        "previous": null,
+        "url": "https://construction-coordinator.vercel.app",
+        "timestamp": "2026-04-06T01:43:13.115Z",
+        "cycle": 1
+      },
+      {
+        "version": null,
+        "previous": null,
+        "url": "https://construction-coordinator.vercel.app",
+        "timestamp": "2026-04-06T03:08:10.450Z",
+        "cycle": 1
+      },
+      {
+        "version": null,
+        "previous": null,
+        "url": "https://construction-coordinator.vercel.app",
+        "timestamp": "2026-04-06T03:45:23.689Z",
         "cycle": 1
       }
     ]

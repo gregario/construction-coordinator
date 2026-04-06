@@ -1,0 +1,20 @@
+[
+  {
+    "id": "global-001",
+    "milestone_spotted": "daily-experience",
+    "cycle": 4,
+    "description": "Stepper +/- buttons on /settings are w-7 h-7 (~28px), below the 44px WCAG 2.5.5 minimum touch target. Change spec cc-loop3-stepper-touch-targets is ready to implement (w-7 h-7 → w-11 h-11).",
+    "evidence": "components/notifications/NotificationPreferencesPanel.tsx lines 112, 132 — both buttons use w-7 h-7",
+    "category": "a11y",
+    "grounding": "WCAG 2.5.5 (Target Size): interactive touch targets must be >= 44px. Nielsen H4 (Consistency and standards): iOS HIG and Material Design both specify 44pt/48dp minimum."
+  },
+  {
+    "id": "global-002",
+    "milestone_spotted": "planning-tools",
+    "cycle": 1,
+    "description": "GanttChart.tsx is 827 lines — a good candidate for decomposition into DragBar, ZoomToolbar, MobileGanttView, and TaskDetailPanel sub-files.",
+    "evidence": "components/schedule/GanttChart.tsx — 827 lines exceeds 300-line code quality threshold",
+    "category": "consistency",
+    "grounding": "Code quality baseline — large files are harder to review, test, and maintain. No user-facing impact; this is a maintainability improvement."
+  }
+]
