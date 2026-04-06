@@ -61,3 +61,27 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
   revalidatePath('/', 'layout')
   redirect('/setup')
 }
+
+export async function updateProjectDetails(
+  projectId: string,
+  data: { name: string; address: string | null }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!data.name.trim()) {
+    return { ok: false, error: 'Project name is required' }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not authenticated' }
+
+  const { error } = await (supabase as any)
+    .from('projects')
+    .update({ name: data.name.trim(), address: data.address })
+    .eq('id', projectId)
+    .eq('user_id', user.id)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/', 'layout')
+  return { ok: true }
+}

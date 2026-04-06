@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   ClipboardList, Calendar, Package, Users,
-  Layers, Camera, Settings, LogOut, Building2,
+  Layers, Camera, Settings, LogOut, Building2, AlertTriangle,
 } from 'lucide-react'
 import { signOut } from '@/app/actions/auth'
 
@@ -17,6 +17,7 @@ const primaryNav = [
 
 const secondaryNav = [
   { href: '/stages', label: 'Stages', icon: Layers },
+  { href: '/snags', label: 'Snags', icon: AlertTriangle },
   { href: '/photos', label: 'Photos', icon: Camera },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
