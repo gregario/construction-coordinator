@@ -2715,12 +2715,13 @@
       "delta": 0.07,
       "direction": "improving",
       "consecutive_same_direction": 2,
-      "flags": ["none"],
+      "flags": [
+        "none"
+      ],
       "note": "Confidence rose from 0.85 (cycle 1, project-core) to 0.92 (cycle 2, daily-experience). Healthy upward trajectory. Delta +0.07 is moderate improvement — real, not a measurement artifact (new milestone with distinct stories, independent evaluation)."
     },
     "recommendation": "deepen:improvements",
     "recommendation_reasoning": "PO verdict PRODUCTION_READY with confidence_adjusted 0.92 >= 0.9. QA PASS with 100% criteria pass rate (26/26 ACs). Health 97. Design 81. All 10 Nielsen heuristics pass. No quality gaps. No regressions. All promote conditions met EXCEPT: 2 validated this-milestone improvement items exist (imp-project-identity and imp-stepper-touch-target). Per Step 2.7, when promote conditions are met but non-blocking improvements remain, the recommendation overrides to deepen:improvements. Both fixes are small and bounded — project name display is a one-line JSX change, stepper touch targets are a CSS size bump. Should resolve in a single cycle without risk of convergence failure.",
-
     "decomposition_health": {
       "foundation_gaps": [],
       "integration_gaps": [
@@ -2734,9 +2735,7 @@
       "restructure_scope": "0% — daily-experience milestone built cleanly on the project-core foundation. No schema changes needed, no tables altered.",
       "structural_issues_found": false
     },
-
     "root_cause_analysis": [],
-
     "cross_cycle_patterns": [
       {
         "pattern": "env_limited ACs are a persistent drag on raw confidence, though adjusted confidence now correctly excludes them",
@@ -2751,14 +2750,17 @@
         "recommended_action": "Consider seeding a test user for evaluation purposes, or providing browser session credentials to the evaluation phase. Currently mitigated by structural code review + unit test coverage."
       }
     ],
-
     "change_spec_briefs": [
       {
         "gap_id": "imp-project-identity",
         "root_cause": "missing_context",
         "priority": "low",
-        "affected_screens": ["/briefing"],
-        "affected_journeys": ["Daily Briefing View"],
+        "affected_screens": [
+          "/briefing"
+        ],
+        "affected_journeys": [
+          "Daily Briefing View"
+        ],
         "what_good_looks_like": "The /briefing page header shows the project name (e.g., 'O'Brien Timber Frame House — Daily Briefing') so the user always knows which project context they are operating in. project.name is already loaded in the RSC — it just needs to be rendered in the h1.",
         "requires_design_mode": false,
         "approach_hint": "In app/(app)/briefing/page.tsx, the project is already queried. Add project.name to the h1 element — either as a subtitle under 'Daily Briefing' or as a prefix. Match the existing text-2xl + text-sm hierarchy.",
@@ -2768,17 +2770,19 @@
         "gap_id": "imp-stepper-touch-target",
         "root_cause": "implementation_bug",
         "priority": "low",
-        "affected_screens": ["/settings"],
-        "affected_journeys": ["Configure notification preferences"],
+        "affected_screens": [
+          "/settings"
+        ],
+        "affected_journeys": [
+          "Configure notification preferences"
+        ],
         "what_good_looks_like": "Stepper +/- buttons meet the 44px minimum touch target (WCAG 2.5.5). Buttons should be w-11 h-11 (44px) or use padding/min-width to reach 44px tap area while keeping the visual size proportionate.",
         "requires_design_mode": false,
         "approach_hint": "In NotificationPreferencesPanel.tsx, change stepper button classes from w-7 h-7 to w-11 h-11 (or min-w-[44px] min-h-[44px]). The visual icon can remain small — the touch target just needs to be large enough. Test that the stepper row layout still looks balanced at the larger button size.",
         "do_not_repeat": []
       }
     ],
-
     "escalations": [],
-
     "improvement_routing": {
       "this_milestone_count": 2,
       "global_persisted_count": 0,
@@ -2786,7 +2790,6 @@
       "convergence_guardrail_triggered": false,
       "deepen_improvements_cycle_count": 1
     },
-
     "evaluator_observations": [
       "Cycle 2 daily-experience: 6/6 stories delivered, 26/26 ACs met. Confidence improved from 0.85 to 0.92. Healthy trajectory.",
       "Two low-severity this-milestone improvement items prevent immediate promotion. Both are small CSS/JSX fixes — project name on briefing header and stepper touch targets.",
@@ -2826,5 +2829,41 @@
       "decision": "No decomposition health issues found for daily-experience milestone",
       "reasoning": "All 6 stories built cleanly on the project-core foundation. No ALTER TABLEs, no schema debt, no substituted capabilities beyond the 2 pre-existing skipped items (deploy-to-staging infrastructure, offline queue infrastructure) which are environment constraints, not feature gaps."
     }
-  ]
+  ],
+  "change_specs_pending": [
+    {
+      "spec_path": "openspec/changes/cc-loop3-briefing-project-identity/change-spec.md",
+      "gap_ids": ["imp-project-identity"],
+      "priority": "low",
+      "requires_design_mode": false,
+      "design_passes_needed": [],
+      "criteria_count": 3,
+      "root_cause": "missing_context",
+      "affected_screens": ["/briefing"],
+      "affected_journeys": ["Daily Briefing View"],
+      "approach_summary": "Add project.name as text-sm subtitle under the Daily Briefing h1 — project data already loaded in RSC"
+    },
+    {
+      "spec_path": "openspec/changes/cc-loop3-stepper-touch-targets/change-spec.md",
+      "gap_ids": ["imp-stepper-touch-target"],
+      "priority": "low",
+      "requires_design_mode": false,
+      "design_passes_needed": [],
+      "criteria_count": 4,
+      "root_cause": "implementation_bug",
+      "affected_screens": ["/settings"],
+      "affected_journeys": ["Configure notification preferences"],
+      "approach_summary": "Change stepper button classes from w-7 h-7 to w-11 h-11 to meet WCAG 2.5.5 44px minimum touch target"
+    }
+  ],
+  "change_spec_generation_summary": {
+    "phase": "change-spec-generation",
+    "cycle": 3,
+    "timestamp": "2026-04-06T02:45:00Z",
+    "total_specs_generated": 2,
+    "total_criteria_across_specs": 7,
+    "gaps_addressed": 2,
+    "gaps_deferred": [],
+    "gaps_escalated": []
+  }
 }

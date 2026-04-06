@@ -1,3 +1,88 @@
 {
-  "milestones": []
+  "milestones": [
+    {
+      "id": "daily-experience",
+      "stories": [
+        {
+          "id": "fix-briefing-project-identity",
+          "type": "fix",
+          "status": "pending",
+          "priority": "low",
+          "title": "Show project name in /briefing header",
+          "description": "Add project.name as a subtitle under the Daily Briefing heading so users always know which project context they are in.",
+          "acceptance_criteria": [
+            {
+              "id": "AC-PI-1",
+              "description": "Project name visible in briefing header",
+              "measurement": "DOM query — header region contains text node matching project name"
+            },
+            {
+              "id": "AC-PI-2",
+              "description": "Project name renders below Daily Briefing title as smaller text",
+              "measurement": "DOM structure — project name element follows heading, uses text-sm"
+            },
+            {
+              "id": "AC-PI-3",
+              "description": "Long project names do not break layout",
+              "measurement": "Header container shows no horizontal overflow at 40+ char names"
+            }
+          ],
+          "scope": {
+            "in_scope": ["app/(app)/briefing/page.tsx — header section only"],
+            "out_of_scope": ["All other briefing content", "Data fetching", "Other pages"],
+            "files_to_touch": ["app/(app)/briefing/page.tsx"]
+          },
+          "root_cause": {
+            "classification": "missing_context",
+            "what_went_wrong": "Spec AC-DB-1 said 'project-specific briefing sections' but did not explicitly call out displaying the project name in the header.",
+            "do_not_repeat": []
+          },
+          "change_spec_path": "openspec/changes/cc-loop3-briefing-project-identity/change-spec.md",
+          "closes_gaps": ["imp-project-identity"]
+        },
+        {
+          "id": "fix-stepper-touch-targets",
+          "type": "fix",
+          "status": "pending",
+          "priority": "low",
+          "title": "Increase stepper +/- button touch targets to 44px",
+          "description": "Change stepper button classes from w-7 h-7 (~28px) to w-11 h-11 (44px) to meet WCAG 2.5.5 minimum touch target size.",
+          "acceptance_criteria": [
+            {
+              "id": "AC-ST-1",
+              "description": "Stepper buttons have computed width and height >= 44px",
+              "measurement": "DOM query — computedStyle width/height >= 44px or w-11 h-11 classes present"
+            },
+            {
+              "id": "AC-ST-2",
+              "description": "Stepper layout remains balanced after size increase",
+              "measurement": "Stepper container has no horizontal overflow; all elements aligned on single row"
+            },
+            {
+              "id": "AC-ST-3",
+              "description": "Stepper increment/decrement still functional",
+              "measurement": "Numeric value changes by 1 on each tap"
+            },
+            {
+              "id": "AC-ST-4",
+              "description": "Stepper button accessibility attributes preserved",
+              "measurement": "Buttons retain aria-label and focus-visible ring"
+            }
+          ],
+          "scope": {
+            "in_scope": ["components/notifications/NotificationPreferencesPanel.tsx — stepper button classes only"],
+            "out_of_scope": ["All other elements in preferences panel", "Stepper logic", "Server actions", "Other pages"],
+            "files_to_touch": ["components/notifications/NotificationPreferencesPanel.tsx"]
+          },
+          "root_cause": {
+            "classification": "implementation_bug",
+            "what_went_wrong": "Builder set w-7 h-7 (~28px) on stepper buttons. WCAG 2.5.5 requires 44px minimum. Known standard not applied.",
+            "do_not_repeat": []
+          },
+          "change_spec_path": "openspec/changes/cc-loop3-stepper-touch-targets/change-spec.md",
+          "closes_gaps": ["imp-stepper-touch-target"]
+        }
+      ]
+    }
+  ]
 }
