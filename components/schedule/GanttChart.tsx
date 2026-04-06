@@ -1,21 +1,24 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import {
   computeDateRange,
   computeTaskBars,
   computeDependencyArrows,
+  computeTodayOffset,
   daysBetween,
+  getZoomConfig,
   type GanttTask,
   type GanttStage,
   type TaskBar,
   type DependencyArrow,
+  type ZoomLevel,
 } from '@/lib/gantt/compute'
 
 // ---------- constants ----------
 const ROW_HEIGHT = 36
 const STAGE_HEADER_HEIGHT = 32
-const DAY_WIDTH = 28
+const MOBILE_DAY_WIDTH = 28
 const BAR_PADDING_Y = 4
 const HEADER_HEIGHT = 48
 
@@ -29,21 +32,80 @@ type Props = {
 function DateHeader({
   range,
   dayWidth,
+  headerMode,
 }: {
   range: { startDate: string; totalDays: number }
   dayWidth: number
+  headerMode: 'daily' | 'weekly' | 'monthly'
 }) {
-  const days: { label: string; dayOfMonth: number; isMonday: boolean }[] = []
-  for (let i = 0; i < range.totalDays; i++) {
+  if (headerMode === 'daily') {
+    const days: { label: string; dayOfMonth: number; isMonday: boolean }[] = []
+    for (let i = 0; i < range.totalDays; i++) {
+      const d = new Date(range.startDate + 'T00:00:00Z')
+      d.setUTCDate(d.getUTCDate() + i)
+      const dayOfMonth = d.getUTCDate()
+      const isMonday = d.getUTCDay() === 1
+      const label =
+        dayOfMonth === 1 || i === 0
+          ? d.toLocaleDateString('en-IE', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+          : String(dayOfMonth)
+      days.push({ label, dayOfMonth, isMonday })
+    }
+
+    return (
+      <div
+        className="sticky top-0 z-10 flex border-b border-[#E8DFD3] bg-[#FAF7F2]"
+        style={{ height: HEADER_HEIGHT }}
+        data-testid="gantt-date-header"
+      >
+        {days.map((d, i) => (
+          <div
+            key={i}
+            className={`flex shrink-0 items-end justify-center pb-1 text-[10px] text-[#6B5D52] ${
+              d.isMonday ? 'border-l border-[#E8DFD3]' : ''
+            }`}
+            style={{ width: dayWidth }}
+          >
+            {d.label}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Weekly or monthly header: group days into labeled spans
+  type HeaderSpan = { label: string; days: number }
+  const spans: HeaderSpan[] = []
+  let i = 0
+  while (i < range.totalDays) {
     const d = new Date(range.startDate + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() + i)
-    const dayOfMonth = d.getUTCDate()
-    const isMonday = d.getUTCDay() === 1
-    const label =
-      dayOfMonth === 1 || i === 0
-        ? d.toLocaleDateString('en-IE', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-        : String(dayOfMonth)
-    days.push({ label, dayOfMonth, isMonday })
+
+    if (headerMode === 'weekly') {
+      // Span until next Monday or end of range
+      const label = d.toLocaleDateString('en-IE', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+      let spanDays = 1
+      while (i + spanDays < range.totalDays) {
+        const next = new Date(range.startDate + 'T00:00:00Z')
+        next.setUTCDate(next.getUTCDate() + i + spanDays)
+        if (next.getUTCDay() === 1) break
+        spanDays++
+      }
+      spans.push({ label, days: spanDays })
+      i += spanDays
+    } else {
+      // Monthly: span until next 1st or end of range
+      const label = d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit', timeZone: 'UTC' })
+      let spanDays = 1
+      while (i + spanDays < range.totalDays) {
+        const next = new Date(range.startDate + 'T00:00:00Z')
+        next.setUTCDate(next.getUTCDate() + i + spanDays)
+        if (next.getUTCDate() === 1) break
+        spanDays++
+      }
+      spans.push({ label, days: spanDays })
+      i += spanDays
+    }
   }
 
   return (
@@ -52,15 +114,13 @@ function DateHeader({
       style={{ height: HEADER_HEIGHT }}
       data-testid="gantt-date-header"
     >
-      {days.map((d, i) => (
+      {spans.map((span, idx) => (
         <div
-          key={i}
-          className={`flex shrink-0 items-end justify-center pb-1 text-[10px] text-[#6B5D52] ${
-            d.isMonday ? 'border-l border-[#E8DFD3]' : ''
-          }`}
-          style={{ width: dayWidth }}
+          key={idx}
+          className="flex shrink-0 items-end justify-center border-l border-[#E8DFD3] pb-1 text-[10px] text-[#6B5D52] overflow-hidden"
+          style={{ width: span.days * dayWidth }}
         >
-          {d.label}
+          {span.days * dayWidth >= 30 ? span.label : ''}
         </div>
       ))}
     </div>
@@ -263,7 +323,7 @@ function MobileGanttView({ stages, tasks }: Props) {
                 <div
                   className="relative"
                   style={{
-                    width: range.totalDays * DAY_WIDTH,
+                    width: range.totalDays * MOBILE_DAY_WIDTH,
                     minWidth: '100%',
                   }}
                 >
@@ -276,7 +336,7 @@ function MobileGanttView({ stages, tasks }: Props) {
                         className="relative"
                         style={{ height: ROW_HEIGHT }}
                       >
-                        <TaskBarEl bar={{ ...bar, row: idx }} dayWidth={DAY_WIDTH} />
+                        <TaskBarEl bar={{ ...bar, row: idx }} dayWidth={MOBILE_DAY_WIDTH} />
                       </div>
                     )
                   })}
@@ -290,9 +350,62 @@ function MobileGanttView({ stages, tasks }: Props) {
   )
 }
 
+// ---------- Zoom toolbar ----------
+
+const ZOOM_LEVELS: { key: ZoomLevel; label: string }[] = [
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'full', label: 'Full' },
+]
+
+function GanttToolbar({
+  zoom,
+  onZoomChange,
+  onJumpToToday,
+}: {
+  zoom: ZoomLevel
+  onZoomChange: (z: ZoomLevel) => void
+  onJumpToToday: () => void
+}) {
+  return (
+    <div className="mb-2 flex items-center gap-2" data-testid="gantt-toolbar">
+      <div className="flex rounded-md border border-[#E8DFD3] bg-white">
+        {ZOOM_LEVELS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={zoom === key}
+            onClick={() => onZoomChange(key)}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              zoom === key
+                ? 'bg-[#8B5E3C] text-white'
+                : 'text-[#6B5D52] hover:bg-[#F5F0EA]'
+            } ${key !== 'week' ? 'border-l border-[#E8DFD3]' : ''}`}
+            data-testid={`gantt-zoom-${key}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onJumpToToday}
+        className="rounded-md border border-[#E8DFD3] bg-white px-3 py-1.5 text-xs font-medium text-[#6B5D52] hover:bg-[#F5F0EA] transition-colors"
+        data-testid="gantt-jump-today"
+      >
+        Jump to Today
+      </button>
+    </div>
+  )
+}
+
 // ---------- Desktop view ----------
 
 function DesktopGanttView({ stages, tasks }: Props) {
+  const [zoom, setZoom] = useState<ZoomLevel>('week')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const { dayWidth, headerMode } = getZoomConfig(zoom)
+
   const range = useMemo(() => computeDateRange(tasks), [tasks])
   const bars = useMemo(
     () => computeTaskBars(tasks, stages, range),
@@ -331,13 +444,22 @@ function DesktopGanttView({ stages, tasks }: Props) {
     return map
   }, [sortedStages, tasksByStage, bars])
 
-  const chartWidth = range.totalDays * DAY_WIDTH
+  const chartWidth = range.totalDays * dayWidth
   // Total height: sum of stage headers + task rows
   let totalHeight = 0
   for (const stage of sortedStages) {
     totalHeight += STAGE_HEADER_HEIGHT
     totalHeight += (tasksByStage.get(stage.id) ?? []).length * ROW_HEIGHT
   }
+
+  const handleJumpToToday = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const todayPx = computeTodayOffset(range, dayWidth)
+    if (todayPx === null) return
+    const scrollTarget = todayPx - el.clientWidth / 2
+    el.scrollTo({ left: Math.max(0, scrollTarget), behavior: 'smooth' })
+  }, [range, dayWidth])
 
   if (tasks.length === 0) {
     return (
@@ -350,56 +472,59 @@ function DesktopGanttView({ stages, tasks }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#E8DFD3] bg-white" data-testid="gantt-desktop">
-      <div style={{ width: chartWidth, minWidth: '100%' }} className="relative">
-        <DateHeader range={range} dayWidth={DAY_WIDTH} />
+    <>
+      <GanttToolbar zoom={zoom} onZoomChange={setZoom} onJumpToToday={handleJumpToToday} />
+      <div ref={scrollRef} className="overflow-x-auto rounded-lg border border-[#E8DFD3] bg-white" data-testid="gantt-desktop">
+        <div style={{ width: chartWidth, minWidth: '100%' }} className="relative">
+          <DateHeader range={range} dayWidth={dayWidth} headerMode={headerMode} />
 
-        <div className="relative" style={{ height: totalHeight }}>
-          <TodayMarker range={range} dayWidth={DAY_WIDTH} totalHeight={totalHeight} />
-          <DependencyArrowsSvg arrows={arrows} dayWidth={DAY_WIDTH} rowOffsets={rowOffsets} />
+          <div className="relative" style={{ height: totalHeight }}>
+            <TodayMarker range={range} dayWidth={dayWidth} totalHeight={totalHeight} />
+            <DependencyArrowsSvg arrows={arrows} dayWidth={dayWidth} rowOffsets={rowOffsets} />
 
-          {/* Stage rows */}
-          {sortedStages.map(stage => {
-            const stageTasks = tasksByStage.get(stage.id) ?? []
-            return (
-              <div key={stage.id}>
-                {/* Stage header */}
-                <div
-                  className="flex items-center gap-2 border-b border-[#F0EAE0] bg-[#FAF7F2] px-3"
-                  style={{ height: STAGE_HEADER_HEIGHT }}
-                  data-testid={`gantt-stage-header-${stage.id}`}
-                >
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-sm"
-                    style={{ backgroundColor: stage.color }}
-                  />
-                  <span className="text-xs font-semibold text-[#2B1F17] truncate">
-                    {stage.name}
-                  </span>
-                  <span className="text-[10px] text-[#6B5D52]">
-                    {stageTasks.length} task{stageTasks.length !== 1 ? 's' : ''}
-                  </span>
+            {/* Stage rows */}
+            {sortedStages.map(stage => {
+              const stageTasks = tasksByStage.get(stage.id) ?? []
+              return (
+                <div key={stage.id}>
+                  {/* Stage header */}
+                  <div
+                    className="flex items-center gap-2 border-b border-[#F0EAE0] bg-[#FAF7F2] px-3"
+                    style={{ height: STAGE_HEADER_HEIGHT }}
+                    data-testid={`gantt-stage-header-${stage.id}`}
+                  >
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-sm"
+                      style={{ backgroundColor: stage.color }}
+                    />
+                    <span className="text-xs font-semibold text-[#2B1F17] truncate">
+                      {stage.name}
+                    </span>
+                    <span className="text-[10px] text-[#6B5D52]">
+                      {stageTasks.length} task{stageTasks.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {/* Task rows */}
+                  {stageTasks.map(task => {
+                    const bar = bars.find(b => b.taskId === task.id)
+                    if (!bar) return null
+                    return (
+                      <div
+                        key={task.id}
+                        className="relative border-b border-[#F5F0EA]"
+                        style={{ height: ROW_HEIGHT }}
+                      >
+                        <TaskBarEl bar={bar} dayWidth={dayWidth} />
+                      </div>
+                    )
+                  })}
                 </div>
-                {/* Task rows */}
-                {stageTasks.map(task => {
-                  const bar = bars.find(b => b.taskId === task.id)
-                  if (!bar) return null
-                  return (
-                    <div
-                      key={task.id}
-                      className="relative border-b border-[#F5F0EA]"
-                      style={{ height: ROW_HEIGHT }}
-                    >
-                      <TaskBarEl bar={bar} dayWidth={DAY_WIDTH} />
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

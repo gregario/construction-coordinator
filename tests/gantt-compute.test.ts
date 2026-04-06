@@ -4,10 +4,13 @@ import {
   computeTaskBars,
   computeDependencyArrows,
   daysBetween,
+  getZoomConfig,
+  computeTodayOffset,
   type GanttTask,
   type GanttStage,
   type TaskBar,
   type DependencyArrow,
+  type ZoomLevel,
 } from '@/lib/gantt/compute'
 
 // ---------- helpers ----------
@@ -236,5 +239,56 @@ describe('computeDependencyArrows — AC-GR-3', () => {
     const bars = computeTaskBars(tasks, stages, range)
     const arrows = computeDependencyArrows(tasks, bars)
     expect(arrows).toHaveLength(0)
+  })
+})
+
+// ---------- getZoomConfig ----------
+// @criterion: AC-GZ-1
+describe('getZoomConfig — AC-GZ-1', () => {
+  it('returns daily dayWidth for week zoom', () => {
+    const config = getZoomConfig('week')
+    expect(config.dayWidth).toBe(28)
+    expect(config.headerMode).toBe('daily')
+  })
+
+  it('returns smaller dayWidth for month zoom (weekly grid)', () => {
+    const config = getZoomConfig('month')
+    expect(config.dayWidth).toBe(8)
+    expect(config.headerMode).toBe('weekly')
+  })
+
+  it('returns smallest dayWidth for full zoom (monthly grid)', () => {
+    const config = getZoomConfig('full')
+    expect(config.dayWidth).toBe(3)
+    expect(config.headerMode).toBe('monthly')
+  })
+})
+
+// ---------- computeTodayOffset ----------
+// @criterion: AC-GZ-4
+describe('computeTodayOffset — AC-GZ-4', () => {
+  it('returns pixel offset of today from range start', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const range = { startDate: today, endDate: today, totalDays: 1 }
+    // Today is at offset 0 from startDate, center of day = 0 * dayWidth + dayWidth/2
+    const offset = computeTodayOffset(range, 28)
+    expect(offset).toBe(14) // 0 * 28 + 28/2
+  })
+
+  it('returns correct offset when today is several days in', () => {
+    // Make range start 5 days before today
+    const today = new Date()
+    const fiveDaysAgo = new Date(today)
+    fiveDaysAgo.setUTCDate(fiveDaysAgo.getUTCDate() - 5)
+    const startDate = fiveDaysAgo.toISOString().slice(0, 10)
+    const range = { startDate, endDate: today.toISOString().slice(0, 10), totalDays: 6 }
+    const offset = computeTodayOffset(range, 28)
+    expect(offset).toBe(5 * 28 + 14) // 5 days * 28px + half day
+  })
+
+  it('returns null when today is before range start', () => {
+    const range = { startDate: '2099-01-01', endDate: '2099-02-01', totalDays: 31 }
+    const offset = computeTodayOffset(range, 28)
+    expect(offset).toBeNull()
   })
 })
