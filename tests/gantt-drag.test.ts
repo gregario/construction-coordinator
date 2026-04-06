@@ -35,6 +35,8 @@ function makeTask(overrides: Partial<GanttTask> = {}): GanttTask {
   }
 }
 
+// @criterion: AC-GE-1, AC-GE-2
+// Resize drag (AC-GE-1) and move drag (AC-GE-2) depend on dayFromPixel/dateFromDayOffset helpers.
 // ---------- dayFromPixel ----------
 describe('dayFromPixel', () => {
   it('converts pixel offset to day index at dayWidth=28', () => {
@@ -68,6 +70,8 @@ describe('dateFromDayOffset', () => {
   })
 })
 
+// @criterion: AC-GE-1
+// AC-GE-1: Resize drag via mousedown on right 8px; computeResizeResult computes new duration, clamps to 1-day minimum.
 // ---------- computeResizeResult (AC-GE-1) ----------
 describe('computeResizeResult — AC-GE-1', () => {
   const range = makeRange({ startDate: '2026-03-31' })
@@ -98,6 +102,8 @@ describe('computeResizeResult — AC-GE-1', () => {
   })
 })
 
+// @criterion: AC-GE-2
+// AC-GE-2: Move drag via mousedown on bar body; computeMoveResult computes new start/end, preserves duration.
 // ---------- computeMoveResult (AC-GE-2) ----------
 describe('computeMoveResult — AC-GE-2', () => {
   const range = makeRange({ startDate: '2026-03-31' })
@@ -141,6 +147,8 @@ describe('computeMoveResult — AC-GE-2', () => {
   })
 })
 
+// @criterion: AC-GE-4
+// AC-GE-4: validateTaskDrop enforces dependency constraints; bar snaps back with error toast when dropped before dependency ends.
 // ---------- computeMinStartDay (AC-GE-4) ----------
 describe('computeMinStartDay — AC-GE-4', () => {
   const range = makeRange({ startDate: '2026-03-31' })

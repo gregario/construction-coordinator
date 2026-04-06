@@ -26,6 +26,11 @@ const mkDoc = (overrides: Partial<DocumentListItem> & { id: string }): DocumentL
   ...overrides,
 })
 
+// @criterion: AC-DS-1, AC-DS-2, AC-DS-3, AC-DS-4
+// AC-DS-1: Upload button + file input, stores file to Supabase Storage documents bucket.
+// AC-DS-2: Document rows with file type icon (pdf/word/excel/image/file), file name, upload date, file size.
+// AC-DS-3: Download button per document, calls getDocumentDownloadUrl for signed URL (60s expiry).
+// AC-DS-4: File input accept attribute restricts to allowed MIME types; 25MB limit enforced by validateDocumentFile.
 describe('TaskDocumentsManager', () => {
   const defaultProps = {
     projectId: 'proj-1',

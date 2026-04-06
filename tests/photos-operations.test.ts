@@ -8,6 +8,9 @@ import {
   type PhotoListItem,
 } from '@/lib/photos/operations'
 
+// @criterion: AC-PS-1, AC-PS-5
+// AC-PS-1: Photo upload validates MIME type (jpeg/png/webp/heic) and 10MB size limit before upload.
+// AC-PS-5: Client-side validatePhotoFile rejects unsupported types and files >10MB with specific error messages.
 // --- validatePhotoFile ---
 
 describe('validatePhotoFile', () => {
@@ -61,6 +64,8 @@ describe('validatePhotoFile', () => {
   })
 })
 
+// @criterion: AC-PS-1
+// AC-PS-1: Photo stored in Supabase Storage at {project_id}/{entity_id}/{timestamp}-{sanitized_name}.
 // --- buildStoragePath ---
 
 describe('buildStoragePath', () => {
@@ -121,6 +126,8 @@ describe('formatPhotoDate', () => {
   })
 })
 
+// @criterion: AC-PS-3
+// AC-PS-3: /photos gallery groups photos by stage (order_index order), unassigned group at end, sorted most-recent first.
 // --- groupPhotosByStage ---
 
 describe('groupPhotosByStage', () => {
