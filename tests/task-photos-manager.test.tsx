@@ -30,10 +30,6 @@ const mkPhoto = (overrides: Partial<PhotoListItem> & { id: string }): PhotoListI
   ...overrides,
 })
 
-// @criterion: AC-PS-1, AC-PS-2, AC-PS-4
-// AC-PS-1: Upload via file picker with capture="environment" for mobile camera, MIME/size validation.
-// AC-PS-2: Photo grid renders thumbnails with file_name, date, file_size; signed URL preview or "No preview" fallback.
-// AC-PS-4: Delete button (X) per photo calls deletePhoto server action.
 describe('TaskPhotosManager', () => {
   const defaultProps = {
     projectId: 'proj-1',
@@ -83,6 +79,8 @@ describe('TaskPhotosManager', () => {
     expect(screen.getByText('No preview')).toBeInTheDocument()
   })
 
+  // @criterion: AC-NI-2
+  // AC-NI-2: next/image used in TaskPhotosManager — thumbnails render via next/image with fill prop.
   it('renders next/image with fill prop when signed URL is available', () => {
     const photos = [mkPhoto({ id: 'p1', file_name: 'site.jpg' })]
     render(
@@ -98,6 +96,8 @@ describe('TaskPhotosManager', () => {
     expect(img).toHaveAttribute('data-fill', 'true')
   })
 
+  // @criterion: AC-NI-4
+  // AC-NI-4: Photo thumbnails retain aspect-square object-cover styling after next/image swap.
   it('preserves object-cover styling on next/image', () => {
     const photos = [mkPhoto({ id: 'p1', file_name: 'site.jpg' })]
     render(
