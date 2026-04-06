@@ -9,6 +9,10 @@ import {
   type ProjectTaskOption,
 } from '@/components/tasks/StageTasksManager'
 import { removeStaleDependencies, type DependencyEdge } from '@/lib/tasks/dependency-graph'
+import {
+  TaskDocumentsManager,
+  type DocumentListItem,
+} from '@/components/documents/TaskDocumentsManager'
 
 // lib/supabase/types.ts lacks Relationships[] (foundation-eval finding);
 // cast at the call site — same pattern as /setup and /schedule pages.
@@ -137,6 +141,15 @@ export default async function StageDetailPage({ params }: Props) {
     }
   }
 
+  // Load stage documents
+  const docsRes = await supabase
+    .from('documents')
+    .select('id, storage_path, file_name, file_type, file_size, created_at')
+    .eq('stage_id', stageId)
+    .is('task_id', null)
+    .order('created_at', { ascending: false })
+  const stageDocuments = (docsRes.data as DocumentListItem[] | null) ?? []
+
   return (
     <main className="mx-auto max-w-2xl p-4 md:p-8">
       <header className="mb-6">
@@ -165,6 +178,14 @@ export default async function StageDetailPage({ params }: Props) {
         initialDependencies={initialDependencies}
         availableTasks={availableTasks}
         trades={trades}
+      />
+
+      <TaskDocumentsManager
+        projectId={project.id}
+        entityId={stage.id}
+        entityType="stage"
+        stageId={null}
+        initialDocuments={stageDocuments}
       />
     </main>
   )
