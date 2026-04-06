@@ -1,6 +1,6 @@
 {
-  "name": "Construction Manager",
-  "short_name": "Build Manager",
+  "name": "Self-Self-Build Manager",
+  "short_name": "Self-Build Manager",
   "description": "Dynamic build scheduling for expert owner-builders",
   "start_url": "/briefing",
   "display": "standalone",

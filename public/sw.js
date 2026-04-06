@@ -1,4 +1,4 @@
-// Construction Manager Service Worker v1
+// Self-Build Manager Service Worker v1
 // Network-first caching, push notifications, offline fallback
 
 const CACHE_NAME = 'cm-v1';
@@ -80,7 +80,7 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  const { title = 'Construction Manager', body, url = '/briefing', tag } = event.data.json();
+  const { title = 'Self-Build Manager', body, url = '/briefing', tag } = event.data.json();
   event.waitUntil(
     self.registration.showNotification(title, {
       body,

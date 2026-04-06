@@ -49,7 +49,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2] px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-[#8B5E3C]">Construction Manager</h1>
+          <h1 className="text-2xl font-bold text-[#8B5E3C]">Self-Build Manager</h1>
           <p className="text-sm text-gray-500 mt-1">Start tracking your build today.</p>
         </div>
         <form
