@@ -337,7 +337,9 @@ export function StageTasksManager({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-[#2B1F17]">{task.name}</div>
+                    <div className="text-sm font-medium text-[#2B1F17]">
+                      <a href={`/tasks/${task.id}`} className="hover:underline">{task.name}</a>
+                    </div>
                     <div className="mt-1 text-xs text-[#6B5D52]">
                       {task.planned_start} → {task.planned_end} · {task.duration_days}d
                       {task.trade_id && tradeNameById.has(task.trade_id) && (

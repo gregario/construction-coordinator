@@ -188,19 +188,19 @@ export default async function SchedulePage() {
         <p className="text-[#6B5D52] text-sm">{project.name}</p>
       </header>
 
-      {/* Stage Manager — above Gantt for navigation */}
-      <section className="mb-4 max-w-2xl">
-        <StageManager projectId={project.id} initialStages={stagesWithCounts} />
-      </section>
-
-      {/* Gantt Chart */}
-      <section>
+      {/* Gantt Chart — primary visual dashboard */}
+      <section className="mb-6">
         <GanttChart
           stages={ganttStages}
           tasks={ganttTasks}
           projectId={project.id}
           taskDetails={taskDetailMap}
         />
+      </section>
+
+      {/* Stage Manager — below Gantt for editing */}
+      <section className="max-w-2xl">
+        <StageManager projectId={project.id} initialStages={stagesWithCounts} />
       </section>
     </div>
   )

@@ -197,7 +197,7 @@ export function TaskDetailPanel({
           className="w-full rounded-md bg-[#8B5E3C] px-3 py-2 text-sm font-medium text-white hover:bg-[#7A5234] transition-colors"
           data-testid="task-detail-edit"
         >
-          Edit Substage
+          View Details
         </button>
       </div>
     </div>
