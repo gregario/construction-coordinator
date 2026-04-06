@@ -1,19 +1,18 @@
 {
   "story_result": {
-    "story_id": "delay-logging",
+    "story_id": "dependency-validation",
     "outcome": "pass",
     "files_changed": [
-      "lib/tasks/delay.ts",
-      "tests/tasks-delay.test.ts",
+      "lib/tasks/dependency-graph.ts",
+      "tests/dependency-graph.test.ts",
       "app/actions/tasks.ts",
-      "components/tasks/TaskDelayLogger.tsx",
-      "app/(app)/tasks/[id]/page.tsx"
+      "components/tasks/StageTasksManager.tsx",
+      "app/(app)/stages/[id]/page.tsx"
     ],
-    "tests_added": 15,
-    "tests_passing": 221,
+    "tests_added": 18,
+    "tests_passing": 246,
     "env_limitations": [
-      "AC-DL-4 (offline queue + Delay synced toast): no client-side offline action queue exists. A service worker is registered (components/sw-register.tsx -> /sw.js) but has no sync/replay infra. logTaskDelay is safe to replay but the client currently surfaces a fetch error if offline. Implementation deferred to a future offline-sync story; flagged as factory_question and noted in skipped[].",
-      "logTaskDelay server action (cascade_task_dates RPC round-trip) is covered structurally by pure-logic unit tests for validateDelayDate + formatCascadeSummaryMessage. The RPC itself is not exercised in CI (no Supabase test harness). QA phase should bump a date on a seeded task and verify the summary overlay renders the downstream tasks and material count."
+      "addDependency/removeDependency/cleanStaleDependencies server actions exercise pure-logic cycle detection and stale-dep filtering via unit-tested functions, but the Supabase round-trip (task_dependencies insert/delete) is not exercised in CI (no Supabase test harness). QA phase should: (1) create a 3-task chain A→B→C, attempt to add C→A, verify inline error shows the cycle path; (2) manually delete a task via SQL and reload the stage page, verify the stale dep is removed."
     ]
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
@@ -459,6 +458,44 @@
       ],
       "tests_added": 15,
       "tests_passing": 15
+    },
+    {
+      "task": "cascade-material-sync",
+      "story_id": "cascade-material-sync",
+      "acceptance_criteria": [
+        "AC-CMS-1",
+        "AC-CMS-2",
+        "AC-CMS-3",
+        "AC-CMS-4"
+      ],
+      "files_changed": [
+        "lib/cascade/engine.ts",
+        "tests/cascade-engine.test.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/TaskDelayLogger.tsx"
+      ],
+      "tests_added": 7,
+      "tests_passing": 228,
+      "details": "Story spec in state.json carried no acceptance criteria — Builder defined AC-CMS-1..4 from story name (Cascade Material Order-By Sync) and affected_screens (/materials, /briefing). AC-CMS-1: new pure helper computeMaterialMovements(materials, taskNewStarts) in lib/cascade/engine.ts computes new order_by_date = new planned_start − lead_time_days for every material attached to a cascade-touched task, mirroring the SQL cascade_task_dates() UPDATE materials branch byte-for-byte (shares computeOrderByDate math). AC-CMS-2: updateTaskDuration and logTaskDelay now return MaterialMovement[] + materials_moved count. Server actions load material metadata (id/name/lead_time_days/task_id) via loadCascadeMaterials, build an old/new planned_start map per task_id from the RPC response (trigger + downstream), and call buildMaterialMovements to assemble the per-material old_order_by_date → new_order_by_date list with delta_days. Count excludes zero-delta trigger-task materials. AC-CMS-3/AC-CMS-4: both server actions now revalidatePath(\"/materials\") and revalidatePath(\"/briefing\") so the affected RSCs re-render with the updated order_by_date values. TaskDelayLogger overlay renders a second list below the task list: Material order-by dates moved — one row per moved material with old → new order_by_date, delta days, and parent task name (filtered to non-zero deltas). 7 new pure unit tests cover date arithmetic, skip-when-task-not-touched, null old_order_by_date, negative deltas, and zero-lead-time edge cases. Total suite: 228 tests passing. Typecheck + lint clean."
+    },
+    {
+      "task": "dependency-validation",
+      "story_id": "dependency-validation",
+      "acceptance_criteria": [
+        "AC-DV-1",
+        "AC-DV-2",
+        "AC-DV-3"
+      ],
+      "files_changed": [
+        "lib/tasks/dependency-graph.ts",
+        "tests/dependency-graph.test.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/StageTasksManager.tsx",
+        "app/(app)/stages/[id]/page.tsx"
+      ],
+      "tests_added": 18,
+      "tests_passing": 246,
+      "details": "AC-DV-1: Pure detectCycle(edges, proposed) uses DFS from the proposed dependency target, following existing depends_on edges. If the traversal reaches the proposing task, a cycle exists. formatCyclePath renders the cycle as 'This would create a circular dependency: A → B → A' using task names (falls back to IDs). Server-side: addDependency server action loads all project dependency edges, runs detectCycle, rejects with formatted error if cycle found. removeDependency action for unchecking deps. StageTasksManager adds a 'Deps' button per task opening a modal with checkboxes for all project tasks — toggling a checkbox calls addDependency/removeDependency, with inline error display (data-testid=dep-cycle-error) for cycle rejections. AC-DV-2: stages/[id] page RSC loads raw dependency edges, runs removeStaleDependencies(edges, validProjectTaskIds), deletes stale edges from task_dependencies table, passes only cleaned edges to the client. Also cleanStaleDependencies server action exposed for programmatic use. AC-DV-3: DFS is O(V+E) — unit tests verify cycle detection on 100-task chain, 200-task fan-out graph, and 500-task chain all complete under 500ms. 18 new unit tests across cycle detection (empty graph, direct cycle, transitive cycle, self-dep, fan-out, long chain), formatCyclePath (names, fallback IDs, 3-node), removeStaleDependencies (stale target, stale source, all valid, empty), and performance benchmarks. Total suite: 246 tests passing. Typecheck clean."
     }
   ],
   "skipped": [
@@ -1193,6 +1230,78 @@
       "affects": [
         "components/tasks/TaskDelayLogger.tsx"
       ]
+    },
+    {
+      "decision": "Builder-defined acceptance criteria for cascade-material-sync (spec was empty)",
+      "context": "state.json story entry for cascade-material-sync has no acceptance_criteria field — only name, affected_entities (Material), affected_screens (/materials, /briefing), depends_on (order-by-calculation, cascade-engine). story_context.spec was just {id, name}. Builder phase prompt says: ambiguity → check context, make decision, log as factory_decision.",
+      "alternatives_considered": [
+        "Block the story with a factory_question asking a human to write ACs — defeats the autonomous loop, and the story name + screens are specific enough to synthesize a coherent contract.",
+        "Inherit cascade-engine ACs (AC-CE-*) — those are about task cascade, not material sync; would duplicate coverage.",
+        "Treat the story as already complete (SQL already syncs materials) and skip — ignores the UI side of the \"sync\" (surfacing which materials moved in the overlay + revalidating /materials and /briefing)."
+      ],
+      "rationale": "Defined AC-CMS-1 (pure helper mirrors SQL material-update math), AC-CMS-2 (server actions return MaterialMovement[] not just a count), AC-CMS-3 (revalidate /materials on cascade), AC-CMS-4 (revalidate /briefing on cascade). These four criteria directly map to the story name (Cascade Material Order-By Sync) and the two affected_screens. Each AC has tests or a concrete revalidatePath call. QA can verify all four against seeded data.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/TaskDelayLogger.tsx"
+      ]
+    },
+    {
+      "decision": "Mirror SQL cascade_task_dates() material math in TypeScript (computeMaterialMovements) rather than read order_by_date back from DB",
+      "context": "The SQL cascade already writes the new order_by_date value in the same transaction. Two ways to surface per-material movements to the client: (a) after RPC, re-SELECT materials — get new value, lose old value; (b) mirror the math in JS using each task old/new planned_start + lead_time_days.",
+      "alternatives_considered": [
+        "Read order_by_date before + after the RPC — two extra round-trips, race with any concurrent cascade.",
+        "Extend cascade_task_dates() to RETURN material rows — bigger surface area, needs migration, changes the RPC contract cascade-engine/delay-logging already depend on.",
+        "Skip per-material movements, keep the count-only summary — loses fidelity; the user can see which tasks shifted but not which specific materials they need to rush orders for."
+      ],
+      "rationale": "computeMaterialMovements is a pure function sharing computeOrderByDate with lib/materials/operations.ts — same math the DB trigger and UI-predict path already use, so the three layers cannot diverge. Server action loads material metadata once (id/name/lead_time/task_id), builds old/new start map from RPC response, and computes both old and new order_by_date locally. No second DB read, no race, testable without mocks. Count of \"materials moved\" excludes zero-delta rows so the trigger task's own materials (whose planned_start is unchanged in both current cascade paths) do not inflate the number.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for dependency-validation story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 0 BUILD, 2 EXTEND, 1 REUSE, 0 REFACTOR-THEN-BUILD tasks. Key reuse: lib/tasks/dependency-graph.ts already contained detectCycle, formatCyclePath, removeStaleDependencies (all 18 tests passing). Extended: app/actions/tasks.ts (added addDependency/removeDependency/cleanStaleDependencies server actions), components/tasks/StageTasksManager.tsx (added Deps button + dep edit modal), app/(app)/stages/[id]/page.tsx (added stale dep cleanup on load).",
+      "confidence": "high",
+      "affects": ["dependency-validation"]
+    },
+    {
+      "decision": "Cycle detection gates addDependency (existing tasks), not createTask (new tasks)",
+      "context": "AC-DV-1 says 'when the user attempts to add A to B's depends_on array'. For a brand-new task with no ID yet, no other task can depend on it, so adding deps to a new task cannot create cycles. The cycle-detection gate belongs on the addDependency server action for existing tasks.",
+      "alternatives_considered": [
+        "Gate createTask with cycle detection — cycles are impossible for new tasks since no other task references them yet. Would add unnecessary DB queries on every task creation.",
+        "Only validate in the UI (client-side) — the server must be the authority to prevent bypass via API calls."
+      ],
+      "rationale": "addDependency loads all project edges, runs detectCycle (O(V+E) DFS), and rejects with the formatted cycle path. createTask skips the check because the new task is a DAG leaf by definition. Server-side validation prevents bypass.",
+      "confidence": "high",
+      "affects": ["app/actions/tasks.ts"]
+    },
+    {
+      "decision": "Stale dep cleanup on page load (RSC) rather than a background cron or explicit user action",
+      "context": "AC-DV-2 says 'WHEN the task is loaded, THEN the stale ID is automatically removed'. Options: cleanup on page load, background cron, explicit user action.",
+      "alternatives_considered": [
+        "Background cron job to periodically sweep stale deps — adds infrastructure for a rare scenario, delays cleanup until next sweep",
+        "Explicit 'Clean dependencies' button — adds UI surface, requires user awareness of stale deps"
+      ],
+      "rationale": "The stages/[id] RSC already loads tasks and deps. Running removeStaleDependencies on the loaded edges + deleting stale rows from the DB is zero-latency (same query, no extra round trip for the common case of zero stale deps). Matches AC-DV-2's 'when loaded' trigger literally. ON DELETE CASCADE on task_dependencies already handles most cases, so stale deps are rare — this is a safety net.",
+      "confidence": "high",
+      "affects": ["app/(app)/stages/[id]/page.tsx"]
+    },
+    {
+      "decision": "Available dep targets include ALL project tasks (not just other-stage tasks)",
+      "context": "The original stages/[id] page filtered availableTasks to exclude this stage's tasks. But dependencies within the same stage are valid (e.g., 'Pour foundation' before 'Damp proof course').",
+      "alternatives_considered": [
+        "Keep the cross-stage-only filter — prevents same-stage deps, which are valid and common in construction sequences",
+        "Show all tasks including self — the modal filter already excludes the task being edited"
+      ],
+      "rationale": "Changed availableTasks to include all project tasks. The dep editor modal filters out the task itself (opt.id !== depEditTarget.id). Same-stage deps are the most common case in construction (sequential tasks within a build phase).",
+      "confidence": "high",
+      "affects": ["app/(app)/stages/[id]/page.tsx", "components/tasks/StageTasksManager.tsx"]
     }
   ],
   "factory_questions": [
@@ -1313,7 +1422,7 @@
   },
   "_cycle_number": 1,
   "_current_milestone": "materials-scheduling",
-  "_current_story": "delay-logging",
+  "_current_story": "dependency-validation",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
