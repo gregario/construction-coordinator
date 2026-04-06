@@ -252,25 +252,23 @@ describe('GanttChart jump to today — AC-GZ-4', () => {
   })
 })
 
-// @criterion: AC-GE-1
-describe('GanttChart resize handle — AC-GE-1', () => {
-  it('renders resize handle on each task bar when projectId is provided', () => {
+// Gantt is read-only in v0.3.1 — no resize handles
+describe('GanttChart read-only (v0.3.1)', () => {
+  it('does NOT render resize handles (drag removed)', () => {
     render(
       <GanttChart stages={defaultStages} tasks={defaultTasks} projectId="proj-1" />
     )
 
-    expect(screen.getByTestId('gantt-resize-handle-task-1')).toBeInTheDocument()
-    expect(screen.getByTestId('gantt-resize-handle-task-2')).toBeInTheDocument()
-    expect(screen.getByTestId('gantt-resize-handle-task-3')).toBeInTheDocument()
+    expect(screen.queryByTestId('gantt-resize-handle-task-1')).not.toBeInTheDocument()
   })
 
-  it('resize handle has ew-resize cursor', () => {
+  it('task bars have pointer cursor (not grab)', () => {
     render(
       <GanttChart stages={defaultStages} tasks={defaultTasks} projectId="proj-1" />
     )
 
-    const handle = screen.getByTestId('gantt-resize-handle-task-1')
-    expect(handle.style.cursor || handle.className).toContain('ew-resize')
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    expect(bar.style.cursor).toBe('pointer')
   })
 })
 
@@ -294,8 +292,8 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
 
     const bar = screen.getByTestId('gantt-bar-task-1')
     // Simulate a click: mousedown then immediate mouseup without moving
-    fireEvent.mouseDown(bar, { clientX: 100 })
-    fireEvent.mouseUp(document)
+    fireEvent.click(bar)
+
 
     expect(screen.getByTestId('task-detail-panel')).toBeInTheDocument()
     expect(screen.getByTestId('task-detail-name')).toHaveTextContent('Excavation')
@@ -312,8 +310,8 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
     )
 
     const bar = screen.getByTestId('gantt-bar-task-1')
-    fireEvent.mouseDown(bar, { clientX: 100 })
-    fireEvent.mouseUp(document)
+    fireEvent.click(bar)
+
 
     expect(screen.getByTestId('task-detail-duration')).toHaveTextContent('5 days')
   })
@@ -329,8 +327,8 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
     )
 
     const bar = screen.getByTestId('gantt-bar-task-1')
-    fireEvent.mouseDown(bar, { clientX: 100 })
-    fireEvent.mouseUp(document)
+    fireEvent.click(bar)
+
 
     expect(screen.getByTestId('task-detail-trade')).toHaveTextContent('Concrete Ltd')
     expect(screen.getByTestId('task-detail-materials')).toBeInTheDocument()
@@ -348,8 +346,8 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
     )
 
     const bar = screen.getByTestId('gantt-bar-task-1')
-    fireEvent.mouseDown(bar, { clientX: 100 })
-    fireEvent.mouseUp(document)
+    fireEvent.click(bar)
+
 
     expect(screen.getByTestId('task-detail-panel')).toBeInTheDocument()
 
@@ -368,10 +366,10 @@ describe('GanttChart click → detail panel — AC-GE-3', () => {
     )
 
     const bar = screen.getByTestId('gantt-bar-task-1')
-    fireEvent.mouseDown(bar, { clientX: 100 })
-    fireEvent.mouseUp(document)
+    fireEvent.click(bar)
+
 
     expect(screen.getByTestId('task-detail-edit')).toBeInTheDocument()
-    expect(screen.getByTestId('task-detail-edit')).toHaveTextContent('Edit Substage')
+    expect(screen.getByTestId('task-detail-edit')).toHaveTextContent('View Details')
   })
 })

@@ -147,7 +147,7 @@ export function StagesAccordionView({ blocks, stagesByBlock }: StagesAccordionVi
                                   } hover:bg-[#F5F0E8] transition-colors`}
                                 >
                                   <Link
-                                    href={`/stages/${stage.id}`}
+                                    href={`/tasks/${task.id}`}
                                     className="flex-1 min-w-0 text-[#2B1F17] hover:underline truncate"
                                   >
                                     {task.name}

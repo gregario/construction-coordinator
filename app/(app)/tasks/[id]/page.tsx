@@ -173,11 +173,14 @@ export default async function TaskDetailPage({ params }: Props) {
         initialTradeId={task.trade_id}
       />
 
-      {task.planned_end && (
+      {task.planned_end && task.planned_start && (
         <TaskDelayLogger
           projectId={project.id}
           taskId={task.id}
+          taskName={task.name}
+          currentPlannedStart={task.planned_start}
           currentPlannedEnd={task.planned_end}
+          durationDays={task.duration_days ?? 1}
         />
       )}
 

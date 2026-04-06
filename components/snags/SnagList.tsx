@@ -39,6 +39,7 @@ export function SnagList({ projectId, initialSnags, blocks, stages, trades }: Sn
   const [blockId, setBlockId] = useState('')
   const [stageId, setStageId] = useState('')
   const [tradeId, setTradeId] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
 
   const openSnags = snags.filter(s => s.status === 'open')
   const inProgressSnags = snags.filter(s => s.status === 'in_progress')
@@ -96,7 +97,7 @@ export function SnagList({ projectId, initialSnags, blocks, stages, trades }: Sn
   function resetForm() {
     setTitle(''); setDescription(''); setPriority('medium')
     setBlockId(''); setStageId(''); setTradeId('')
-    setError(null)
+    setPhotoFile(null); setError(null)
   }
 
   const tradeMap = new Map(trades.map(t => [t.id, t.name]))
@@ -174,6 +175,24 @@ export function SnagList({ projectId, initialSnags, blocks, stages, trades }: Sn
               <option value="">No stage</option>
               {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+          </div>
+          {/* Photo upload */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-[#6B5D52] hover:text-[#2B1F17]">
+              <span className="rounded-md border border-[#E8DFD3] bg-white px-3 py-1.5">
+                📷 Add Photo
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) setPhotoFile(file)
+                }}
+              />
+              {photoFile && <span className="text-xs text-[#5A8050]">{photoFile.name}</span>}
+            </label>
           </div>
           {error && <p role="alert" className="text-xs text-[#B85450]">{error}</p>}
           <div className="flex gap-2">

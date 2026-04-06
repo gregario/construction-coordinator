@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState, useCallback, useTransition } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   computeDateRange,
@@ -15,14 +15,6 @@ import {
   type DependencyArrow,
   type ZoomLevel,
 } from '@/lib/gantt/compute'
-import {
-  computeResizeResult,
-  computeMoveResult,
-  validateTaskDrop,
-  dayFromPixel,
-} from '@/lib/gantt/drag'
-import { updateTaskDuration } from '@/app/actions/tasks'
-import { moveTaskDates } from '@/app/actions/tasks'
 import { TaskDetailPanel } from './TaskDetailPanel'
 
 // ---------- constants ----------
@@ -31,8 +23,7 @@ const STAGE_HEADER_HEIGHT = 32
 const MOBILE_DAY_WIDTH = 28
 const BAR_PADDING_Y = 4
 const HEADER_HEIGHT = 48
-const RESIZE_HANDLE_WIDTH = 8
-const DRAG_THRESHOLD_PX = 4 // Minimum px moved before a mousedown is treated as drag vs click
+// Gantt is read-only (v0.3.1) — click to view details, no dragging
 
 export type TaskDetailData = {
   tradeName: string | null
@@ -201,9 +192,7 @@ function TodayMarker({
   )
 }
 
-// ---------- Interactive Task Bar (AC-GE-1, AC-GE-2, AC-GE-3) ----------
-
-type DragMode = 'none' | 'resize' | 'move'
+// ---------- Clickable Task Bar (read-only Gantt, v0.3.1) ----------
 
 function InteractiveTaskBar({
   bar,
@@ -222,125 +211,27 @@ function InteractiveTaskBar({
   onTaskClick: (taskId: string) => void
   onToast: (msg: string) => void
 }) {
-  const [dragState, setDragState] = useState<{
-    mode: DragMode
-    startX: number
-    currentDeltaPx: number
-  } | null>(null)
-  const [isPending, startTransition] = useTransition()
   const barRef = useRef<HTMLDivElement>(null)
 
   const baseLeft = bar.startDay * dayWidth
   const baseWidth = Math.max(bar.widthDays * dayWidth - 2, dayWidth * 0.5)
 
-  // Apply drag preview offsets
-  let displayLeft = baseLeft
-  let displayWidth = baseWidth
-  if (dragState) {
-    if (dragState.mode === 'resize') {
-      const newRight = baseLeft + baseWidth + dragState.currentDeltaPx
-      displayWidth = Math.max(newRight - baseLeft, dayWidth * 0.5)
-    } else if (dragState.mode === 'move') {
-      displayLeft = baseLeft + dragState.currentDeltaPx
-    }
-  }
+  const displayLeft = baseLeft
+  const displayWidth = baseWidth
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent, mode: DragMode) => {
-      if (!projectId) return
-      e.preventDefault()
-      e.stopPropagation()
+  const handleClick = useCallback(() => {
+    onTaskClick(bar.taskId)
+  }, [bar.taskId, onTaskClick])
 
-      const startX = e.clientX
-      let currentDeltaPx = 0
-      let hasDragged = false
-
-      setDragState({ mode, startX, currentDeltaPx: 0 })
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        currentDeltaPx = moveEvent.clientX - startX
-        if (Math.abs(currentDeltaPx) >= DRAG_THRESHOLD_PX) {
-          hasDragged = true
-        }
-        setDragState({ mode, startX, currentDeltaPx })
-      }
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-        setDragState(null)
-
-        // If we didn't drag enough, treat as a click (AC-GE-3)
-        if (!hasDragged) {
-          onTaskClick(bar.taskId)
-          return
-        }
-
-        // Process the drag result
-        if (mode === 'resize') {
-          // AC-GE-1: compute new duration from right edge position
-          const newRightPx = baseLeft + baseWidth + currentDeltaPx
-          const result = computeResizeResult(bar, newRightPx, dayWidth, range)
-          if (result.newDurationDays === bar.widthDays) return // no change
-
-          startTransition(async () => {
-            const res = await updateTaskDuration({
-              projectId,
-              taskId: bar.taskId,
-              durationDays: result.newDurationDays,
-            })
-            if (!res.ok) {
-              onToast(res.error)
-            }
-          })
-        } else if (mode === 'move') {
-          // AC-GE-2: compute new start/end from drag delta
-          const result = computeMoveResult(bar, currentDeltaPx, dayWidth, range)
-          if (result.deltaDays === 0) return // no change
-
-          // AC-GE-4: validate against dependency constraints
-          const newStartDay = bar.startDay + result.deltaDays
-          const validation = validateTaskDrop(bar.taskId, newStartDay, tasks, range)
-          if (!validation.valid) {
-            onToast(validation.reason)
-            return // snap back — state already cleared
-          }
-
-          startTransition(async () => {
-            const res = await moveTaskDates({
-              projectId,
-              taskId: bar.taskId,
-              newPlannedStart: result.newStartDate,
-              newPlannedEnd: result.newEndDate,
-            })
-            if (!res.ok) {
-              onToast(res.error)
-            }
-          })
-        }
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    },
-    [projectId, bar, dayWidth, baseLeft, baseWidth, range, tasks, onTaskClick, onToast],
-  )
-
-  const opacity = bar.isComplete ? 0.65 : isPending ? 0.5 : 1
-  const cursor = dragState
-    ? dragState.mode === 'resize'
-      ? 'ew-resize'
-      : 'grabbing'
-    : projectId
-      ? 'grab'
-      : 'default'
+  const opacity = bar.isComplete ? 0.65 : 1
+  const cursor = 'pointer'
 
   return (
     <div
       ref={barRef}
       className={`absolute flex items-center overflow-hidden rounded text-[10px] font-medium text-white select-none ${
         bar.isDelayed ? 'ring-2 ring-red-500' : ''
-      } ${dragState ? 'z-30 shadow-lg' : ''}`}
+      }`}
       style={{
         left: displayLeft,
         width: displayWidth,
@@ -349,19 +240,11 @@ function InteractiveTaskBar({
         backgroundColor: bar.color,
         opacity,
         cursor,
-        transition: dragState ? 'none' : 'left 0.15s, width 0.15s',
+        transition: 'left 0.15s, width 0.15s',
       }}
       title={`${bar.taskName}${bar.isDelayed ? ` (+${bar.delayDays}d delay)` : ''}`}
       data-testid={`gantt-bar-${bar.taskId}`}
-      onMouseDown={(e) => {
-        // Check if clicking the resize handle
-        const rect = barRef.current?.getBoundingClientRect()
-        if (rect && e.clientX >= rect.right - RESIZE_HANDLE_WIDTH) {
-          handleMouseDown(e, 'resize')
-        } else {
-          handleMouseDown(e, 'move')
-        }
-      }}
+      onClick={handleClick}
     >
       <span className="truncate px-1.5 pointer-events-none">
         {bar.isComplete && <span aria-label="Complete">✓ </span>}
@@ -371,18 +254,6 @@ function InteractiveTaskBar({
         <span className="ml-auto shrink-0 pr-1 text-[9px] font-bold text-red-200 pointer-events-none">
           +{bar.delayDays}d
         </span>
-      )}
-      {/* Resize handle — right edge (AC-GE-1) */}
-      {projectId && (
-        <div
-          className="absolute right-0 top-0 h-full cursor-ew-resize"
-          style={{ width: RESIZE_HANDLE_WIDTH }}
-          data-testid={`gantt-resize-handle-${bar.taskId}`}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            handleMouseDown(e, 'resize')
-          }}
-        />
       )}
     </div>
   )
