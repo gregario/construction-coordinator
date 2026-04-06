@@ -1,6 +1,34 @@
 // Pure computation functions for Gantt chart rendering.
 // No DOM, no Supabase. Unit-testable without mocks.
 
+export type ZoomLevel = 'week' | 'month' | 'full'
+
+export type ZoomConfig = {
+  dayWidth: number
+  headerMode: 'daily' | 'weekly' | 'monthly'
+}
+
+export function getZoomConfig(zoom: ZoomLevel): ZoomConfig {
+  switch (zoom) {
+    case 'week':
+      return { dayWidth: 28, headerMode: 'daily' }
+    case 'month':
+      return { dayWidth: 8, headerMode: 'weekly' }
+    case 'full':
+      return { dayWidth: 3, headerMode: 'monthly' }
+  }
+}
+
+export function computeTodayOffset(
+  range: { startDate: string },
+  dayWidth: number,
+): number | null {
+  const today = new Date().toISOString().slice(0, 10)
+  const offset = daysBetween(range.startDate, today)
+  if (offset < 0) return null
+  return offset * dayWidth + dayWidth / 2
+}
+
 export type GanttStage = {
   id: string
   name: string

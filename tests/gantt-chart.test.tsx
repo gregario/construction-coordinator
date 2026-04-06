@@ -168,3 +168,75 @@ describe('GanttChart empty state', () => {
     expect(screen.getByText(/No tasks to display/)).toBeInTheDocument()
   })
 })
+
+// @criterion: AC-GZ-1
+describe('GanttChart zoom controls — AC-GZ-1', () => {
+  it('renders Week, Month, Full zoom buttons', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    expect(screen.getByTestId('gantt-zoom-week')).toBeInTheDocument()
+    expect(screen.getByTestId('gantt-zoom-month')).toBeInTheDocument()
+    expect(screen.getByTestId('gantt-zoom-full')).toBeInTheDocument()
+  })
+
+  it('Week button is active by default', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    const weekBtn = screen.getByTestId('gantt-zoom-week')
+    expect(weekBtn.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('clicking Month button changes the active zoom level', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    const monthBtn = screen.getByTestId('gantt-zoom-month')
+    fireEvent.click(monthBtn)
+
+    expect(monthBtn.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('gantt-zoom-week').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('zoom changes the chart width (month narrower than week)', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    const chartContainer = screen.getByTestId('gantt-desktop')
+    const weekWidth = chartContainer.firstElementChild!.getAttribute('style')
+
+    fireEvent.click(screen.getByTestId('gantt-zoom-month'))
+    const monthWidth = chartContainer.firstElementChild!.getAttribute('style')
+
+    // Month zoom should produce a different (narrower) width
+    expect(monthWidth).not.toBe(weekWidth)
+  })
+})
+
+// @criterion: AC-GZ-2
+describe('GanttChart today marker — AC-GZ-2', () => {
+  it('renders today marker with "Today" label', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    const marker = screen.getByTestId('gantt-today-marker')
+    expect(marker).toBeInTheDocument()
+    expect(marker).toHaveTextContent('Today')
+  })
+})
+
+// @criterion: AC-GZ-3
+describe('GanttChart horizontal scroll — AC-GZ-3', () => {
+  it('desktop container has overflow-x-auto for native scroll', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    const container = screen.getByTestId('gantt-desktop')
+    expect(container.className).toContain('overflow-x-auto')
+  })
+})
+
+// @criterion: AC-GZ-4
+describe('GanttChart jump to today — AC-GZ-4', () => {
+  it('renders a Jump to Today button', () => {
+    render(<GanttChart stages={defaultStages} tasks={defaultTasks} />)
+
+    expect(screen.getByTestId('gantt-jump-today')).toBeInTheDocument()
+    expect(screen.getByTestId('gantt-jump-today')).toHaveTextContent(/today/i)
+  })
+})
