@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   validateProjectForm,
   hasBlockingErrors,
@@ -23,6 +24,7 @@ function readDraftField(key: 'name' | 'address' | 'start_date'): string {
 }
 
 export function ProjectCreationForm() {
+  const router = useRouter()
   // AC-PS-5: lazy initialisers restore the draft from localStorage on mount (client-only).
   const [name, setName] = useState(() => readDraftField('name'))
   const [address, setAddress] = useState(() => readDraftField('address'))
@@ -66,7 +68,6 @@ export function ProjectCreationForm() {
 
     startTransition(async () => {
       const res = await createProject(fd)
-      // createProject redirects on success, so we only reach here on failure
       if (res && res.ok === false) {
         if (res.field === 'name' || res.field === 'start_date') {
           setErrors({ [res.field]: res.error } as ProjectFormErrors)
@@ -75,8 +76,10 @@ export function ProjectCreationForm() {
         }
         return
       }
-      // success path: clear the draft
+      // Success — clear draft and navigate to setup flow
       clearDraft()
+      router.push('/setup')
+      router.refresh()
     })
   }
 

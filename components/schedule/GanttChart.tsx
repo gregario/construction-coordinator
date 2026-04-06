@@ -27,7 +27,11 @@ const HEADER_HEIGHT = 48
 
 export type TaskDetailData = {
   tradeName: string | null
+  tradePhone: string | null
   materials: { id: string; name: string }[]
+  materialOverdueCount: number
+  openSnagCount: number
+  delayReason: string | null
 }
 
 type Props = {
@@ -660,7 +664,11 @@ function DesktopGanttView({ stages, tasks, projectId, taskDetails }: Props) {
           stageName={selectedStage.name}
           stageColor={selectedStage.color}
           tradeName={selectedDetail?.tradeName ?? null}
+          tradePhone={selectedDetail?.tradePhone ?? null}
           materials={selectedDetail?.materials ?? []}
+          materialOverdueCount={selectedDetail?.materialOverdueCount ?? 0}
+          openSnagCount={selectedDetail?.openSnagCount ?? 0}
+          delayReason={selectedDetail?.delayReason ?? null}
           onClose={() => setSelectedTaskId(null)}
           onEditClick={() => {
             router.push(`/tasks/${selectedTask.id}`)

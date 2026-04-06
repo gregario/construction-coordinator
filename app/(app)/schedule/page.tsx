@@ -96,11 +96,11 @@ export default async function SchedulePage() {
   // Fetch tasks for Gantt chart
   const taskRes = await supabase
     .from('tasks')
-    .select('id, stage_id, name, planned_start, planned_end, duration_days, status, actual_end, order_index, trade_id')
+    .select('id, stage_id, name, planned_start, planned_end, duration_days, status, actual_end, order_index, trade_id, delay_reason')
     .eq('project_id', project.id)
     .order('order_index', { ascending: true })
 
-  const taskRows = (taskRes.data as TaskRow[] | null) ?? []
+  const taskRows = (taskRes.data as (TaskRow & { delay_reason: string | null })[] | null) ?? []
 
   // Fetch task dependencies
   let depRows: TaskDepRow[] = []
@@ -117,23 +117,44 @@ export default async function SchedulePage() {
   // Fetch trades for task detail panel (AC-GE-3)
   const tradesRes = await supabase
     .from('trades')
-    .select('id, name')
+    .select('id, name, phone')
     .eq('project_id', project.id)
-  const tradeRows = (tradesRes.data as TradeRow[] | null) ?? []
+  const tradeRows = (tradesRes.data as (TradeRow & { phone: string | null })[] | null) ?? []
   const tradeMap: Record<string, string> = {}
-  for (const t of tradeRows) tradeMap[t.id] = t.name
+  const tradePhoneMap: Record<string, string | null> = {}
+  for (const t of tradeRows) {
+    tradeMap[t.id] = t.name
+    tradePhoneMap[t.id] = t.phone ?? null
+  }
 
   // Fetch materials for task detail panel (AC-GE-3)
   const materialsRes = await supabase
     .from('materials')
-    .select('id, name, task_id')
+    .select('id, name, task_id, order_status, order_by_date')
     .eq('project_id', project.id)
-  const materialRows = (materialsRes.data as MaterialRow[] | null) ?? []
+  const materialRows = (materialsRes.data as (MaterialRow & { order_status: string; order_by_date: string | null })[] | null) ?? []
   const materialsByTask: Record<string, { id: string; name: string }[]> = {}
+  const materialOverdueByTask: Record<string, number> = {}
+  const today = new Date().toISOString().split('T')[0]
   for (const m of materialRows) {
     const list = materialsByTask[m.task_id] ?? []
     list.push({ id: m.id, name: m.name })
     materialsByTask[m.task_id] = list
+    if (m.order_by_date && m.order_by_date < today && (m.order_status === 'not_quoted' || m.order_status === 'quoted')) {
+      materialOverdueByTask[m.task_id] = (materialOverdueByTask[m.task_id] || 0) + 1
+    }
+  }
+
+  // Fetch snag counts per stage
+  const snagsRes = await supabase
+    .from('snags')
+    .select('stage_id, status')
+    .eq('project_id', project.id)
+    .neq('status', 'resolved')
+  const snagRows = (snagsRes.data ?? []) as { stage_id: string | null; status: string }[]
+  const openSnagsByStage: Record<string, number> = {}
+  for (const s of snagRows) {
+    if (s.stage_id) openSnagsByStage[s.stage_id] = (openSnagsByStage[s.stage_id] || 0) + 1
   }
 
   // Build dependency map
@@ -170,7 +191,11 @@ export default async function SchedulePage() {
   for (const t of taskRows) {
     taskDetailMap[t.id] = {
       tradeName: t.trade_id ? (tradeMap[t.trade_id] ?? null) : null,
+      tradePhone: t.trade_id ? (tradePhoneMap[t.trade_id] ?? null) : null,
       materials: materialsByTask[t.id] ?? [],
+      materialOverdueCount: materialOverdueByTask[t.id] ?? 0,
+      openSnagCount: openSnagsByStage[t.stage_id] ?? 0,
+      delayReason: t.delay_reason ?? null,
     }
   }
 

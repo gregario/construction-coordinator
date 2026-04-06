@@ -8,7 +8,11 @@ type Props = {
   stageName: string
   stageColor: string
   tradeName: string | null
+  tradePhone: string | null
   materials: { id: string; name: string }[]
+  materialOverdueCount: number
+  openSnagCount: number
+  delayReason: string | null
   onClose: () => void
   onEditClick: () => void
 }
@@ -22,7 +26,11 @@ export function TaskDetailPanel({
   stageName,
   stageColor,
   tradeName,
+  tradePhone,
   materials,
+  materialOverdueCount,
+  openSnagCount,
+  delayReason,
   onClose,
   onEditClick,
 }: Props) {
@@ -146,6 +154,14 @@ export function TaskDetailPanel({
           </div>
         </div>
 
+        {/* Delay reason */}
+        {delayReason && (
+          <div className="rounded-md bg-[#C97A3F]/10 border border-[#C97A3F]/20 px-3 py-2">
+            <p className="text-xs font-medium text-[#A0603A]">Delayed</p>
+            <p className="text-xs text-[#6B5D52] mt-0.5">{delayReason}</p>
+          </div>
+        )}
+
         {/* Trade */}
         <div>
           <h4 className="text-xs font-semibold text-[#6B5D52] uppercase tracking-wide mb-1">
@@ -154,6 +170,11 @@ export function TaskDetailPanel({
           <p className="text-sm text-[#2B1F17]" data-testid="task-detail-trade">
             {tradeName ?? 'Unassigned'}
           </p>
+          {tradePhone && (
+            <a href={`tel:${tradePhone}`} className="text-xs text-[#8B5E3C] hover:underline mt-0.5 block">
+              {tradePhone}
+            </a>
+          )}
         </div>
 
         {/* Materials */}
@@ -166,15 +187,38 @@ export function TaskDetailPanel({
               No materials attached
             </p>
           ) : (
-            <ul className="space-y-1" data-testid="task-detail-materials">
-              {materials.map(m => (
-                <li key={m.id} className="text-sm text-[#2B1F17]">
-                  {m.name}
-                </li>
-              ))}
-            </ul>
+            <div data-testid="task-detail-materials">
+              <p className="text-sm text-[#2B1F17]">
+                {materials.length} material{materials.length !== 1 ? 's' : ''}
+                {materialOverdueCount > 0 && (
+                  <span className="ml-1.5 text-xs font-medium text-[#B85450]">
+                    · {materialOverdueCount} overdue
+                  </span>
+                )}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {materials.slice(0, 3).map(m => (
+                  <li key={m.id} className="text-xs text-[#6B5D52]">{m.name}</li>
+                ))}
+                {materials.length > 3 && (
+                  <li className="text-xs text-[#A89A8C]">+{materials.length - 3} more</li>
+                )}
+              </ul>
+            </div>
           )}
         </div>
+
+        {/* Snags */}
+        {openSnagCount > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-[#6B5D52] uppercase tracking-wide mb-1">
+              Snags
+            </h4>
+            <p className="text-sm text-[#C97A3F] font-medium">
+              {openSnagCount} open snag{openSnagCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
 
         {/* Dependencies */}
         {task.depends_on.length > 0 && (

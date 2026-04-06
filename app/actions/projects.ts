@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { validateProjectForm, hasBlockingErrors } from '@/lib/projects/validate'
 
@@ -60,7 +59,7 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
   }
 
   revalidatePath('/', 'layout')
-  redirect('/setup')
+  return { ok: true }
 }
 
 export async function updateProjectDetails(
