@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ensureNotificationPreferences } from '@/app/actions/notifications'
 import { PushNotificationToggle } from '@/components/notifications/PushNotificationToggle'
+import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -23,43 +24,11 @@ export default async function SettingsPage() {
           <h2 className="text-sm font-semibold text-[#2B1F17] mb-3">Notifications</h2>
           <div className="divide-y divide-[#F0EBE4]">
             <PushNotificationToggle />
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <span className="text-sm text-[#2B1F17]">Material order reminders</span>
-                <p className="text-xs text-[#6B5D52]">
-                  Alert {prefs.order_warning_days} days before order-by date
-                </p>
-              </div>
-              <span className="text-xs text-[#87A96B] font-medium">
-                {prefs.order_deadlines ? 'On' : 'Off'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <span className="text-sm text-[#2B1F17]">Overdue task alerts</span>
-                <p className="text-xs text-[#6B5D52]">
-                  Daily notification when tasks pass their end date
-                </p>
-              </div>
-              <span className="text-xs text-[#87A96B] font-medium">
-                {prefs.overdue_tasks ? 'On' : 'Off'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <span className="text-sm text-[#2B1F17]">Cascade summaries</span>
-                <p className="text-xs text-[#6B5D52]">
-                  Notify when schedule changes cascade to downstream tasks
-                </p>
-              </div>
-              <span className="text-xs text-[#87A96B] font-medium">
-                {prefs.cascade_summaries ? 'On' : 'Off'}
-              </span>
-            </div>
           </div>
+          <NotificationPreferencesPanel initialPrefs={prefs} />
         </div>
 
-        {/* Project Details — placeholder for notification-settings story */}
+        {/* Project Details — placeholder */}
         <div className="bg-white rounded-lg border border-[#E8DFD3] p-4">
           <h2 className="text-sm font-semibold text-[#2B1F17] mb-3">Project Details</h2>
           <div className="space-y-2">
