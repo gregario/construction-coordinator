@@ -493,6 +493,133 @@ export async function updateTaskDuration(
   }
 }
 
+// ---------------------------------------------------------------------------
+// AC-GE-2: move task dates (shift both planned_start and planned_end by a delta).
+// Used when the user drags the entire Gantt bar to a new position.
+// ---------------------------------------------------------------------------
+
+export type MoveTaskDatesInput = {
+  projectId: string
+  taskId: string
+  newPlannedStart: string // ISO YYYY-MM-DD
+  newPlannedEnd: string   // ISO YYYY-MM-DD
+}
+
+export type MoveTaskDatesResult =
+  | {
+      ok: true
+      task: { id: string; planned_start: string; planned_end: string; duration_days: number }
+      cascade_summary: CascadeSummary
+      material_movements: MaterialMovement[]
+      materials_moved: number
+    }
+  | { ok: false; error: string }
+
+export async function moveTaskDates(
+  input: MoveTaskDatesInput
+): Promise<MoveTaskDatesResult> {
+  if (!input.projectId || !input.taskId) {
+    return { ok: false, error: 'Project and task required' }
+  }
+
+  const supabase = (await createClient()) as unknown as LooseClient
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'You must be signed in' }
+
+  const owned = await verifyProjectOwnership(supabase, input.projectId, user.id)
+  if (!owned.ok) return owned
+
+  const taskRes = await supabase
+    .from('tasks')
+    .select('id, project_id, stage_id, name, planned_start, planned_end, duration_days')
+    .eq('id', input.taskId)
+    .single()
+  if (taskRes.error || !taskRes.data) {
+    return { ok: false, error: 'Task not found' }
+  }
+  const task = taskRes.data as {
+    id: string
+    project_id: string
+    stage_id: string
+    name: string
+    planned_start: string
+    planned_end: string
+    duration_days: number
+  }
+  if (task.project_id !== input.projectId) {
+    return { ok: false, error: 'Task not found' }
+  }
+
+  // Call cascade_task_dates RPC with the new start and end dates.
+  // The RPC updates this task AND all downstream tasks atomically.
+  const cascadeRes = await supabase.rpc('cascade_task_dates', {
+    p_task_id: input.taskId,
+    p_new_planned_start: input.newPlannedStart,
+    p_new_planned_end: input.newPlannedEnd,
+  })
+  if (cascadeRes.error) {
+    return { ok: false, error: `Cascade failed: ${cascadeRes.error.message}` }
+  }
+
+  const changes = (cascadeRes.data as CascadeChange[] | null) ?? []
+
+  // Build material movements for every task the cascade touched
+  const affectedTaskIds = [input.taskId, ...changes.map(c => c.task_id)]
+  const taskOldStarts: Record<string, string> = {
+    [input.taskId]: task.planned_start,
+  }
+  const taskNewStarts: Record<string, string> = {
+    [input.taskId]: input.newPlannedStart,
+  }
+  const taskNameById: Record<string, string> = { [input.taskId]: task.name }
+  for (const c of changes) {
+    taskOldStarts[c.task_id] = c.old_planned_start
+    taskNewStarts[c.task_id] = c.new_planned_start
+    taskNameById[c.task_id] = c.task_name
+  }
+  const materials = await loadCascadeMaterials(supabase, affectedTaskIds, taskNameById)
+  const material_movements = buildMaterialMovements(materials, taskOldStarts, taskNewStarts)
+  const materials_moved = material_movements.filter(
+    m => m.delta_days !== 0 && m.delta_days !== null
+  ).length
+
+  revalidatePath('/schedule')
+  revalidatePath('/briefing')
+  revalidatePath('/materials')
+  revalidatePath(`/stages/${task.stage_id}`)
+  revalidatePath(`/tasks/${input.taskId}`)
+
+  const cascade_summary = buildCascadeSummary(
+    {
+      task_id: input.taskId,
+      task_name: task.name,
+      old_planned_start: task.planned_start,
+      old_planned_end: task.planned_end,
+      new_planned_start: input.newPlannedStart,
+      new_planned_end: input.newPlannedEnd,
+    },
+    changes as CascadeResult[]
+  )
+
+  // Record shift alerts
+  const taskAlerts = buildTaskShiftAlerts(cascade_summary.movements, input.projectId, user.id)
+  const matAlerts = buildMaterialShiftAlerts(material_movements, input.projectId, user.id)
+  await insertShiftAlerts(supabase, [...taskAlerts, ...matAlerts])
+
+  return {
+    ok: true,
+    task: {
+      id: input.taskId,
+      planned_start: input.newPlannedStart,
+      planned_end: input.newPlannedEnd,
+      duration_days: task.duration_days,
+    },
+    cascade_summary,
+    material_movements,
+    materials_moved,
+  }
+}
+
 // AC-DL-1/2/3: log a delay against a task. Moves the task's planned_end to a
 // strictly later user-picked date, runs cascade_task_dates() to propagate the
 // delta to every downstream task + material order-by date, and returns the
