@@ -1,7 +1,18 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { GanttChart } from '@/components/schedule/GanttChart'
 import type { GanttStage, GanttTask } from '@/lib/gantt/compute'
+
+// Mock next/navigation
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
+// Mock server actions (they import createClient which doesn't exist in test env)
+vi.mock('@/app/actions/tasks', () => ({
+  updateTaskDuration: vi.fn(async () => ({ ok: true })),
+  moveTaskDates: vi.fn(async () => ({ ok: true })),
+}))
 
 // ---------- helpers ----------
 function makeStage(overrides: Partial<GanttStage> = {}): GanttStage {
@@ -238,5 +249,129 @@ describe('GanttChart jump to today — AC-GZ-4', () => {
 
     expect(screen.getByTestId('gantt-jump-today')).toBeInTheDocument()
     expect(screen.getByTestId('gantt-jump-today')).toHaveTextContent(/today/i)
+  })
+})
+
+// @criterion: AC-GE-1
+describe('GanttChart resize handle — AC-GE-1', () => {
+  it('renders resize handle on each task bar when projectId is provided', () => {
+    render(
+      <GanttChart stages={defaultStages} tasks={defaultTasks} projectId="proj-1" />
+    )
+
+    expect(screen.getByTestId('gantt-resize-handle-task-1')).toBeInTheDocument()
+    expect(screen.getByTestId('gantt-resize-handle-task-2')).toBeInTheDocument()
+    expect(screen.getByTestId('gantt-resize-handle-task-3')).toBeInTheDocument()
+  })
+
+  it('resize handle has ew-resize cursor', () => {
+    render(
+      <GanttChart stages={defaultStages} tasks={defaultTasks} projectId="proj-1" />
+    )
+
+    const handle = screen.getByTestId('gantt-resize-handle-task-1')
+    expect(handle.style.cursor || handle.className).toContain('ew-resize')
+  })
+})
+
+// @criterion: AC-GE-3
+describe('GanttChart click → detail panel — AC-GE-3', () => {
+  const taskDetails = {
+    'task-1': { tradeName: 'Concrete Ltd', materials: [{ id: 'm1', name: 'Portland Cement' }] },
+    'task-2': { tradeName: null, materials: [] },
+    'task-3': { tradeName: null, materials: [] },
+  }
+
+  it('opens task detail panel when a task bar is clicked (mousedown+mouseup without drag)', () => {
+    render(
+      <GanttChart
+        stages={defaultStages}
+        tasks={defaultTasks}
+        projectId="proj-1"
+        taskDetails={taskDetails}
+      />
+    )
+
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    // Simulate a click: mousedown then immediate mouseup without moving
+    fireEvent.mouseDown(bar, { clientX: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(screen.getByTestId('task-detail-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('task-detail-name')).toHaveTextContent('Excavation')
+  })
+
+  it('shows task dates and duration in detail panel', () => {
+    render(
+      <GanttChart
+        stages={defaultStages}
+        tasks={defaultTasks}
+        projectId="proj-1"
+        taskDetails={taskDetails}
+      />
+    )
+
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    fireEvent.mouseDown(bar, { clientX: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(screen.getByTestId('task-detail-duration')).toHaveTextContent('5 days')
+  })
+
+  it('shows trade and materials in detail panel', () => {
+    render(
+      <GanttChart
+        stages={defaultStages}
+        tasks={defaultTasks}
+        projectId="proj-1"
+        taskDetails={taskDetails}
+      />
+    )
+
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    fireEvent.mouseDown(bar, { clientX: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(screen.getByTestId('task-detail-trade')).toHaveTextContent('Concrete Ltd')
+    expect(screen.getByTestId('task-detail-materials')).toBeInTheDocument()
+    expect(screen.getByText('Portland Cement')).toBeInTheDocument()
+  })
+
+  it('closes detail panel when close button is clicked', () => {
+    render(
+      <GanttChart
+        stages={defaultStages}
+        tasks={defaultTasks}
+        projectId="proj-1"
+        taskDetails={taskDetails}
+      />
+    )
+
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    fireEvent.mouseDown(bar, { clientX: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(screen.getByTestId('task-detail-panel')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('task-detail-close'))
+    expect(screen.queryByTestId('task-detail-panel')).not.toBeInTheDocument()
+  })
+
+  it('renders Edit Task button in detail panel', () => {
+    render(
+      <GanttChart
+        stages={defaultStages}
+        tasks={defaultTasks}
+        projectId="proj-1"
+        taskDetails={taskDetails}
+      />
+    )
+
+    const bar = screen.getByTestId('gantt-bar-task-1')
+    fireEvent.mouseDown(bar, { clientX: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(screen.getByTestId('task-detail-edit')).toBeInTheDocument()
+    expect(screen.getByTestId('task-detail-edit')).toHaveTextContent('Edit Task')
   })
 })

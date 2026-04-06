@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { StageManager } from '@/components/schedule/StageManager'
 import { GanttChart } from '@/components/schedule/GanttChart'
 import type { GanttTask, GanttStage } from '@/lib/gantt/compute'
+import type { TaskDetailData } from '@/components/schedule/GanttChart'
 
 // lib/supabase/types.ts lacks Relationships[] + templates table (foundation-eval
 // finding); cast at the call site — same pattern as /setup/page.tsx.
@@ -33,11 +34,23 @@ type TaskRow = {
   status: string
   actual_end: string | null
   order_index: number
+  trade_id: string | null
 }
 
 type TaskDepRow = {
   task_id: string
   depends_on_task_id: string
+}
+
+type TradeRow = {
+  id: string
+  name: string
+}
+
+type MaterialRow = {
+  id: string
+  name: string
+  task_id: string
 }
 
 export default async function SchedulePage() {
@@ -76,7 +89,7 @@ export default async function SchedulePage() {
   // Fetch tasks for Gantt chart
   const taskRes = await supabase
     .from('tasks')
-    .select('id, stage_id, name, planned_start, planned_end, duration_days, status, actual_end, order_index')
+    .select('id, stage_id, name, planned_start, planned_end, duration_days, status, actual_end, order_index, trade_id')
     .eq('project_id', project.id)
     .order('order_index', { ascending: true })
 
@@ -92,6 +105,28 @@ export default async function SchedulePage() {
       .in('task_id', taskIds)
 
     depRows = (depRes.data as TaskDepRow[] | null) ?? []
+  }
+
+  // Fetch trades for task detail panel (AC-GE-3)
+  const tradesRes = await supabase
+    .from('trades')
+    .select('id, name')
+    .eq('project_id', project.id)
+  const tradeRows = (tradesRes.data as TradeRow[] | null) ?? []
+  const tradeMap: Record<string, string> = {}
+  for (const t of tradeRows) tradeMap[t.id] = t.name
+
+  // Fetch materials for task detail panel (AC-GE-3)
+  const materialsRes = await supabase
+    .from('materials')
+    .select('id, name, task_id')
+    .eq('project_id', project.id)
+  const materialRows = (materialsRes.data as MaterialRow[] | null) ?? []
+  const materialsByTask: Record<string, { id: string; name: string }[]> = {}
+  for (const m of materialRows) {
+    const list = materialsByTask[m.task_id] ?? []
+    list.push({ id: m.id, name: m.name })
+    materialsByTask[m.task_id] = list
   }
 
   // Build dependency map
@@ -123,6 +158,15 @@ export default async function SchedulePage() {
     order_index: s.order_index,
   }))
 
+  // Build task detail data for the Gantt detail panel (AC-GE-3)
+  const taskDetailMap: Record<string, TaskDetailData> = {}
+  for (const t of taskRows) {
+    taskDetailMap[t.id] = {
+      tradeName: t.trade_id ? (tradeMap[t.trade_id] ?? null) : null,
+      materials: materialsByTask[t.id] ?? [],
+    }
+  }
+
   // Task counts per stage — computed from fetched tasks.
   const stagesWithCounts = stages.map(s => ({
     ...s,
@@ -138,7 +182,12 @@ export default async function SchedulePage() {
 
       {/* Gantt Chart */}
       <section className="mb-8">
-        <GanttChart stages={ganttStages} tasks={ganttTasks} />
+        <GanttChart
+          stages={ganttStages}
+          tasks={ganttTasks}
+          projectId={project.id}
+          taskDetails={taskDetailMap}
+        />
       </section>
 
       {/* Stage Manager */}

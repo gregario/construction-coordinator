@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   computeDateRange,
   computeTaskBars,
@@ -14,6 +15,15 @@ import {
   type DependencyArrow,
   type ZoomLevel,
 } from '@/lib/gantt/compute'
+import {
+  computeResizeResult,
+  computeMoveResult,
+  validateTaskDrop,
+  dayFromPixel,
+} from '@/lib/gantt/drag'
+import { updateTaskDuration } from '@/app/actions/tasks'
+import { moveTaskDates } from '@/app/actions/tasks'
+import { TaskDetailPanel } from './TaskDetailPanel'
 
 // ---------- constants ----------
 const ROW_HEIGHT = 36
@@ -21,10 +31,41 @@ const STAGE_HEADER_HEIGHT = 32
 const MOBILE_DAY_WIDTH = 28
 const BAR_PADDING_Y = 4
 const HEADER_HEIGHT = 48
+const RESIZE_HANDLE_WIDTH = 8
+const DRAG_THRESHOLD_PX = 4 // Minimum px moved before a mousedown is treated as drag vs click
+
+export type TaskDetailData = {
+  tradeName: string | null
+  materials: { id: string; name: string }[]
+}
 
 type Props = {
   stages: GanttStage[]
   tasks: GanttTask[]
+  projectId?: string
+  taskDetails?: Record<string, TaskDetailData>
+}
+
+// ---------- Toast ----------
+
+function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div
+      className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 shadow-lg"
+      data-testid="gantt-toast"
+      role="alert"
+    >
+      <span>{message}</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="ml-3 text-red-400 hover:text-red-600"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+    </div>
+  )
 }
 
 // ---------- sub-components ----------
@@ -82,7 +123,6 @@ function DateHeader({
     d.setUTCDate(d.getUTCDate() + i)
 
     if (headerMode === 'weekly') {
-      // Span until next Monday or end of range
       const label = d.toLocaleDateString('en-IE', { month: 'short', day: 'numeric', timeZone: 'UTC' })
       let spanDays = 1
       while (i + spanDays < range.totalDays) {
@@ -94,7 +134,6 @@ function DateHeader({
       spans.push({ label, days: spanDays })
       i += spanDays
     } else {
-      // Monthly: span until next 1st or end of range
       const label = d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit', timeZone: 'UTC' })
       let spanDays = 1
       while (i + spanDays < range.totalDays) {
@@ -162,6 +201,195 @@ function TodayMarker({
   )
 }
 
+// ---------- Interactive Task Bar (AC-GE-1, AC-GE-2, AC-GE-3) ----------
+
+type DragMode = 'none' | 'resize' | 'move'
+
+function InteractiveTaskBar({
+  bar,
+  dayWidth,
+  range,
+  tasks,
+  projectId,
+  onTaskClick,
+  onToast,
+}: {
+  bar: TaskBar
+  dayWidth: number
+  range: { startDate: string; totalDays: number; endDate: string }
+  tasks: GanttTask[]
+  projectId?: string
+  onTaskClick: (taskId: string) => void
+  onToast: (msg: string) => void
+}) {
+  const [dragState, setDragState] = useState<{
+    mode: DragMode
+    startX: number
+    currentDeltaPx: number
+  } | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const barRef = useRef<HTMLDivElement>(null)
+
+  const baseLeft = bar.startDay * dayWidth
+  const baseWidth = Math.max(bar.widthDays * dayWidth - 2, dayWidth * 0.5)
+
+  // Apply drag preview offsets
+  let displayLeft = baseLeft
+  let displayWidth = baseWidth
+  if (dragState) {
+    if (dragState.mode === 'resize') {
+      const newRight = baseLeft + baseWidth + dragState.currentDeltaPx
+      displayWidth = Math.max(newRight - baseLeft, dayWidth * 0.5)
+    } else if (dragState.mode === 'move') {
+      displayLeft = baseLeft + dragState.currentDeltaPx
+    }
+  }
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, mode: DragMode) => {
+      if (!projectId) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const startX = e.clientX
+      let currentDeltaPx = 0
+      let hasDragged = false
+
+      setDragState({ mode, startX, currentDeltaPx: 0 })
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        currentDeltaPx = moveEvent.clientX - startX
+        if (Math.abs(currentDeltaPx) >= DRAG_THRESHOLD_PX) {
+          hasDragged = true
+        }
+        setDragState({ mode, startX, currentDeltaPx })
+      }
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+        setDragState(null)
+
+        // If we didn't drag enough, treat as a click (AC-GE-3)
+        if (!hasDragged) {
+          onTaskClick(bar.taskId)
+          return
+        }
+
+        // Process the drag result
+        if (mode === 'resize') {
+          // AC-GE-1: compute new duration from right edge position
+          const newRightPx = baseLeft + baseWidth + currentDeltaPx
+          const result = computeResizeResult(bar, newRightPx, dayWidth, range)
+          if (result.newDurationDays === bar.widthDays) return // no change
+
+          startTransition(async () => {
+            const res = await updateTaskDuration({
+              projectId,
+              taskId: bar.taskId,
+              durationDays: result.newDurationDays,
+            })
+            if (!res.ok) {
+              onToast(res.error)
+            }
+          })
+        } else if (mode === 'move') {
+          // AC-GE-2: compute new start/end from drag delta
+          const result = computeMoveResult(bar, currentDeltaPx, dayWidth, range)
+          if (result.deltaDays === 0) return // no change
+
+          // AC-GE-4: validate against dependency constraints
+          const newStartDay = bar.startDay + result.deltaDays
+          const validation = validateTaskDrop(bar.taskId, newStartDay, tasks, range)
+          if (!validation.valid) {
+            onToast(validation.reason)
+            return // snap back — state already cleared
+          }
+
+          startTransition(async () => {
+            const res = await moveTaskDates({
+              projectId,
+              taskId: bar.taskId,
+              newPlannedStart: result.newStartDate,
+              newPlannedEnd: result.newEndDate,
+            })
+            if (!res.ok) {
+              onToast(res.error)
+            }
+          })
+        }
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [projectId, bar, dayWidth, baseLeft, baseWidth, range, tasks, onTaskClick, onToast],
+  )
+
+  const opacity = bar.isComplete ? 0.65 : isPending ? 0.5 : 1
+  const cursor = dragState
+    ? dragState.mode === 'resize'
+      ? 'ew-resize'
+      : 'grabbing'
+    : projectId
+      ? 'grab'
+      : 'default'
+
+  return (
+    <div
+      ref={barRef}
+      className={`absolute flex items-center overflow-hidden rounded text-[10px] font-medium text-white select-none ${
+        bar.isDelayed ? 'ring-2 ring-red-500' : ''
+      } ${dragState ? 'z-30 shadow-lg' : ''}`}
+      style={{
+        left: displayLeft,
+        width: displayWidth,
+        height: ROW_HEIGHT - BAR_PADDING_Y * 2,
+        top: BAR_PADDING_Y,
+        backgroundColor: bar.color,
+        opacity,
+        cursor,
+        transition: dragState ? 'none' : 'left 0.15s, width 0.15s',
+      }}
+      title={`${bar.taskName}${bar.isDelayed ? ` (+${bar.delayDays}d delay)` : ''}`}
+      data-testid={`gantt-bar-${bar.taskId}`}
+      onMouseDown={(e) => {
+        // Check if clicking the resize handle
+        const rect = barRef.current?.getBoundingClientRect()
+        if (rect && e.clientX >= rect.right - RESIZE_HANDLE_WIDTH) {
+          handleMouseDown(e, 'resize')
+        } else {
+          handleMouseDown(e, 'move')
+        }
+      }}
+    >
+      <span className="truncate px-1.5 pointer-events-none">
+        {bar.isComplete && <span aria-label="Complete">✓ </span>}
+        {bar.taskName}
+      </span>
+      {bar.isDelayed && (
+        <span className="ml-auto shrink-0 pr-1 text-[9px] font-bold text-red-200 pointer-events-none">
+          +{bar.delayDays}d
+        </span>
+      )}
+      {/* Resize handle — right edge (AC-GE-1) */}
+      {projectId && (
+        <div
+          className="absolute right-0 top-0 h-full cursor-ew-resize"
+          style={{ width: RESIZE_HANDLE_WIDTH }}
+          data-testid={`gantt-resize-handle-${bar.taskId}`}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            handleMouseDown(e, 'resize')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------- Non-interactive Task Bar (for mobile/read-only) ----------
+
 function TaskBarEl({ bar, dayWidth }: { bar: TaskBar; dayWidth: number }) {
   const left = bar.startDay * dayWidth
   const width = Math.max(bar.widthDays * dayWidth - 2, dayWidth * 0.5)
@@ -203,7 +431,7 @@ function DependencyArrowsSvg({
 }: {
   arrows: DependencyArrow[]
   dayWidth: number
-  rowOffsets: Map<number, number> // row -> y offset from grid top
+  rowOffsets: Map<number, number>
 }) {
   if (arrows.length === 0) return null
 
@@ -227,7 +455,6 @@ function DependencyArrowsSvg({
         const fromX = arrow.fromX * dayWidth
         const toX = arrow.toX * dayWidth
 
-        // Simple right-angle path: horizontal from end, then vertical, then horizontal to start
         const midX = fromX + (toX - fromX) / 2
         const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`
 
@@ -258,7 +485,6 @@ function MobileGanttView({ stages, tasks }: Props) {
       list.push(t)
       map.set(t.stage_id, list)
     }
-    // Sort within each stage
     for (const [, list] of map) {
       list.sort((a, b) => a.order_index - b.order_index)
     }
@@ -401,8 +627,11 @@ function GanttToolbar({
 
 // ---------- Desktop view ----------
 
-function DesktopGanttView({ stages, tasks }: Props) {
+function DesktopGanttView({ stages, tasks, projectId, taskDetails }: Props) {
+  const router = useRouter()
   const [zoom, setZoom] = useState<ZoomLevel>('week')
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { dayWidth, headerMode } = getZoomConfig(zoom)
 
@@ -428,12 +657,17 @@ function DesktopGanttView({ stages, tasks }: Props) {
     return map
   }, [tasks])
 
+  const stageMap = useMemo(
+    () => new Map(stages.map(s => [s.id, s])),
+    [stages],
+  )
+
   // Compute row y-offsets for arrows
   const rowOffsets = useMemo(() => {
     const map = new Map<number, number>()
     let y = 0
     for (const stage of sortedStages) {
-      y += STAGE_HEADER_HEIGHT // stage header
+      y += STAGE_HEADER_HEIGHT
       const stageTasks = tasksByStage.get(stage.id) ?? []
       for (const task of stageTasks) {
         const bar = bars.find(b => b.taskId === task.id)
@@ -445,7 +679,6 @@ function DesktopGanttView({ stages, tasks }: Props) {
   }, [sortedStages, tasksByStage, bars])
 
   const chartWidth = range.totalDays * dayWidth
-  // Total height: sum of stage headers + task rows
   let totalHeight = 0
   for (const stage of sortedStages) {
     totalHeight += STAGE_HEADER_HEIGHT
@@ -460,6 +693,22 @@ function DesktopGanttView({ stages, tasks }: Props) {
     const scrollTarget = todayPx - el.clientWidth / 2
     el.scrollTo({ left: Math.max(0, scrollTarget), behavior: 'smooth' })
   }, [range, dayWidth])
+
+  // AC-GE-3: handle task bar click → open detail panel
+  const handleTaskClick = useCallback((taskId: string) => {
+    setSelectedTaskId(prev => (prev === taskId ? null : taskId))
+  }, [])
+
+  // Toast handler for AC-GE-4 snap-back messages
+  const handleToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 4000)
+  }, [])
+
+  // Detail panel data
+  const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null
+  const selectedStage = selectedTask ? stageMap.get(selectedTask.stage_id) : null
+  const selectedDetail = selectedTaskId && taskDetails ? taskDetails[selectedTaskId] : null
 
   if (tasks.length === 0) {
     return (
@@ -514,7 +763,15 @@ function DesktopGanttView({ stages, tasks }: Props) {
                         className="relative border-b border-[#F5F0EA]"
                         style={{ height: ROW_HEIGHT }}
                       >
-                        <TaskBarEl bar={bar} dayWidth={dayWidth} />
+                        <InteractiveTaskBar
+                          bar={bar}
+                          dayWidth={dayWidth}
+                          range={range}
+                          tasks={tasks}
+                          projectId={projectId}
+                          onTaskClick={handleTaskClick}
+                          onToast={handleToast}
+                        />
                       </div>
                     )
                   })}
@@ -524,18 +781,38 @@ function DesktopGanttView({ stages, tasks }: Props) {
           </div>
         </div>
       </div>
+
+      {/* AC-GE-3: Task Detail Panel */}
+      {selectedTask && selectedStage && (
+        <TaskDetailPanel
+          task={selectedTask}
+          stageName={selectedStage.name}
+          stageColor={selectedStage.color}
+          tradeName={selectedDetail?.tradeName ?? null}
+          materials={selectedDetail?.materials ?? []}
+          onClose={() => setSelectedTaskId(null)}
+          onEditClick={() => {
+            router.push(`/tasks/${selectedTask.id}`)
+          }}
+        />
+      )}
+
+      {/* AC-GE-4: Toast for invalid drops */}
+      {toastMessage && (
+        <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+      )}
     </>
   )
 }
 
 // ---------- Main component ----------
 
-export function GanttChart({ stages, tasks }: Props) {
+export function GanttChart({ stages, tasks, projectId, taskDetails }: Props) {
   return (
     <>
       {/* Desktop: visible >= 1024px */}
       <div className="hidden lg:block" data-testid="gantt-chart">
-        <DesktopGanttView stages={stages} tasks={tasks} />
+        <DesktopGanttView stages={stages} tasks={tasks} projectId={projectId} taskDetails={taskDetails} />
       </div>
 
       {/* Mobile + Tablet (< 1024px): stages-only view with expand */}
