@@ -126,14 +126,16 @@ ALTER TABLE materials ADD COLUMN ordered_at TIMESTAMPTZ;
 ALTER TABLE materials ADD COLUMN delivered_at TIMESTAMPTZ;
 ALTER TABLE materials ADD COLUMN tracking_reference TEXT;
 
--- Expand the order_status CHECK to include new states.
--- Postgres requires dropping and recreating the constraint.
+-- Migrate existing data BEFORE changing the constraint.
+-- Postgres requires dropping and recreating CHECK constraints.
 ALTER TABLE materials DROP CONSTRAINT IF EXISTS materials_order_status_check;
-ALTER TABLE materials ADD CONSTRAINT materials_order_status_check
-  CHECK (order_status IN ('not_quoted', 'quoted', 'ordered', 'in_transit', 'delivered'));
 
 -- Migrate existing data: not_ordered → not_quoted
 UPDATE materials SET order_status = 'not_quoted' WHERE order_status = 'not_ordered';
+
+-- Now apply the new constraint (all rows should be valid)
+ALTER TABLE materials ADD CONSTRAINT materials_order_status_check
+  CHECK (order_status IN ('not_quoted', 'quoted', 'ordered', 'in_transit', 'delivered'));
 
 -- ============================================================
 -- 7. CONSTRUCTION METHODS TABLE (composable templates)
