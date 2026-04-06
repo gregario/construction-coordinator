@@ -1,0 +1,67 @@
+{
+  "database": {
+    "type": "postgres",
+    "provider": "supabase",
+    "client": "@supabase/supabase-js",
+    "reason": "Relational model with 7 entities, FK constraints, recursive CTEs for cascade engine. Supabase Storage for photos/documents."
+  },
+  "deploy": {
+    "target": "vercel",
+    "mode": "production",
+    "reason": "Hobby tier — preview deployments not available. Deploy with --prod flag.",
+    "staging_strategy": "deploy-to-production"
+  },
+  "auth": {
+    "strategy": "supabase-auth",
+    "provider": "supabase",
+    "notes": "First time using Supabase Auth in this setup. Expect escalations during foundation. Pattern available in catalogue (supabase-auth-nextjs.yaml)."
+  },
+  "framework": {
+    "name": "next.js",
+    "version": "latest",
+    "router": "app-router",
+    "reason": "Server components for data loading, client interactivity for Gantt/cascade. PWA support."
+  },
+  "storage": {
+    "provider": "supabase-storage",
+    "buckets": ["photos", "documents"],
+    "reason": "Bundled with Supabase, no additional service needed."
+  },
+  "notifications": {
+    "strategy": "web-push-api",
+    "pwa": true,
+    "email": false,
+    "reason": "Browser Web Push via PWA. No email integration. Service worker handles push notifications."
+  },
+  "data_sources": [],
+  "incompatibilities_resolved": [
+    {
+      "issue": "Vercel hobby tier does not support preview deployments",
+      "resolution": "Deploy directly to production with --prod flag"
+    }
+  ],
+  "depends_on_projects": [],
+  "risk_flags": [
+    {
+      "flag": "supabase-vercel-untested",
+      "description": "Supabase + Vercel combo has not been tested in this Rouge setup before. Expect foundation escalations for auth middleware, RLS configuration, and storage integration.",
+      "mitigation": "Foundation phase should validate auth flow and basic CRUD before proceeding to milestone stories."
+    },
+    {
+      "flag": "supabase-auth-first-use",
+      "description": "Supabase Auth has not been used in prior Rouge builds.",
+      "mitigation": "Use catalogue pattern (supabase-auth-nextjs.yaml) as starting point. Validate session handling in middleware early."
+    }
+  ],
+  "integration_availability": {
+    "in_catalogue": [
+      "supabase",
+      "supabase-auth-nextjs",
+      "supabase-rls-pattern"
+    ],
+    "not_in_catalogue": [
+      "web-push-api (standard browser API, foundation builds)",
+      "pwa-service-worker (standard web pattern, foundation builds)"
+    ]
+  }
+}

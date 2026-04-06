@@ -1,0 +1,550 @@
+{
+  "_type": "story_context",
+  "_assembled_at": "2026-04-06T01:06:28.735Z",
+  "story": {
+    "spec": {
+      "id": "notification-settings",
+      "name": "Notification Preferences"
+    },
+    "id": "notification-settings",
+    "name": "Notification Preferences",
+    "depends_on": [
+      "push-notifications"
+    ],
+    "affected_entities": [],
+    "affected_screens": [
+      "/settings"
+    ],
+    "fix_memory": [],
+    "attempt_number": 1,
+    "status": "in-progress"
+  },
+  "foundation": {
+    "architecture_map": {},
+    "schemas": [],
+    "integrations": [],
+    "deployment": {
+      "method": "unknown",
+      "staging_url": "https://construction-coordinator.vercel.app",
+      "db": null
+    }
+  },
+  "related_stories": [
+    {
+      "id": "daily-briefing-view",
+      "status": "done",
+      "files_changed": [
+        "lib/briefing/operations.ts",
+        "tests/briefing-operations.test.ts",
+        "components/briefing/RefreshButton.tsx",
+        "app/(app)/briefing/page.tsx"
+      ],
+      "env_limitations": [
+        "Shift Alerts section is wired to the shift_alerts DB table but will show empty until cascade_task_dates() or another writer populates shift_alerts rows. This is a known deferred gap (documented in factory_questions from the foundation cycle). The section renders correctly when rows exist.",
+        "Pull-to-refresh (AC-DB-5) uses router.refresh() which triggers a full RSC re-render server-side. Native pull-down gesture is not implemented (requires a touch event handler or a library like react-pull-to-refresh) — the Refresh button works on both mobile and desktop."
+      ],
+      "issues_encountered": []
+    },
+    {
+      "id": "task-quick-actions",
+      "status": "done",
+      "files_changed": [
+        "lib/briefing/operations.ts",
+        "app/actions/briefing.ts",
+        "components/briefing/BriefingTaskList.tsx",
+        "app/(app)/briefing/page.tsx",
+        "tests/briefing-quick-actions.test.ts",
+        "tests/briefing-operations.test.ts"
+      ],
+      "env_limitations": [],
+      "issues_encountered": []
+    },
+    {
+      "id": "upcoming-orders-view",
+      "status": "done",
+      "files_changed": [
+        "lib/materials/operations.ts",
+        "components/briefing/UpcomingOrderCards.tsx",
+        "app/(app)/briefing/page.tsx",
+        "tests/upcoming-orders.test.ts",
+        "tests/upcoming-orders-cards.test.tsx"
+      ],
+      "env_limitations": [],
+      "issues_encountered": []
+    },
+    {
+      "id": "shift-alerts",
+      "status": "done",
+      "files_changed": [
+        "lib/briefing/shift-alerts.ts",
+        "tests/shift-alerts.test.ts",
+        "app/actions/tasks.ts",
+        "app/actions/briefing.ts",
+        "components/briefing/DismissAlertsButton.tsx",
+        "app/(app)/briefing/page.tsx"
+      ],
+      "env_limitations": [],
+      "issues_encountered": []
+    },
+    {
+      "id": "push-notifications",
+      "status": "done",
+      "files_changed": [
+        "lib/notifications/push.ts",
+        "components/notifications/ServiceWorkerRegistrar.tsx",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/actions/notifications.ts",
+        "app/(app)/settings/page.tsx",
+        "app/(app)/layout.tsx",
+        "tests/push-notifications.test.ts"
+      ],
+      "env_limitations": [
+        "Push notification subscribe/unsubscribe requires a real browser with PushManager — cannot be exercised in vitest/jsdom. Pure helpers (detectPushCapability, deriveToggleState, serializeSubscription, urlBase64ToUint8Array) are fully tested. Component integration requires manual QA on a device with the PWA installed.",
+        "VAPID keys must be set in Vercel env vars (NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT) for subscriptions to succeed in production. Keys are already configured per foundation eval."
+      ],
+      "issues_encountered": []
+    }
+  ],
+  "milestone_learnings": [],
+  "vision_summary": "",
+  "product_standard": {},
+  "library_heuristics": [],
+  "decomposition_strategy": {},
+  "relevant_decisions": [
+    {
+      "decision": "Inclusive-day semantics for planned_start/planned_end (end = start + duration − 1)",
+      "context": "AC-TM-2 says \"planned_end = planned_start + 2 days\" for a 2-day task. Two interpretations: exclusive (start=06-01, end=06-03 → 2 nights) or inclusive (start=06-01, end=06-02 → first and last working day, 2 working days).",
+      "alternatives_considered": [
+        "Exclusive: planned_end = planned_start + duration_days. Simpler arithmetic but a 1-day task would render as a zero-width Gantt bar and the end date is a day the task is NOT worked.",
+        "Inclusive: planned_end = planned_start + (duration_days − 1). Matches how humans read a schedule (\"Monday–Tuesday = 2 days\") and matches the existing seed data pattern."
+      ],
+      "rationale": "Checked the seeded O'Brien data + the template-apply cursor schedule — both treat planned_start and planned_end as the first and last working day of the task (inclusive). A 1-day task has planned_start = planned_end. The cursor schedule in lib/templates/apply.ts advances via `start = prev.planned_end + 1`, which is exactly AC-TM-4's \"max(dep.planned_end) + 1 day\" formula — consistent across the codebase.",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/operations.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "AC-TM-6 dependency cleanup relies on ON DELETE CASCADE on task_dependencies.depends_on_task_id",
+      "context": "The spec requires that deleting task A removes it from the depends_on array of every downstream task. Options: handle in application code, use the DB cascade, or both.",
+      "alternatives_considered": [
+        "Application-layer: SELECT dependents, DELETE by task_id = A, then DELETE rows where depends_on_task_id = A. Three round trips, race conditions if another request is editing deps simultaneously.",
+        "DB cascade only: task_dependencies has ON DELETE CASCADE on BOTH foreign keys (task_id, depends_on_task_id). Deleting task A atomically removes every row that references A in either column.",
+        "Both layers for defense in depth: duplicates effort without improving guarantees."
+      ],
+      "rationale": "The schema already guarantees AC-TM-6 via CASCADE. Server action just deletes the task and RLS + CASCADE do the rest. Added a pure removeFromDependencies() helper for the UI to mirror the same behaviour in client state — so the task list re-renders correctly without a round trip.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts",
+        "lib/tasks/operations.ts",
+        "components/tasks/StageTasksManager.tsx"
+      ]
+    },
+    {
+      "decision": "updateTaskDuration holds planned_start fixed and recalculates only planned_end",
+      "context": "AC-TM-5 says \"edits the duration_days field and saves, THEN the task's planned_end recalculates and cascades.\" Options: recompute planned_start from deps then extend end, or keep start stable and extend/shrink end.",
+      "alternatives_considered": [
+        "Recompute planned_start from deps on every duration edit — could shift the start date if deps have changed since task creation, surprising the user when they just edited duration.",
+        "Hold start fixed, shift end only — matches the AC's \"end recalculates\" wording and is what cascade_task_dates() is designed for (it receives new_planned_end and propagates the delta downstream).",
+        "Re-run the full schedule — massive blast radius for a single edit."
+      ],
+      "rationale": "cascade_task_dates(p_task_id, p_new_planned_start, p_new_planned_end) expects the caller to pick the new end. Passing the current planned_start unchanged + new planned_end = start + (duration − 1) gives a clean delta the recursive CTE uses to shift every downstream task by the same offset. One RPC, one transaction, O(downstream) updates.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "order_by_date computed client+server from task.planned_start - lead_time_days, mirroring the DB trigger",
+      "context": "AC-ML-4 requires that editing lead_time_days recalculates order_by_date. The schema's cascade_task_dates trigger already computes this on task-date changes; the question was whether the material form should POST a pre-computed order_by_date or rely on the trigger.",
+      "alternatives_considered": [
+        "Set order_by_date=NULL on insert/update and let a DB trigger derive it — requires a new BEFORE-INSERT/UPDATE trigger, more SQL infra for a one-line calculation",
+        "Run a follow-up UPDATE after insert that calls a stored proc — two round trips per save",
+        "Derive order_by_date at read time in the RSC — ignores the existing schema column and diverges from the cascade trigger"
+      ],
+      "rationale": "computeOrderByDate() is a pure TypeScript function identical to the SQL the cascade trigger runs (planned_start minus lead_time_days). The server action computes it once on insert/update so the value stored matches what the trigger would overwrite on the next cascade. One round trip, single source of truth for the formula, easy to unit test with UTC date arithmetic.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/actions/materials.ts"
+      ]
+    },
+    {
+      "decision": "lead_time_days validation collapses empty, negative, non-integer, and non-numeric inputs to a single error message",
+      "context": "AC-ML-3 specifies exactly one message ('Lead time must be 0 or more days') for 'empty or negative'. The input is a text field (so the user can also type 'abc' or '2.5'). Choice: multiple messages per failure mode, or one message that covers them all.",
+      "alternatives_considered": [
+        "Separate messages for 'must be a number' / 'must be a whole number' / 'must be 0 or more' — more precise, but three different disabled-save states and more test surface",
+        "Silently coerce bad input (parseInt + floor) — changes the user's intent and hides typos"
+      ],
+      "rationale": "The AC calls out exactly one copy string. Collapsing every invalid-input variant under that message keeps behaviour consistent with the AC verbatim, keeps the save-button-disabled logic simple (liveValidation.ok), and the HTML type=number input already filters most non-numeric keystrokes on keyboards that support it.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "components/materials/TaskMaterialsManager.tsx"
+      ]
+    },
+    {
+      "decision": "Include overdue not_ordered materials in /briefing Upcoming Orders (top of the sorted list)",
+      "context": "AC-OB-4 literal wording is \"order_by_date within the next 7 days, sorted ascending\". Taken strictly this excludes overdue items, but AC-OB-2 says overdue materials must render somewhere on /briefing or /materials, and hiding them from the briefing defeats the purpose of the section for a foreman planning their day.",
+      "alternatives_considered": [
+        "Strictly [today, today+7] — hides overdue items from briefing entirely; foreman misses urgent orders",
+        "Separate \"Overdue\" subsection above Upcoming Orders — adds UI surface, duplicates the badge signal",
+        "Include order_by_date <= today+7 (chosen) — overdue items sort to the top by ISO date, one list, badge colors disambiguate"
+      ],
+      "rationale": "selectUpcomingOrders filters to not_ordered + order_by_date <= today+7. Ascending ISO sort naturally places overdue dates first, and the red overdue badge disambiguates them from the amber due-soon items. One list, zero duplication, aligned with AC-OB-2 requirement that overdue materials appear in /briefing.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Badge boundaries: overdue = order_by_date < today; due_soon = 0 <= days <= 7 (inclusive both ends)",
+      "context": "AC-OB-2 says \"in the past\", AC-OB-3 says \"within the next 7 days\". \"In the past\" is unambiguous but \"within the next 7 days\" could mean [today, today+7] or [today+1, today+7]. Also: should the boundary at day 7 be inclusive?",
+      "alternatives_considered": [
+        "Exclusive upper bound (< 7 days) — a material due exactly 7 days out would show no badge, then flip to due_soon tomorrow — jarring UX",
+        "Start window at today+1 — a material due today shows no badge despite being the most urgent pending item"
+      ],
+      "rationale": "Inclusive on both ends matches \"within the next 7 days\" as a foreman reads it. day-diff >= 0 && <= 7 → due_soon, day-diff < 0 → overdue. Stable transitions day-to-day.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts"
+      ]
+    },
+    {
+      "decision": "Deadline status is computed at render time from \"today\" + order_by_date, not persisted",
+      "context": "Badges change daily as today advances past each order_by_date. Options: (a) store a computed badge column + recompute via cron, (b) compute at render time from the existing order_by_date column.",
+      "alternatives_considered": [
+        "Store badge state in a column + nightly cron — extra table columns, an extra cron job, drift between DB and reality between runs",
+        "Compute in a DB view — needs view maintenance, SQL time() calls vary by connection timezone"
+      ],
+      "rationale": "materialDeadlineStatus is a ~10 line pure function. Computing at render time in the RSC guarantees correctness at every page load, with no background job, no extra columns, no drift. The only input is today's date (UTC) and the already-persisted order_by_date.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "app/(app)/materials/page.tsx",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Status transitions are strictly forward: not_ordered→ordered→delivered (no rollback UI)",
+      "context": "AC-MS-1/AC-MS-2 describe forward actions only (Mark Ordered, Mark Delivered) and the filter tabs imply the statuses are terminal states. No AC covers un-ordering or un-delivering.",
+      "alternatives_considered": [
+        "Allow any→any transition with a dropdown — scope creep, no AC requires it, risks accidental status reset",
+        "Allow reverse transitions via an explicit Undo button — more UI surface without AC coverage"
+      ],
+      "rationale": "updateMaterialStatus enforces valid transitions on the server (not_ordered→ordered, ordered→delivered, plus no-op re-assert for idempotency). Delivered is terminal. If a user mis-clicks, the material can still be deleted + re-added. A future story can add correction workflows if real-world usage shows mis-clicks happen often.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/materials.ts",
+        "lib/materials/operations.ts"
+      ]
+    },
+    {
+      "decision": "Cascade summary layer is a pure TS module over the existing PG function",
+      "context": "cascade_task_dates() was already implemented as a plpgsql recursive-CTE function by the initial schema migration. It owns the transactional update (AC-CE-1, AC-CE-2, AC-CE-5) and returns downstream changes only. AC-CE-3 requires a summary listing ALL tasks that moved — including the trigger task — with old and new dates.",
+      "alternatives_considered": [
+        "Rewrite cascade_task_dates to include the trigger task in its RETURN TABLE — would require a new SQL migration and coordinate with the existing callers (customization.ts, materials/operations.ts)",
+        "Compute the full summary inside the server action ad-hoc — duplicates logic across updateTaskDuration and any future date-drag UI",
+        "Ship the downstream-only result to clients and have the UI prepend the trigger — mixes presentation with transaction shape, hard to unit-test"
+      ],
+      "rationale": "lib/cascade/engine.ts is a pure module: computeCascadeDelta, shiftTaskDates, buildCascadeSummary. 13 unit tests covering delta math, month-boundaries, zero-downstream case (AC-CE-4), trigger-as-first-row, and identical delta on every row. Server actions call buildCascadeSummary with (trigger row from pre-update SELECT, downstream rows from RPC return). Zero SQL churn, testable without a DB.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Delay validation rejects same-date and earlier dates (forward-only push)",
+      "context": "AC-DL-2 says 'user selects a later date'. Ambiguous on equality: does a same-date apply count as a valid no-op? Also unclear whether pulling the date in (earlier) counts as delay logging.",
+      "alternatives_considered": [
+        "Accept same-date as a no-op + show a 'No changes' toast — wastes a cascade RPC round trip and confuses the user about whether the delay was recorded",
+        "Accept any date (earlier or later) — conflates delay logging with duration editing, which already exists as updateTaskDuration and handles pull-in semantics",
+        "Silently ignore equal dates on the client — hides the validation failure and disables the Apply button without explanation"
+      ],
+      "rationale": "validateDelayDate requires strictly newPlannedEnd > currentPlannedEnd. The Apply button disables with an inline error ('New date must be after the current end date') when the user picks the same or an earlier date. Forward-only matches the user mental model of 'log a delay' and keeps the feature orthogonal to updateTaskDuration (which handles both forward and backward duration changes).",
+      "confidence": "high",
+      "affects": [
+        "lib/tasks/delay.ts",
+        "components/tasks/TaskDelayLogger.tsx",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Materials-moved count derived post-cascade by counting materials on affected task ids",
+      "context": "AC-DL-3 requires the overlay to show M material order-by dates moved. cascade_task_dates() updates material order_by_date in-place but its RETURN TABLE only reports downstream TASKS, not materials. Options: (a) rewrite the RPC to return material counts, (b) count materials attached to affected tasks in a follow-up SELECT, (c) compute in the RSC on next page load.",
+      "alternatives_considered": [
+        "Modify the PG function to return material_count — new SQL migration, breaks existing updateTaskDuration callers that expect only downstream task rows",
+        "Render the count on the next /briefing load — the overlay must be immediate per AC-DL-3, cross-navigation is a different UX",
+        "Track material updates via a DB trigger logging to shift_alerts — shift_alerts population is deferred to the daily-briefing cycle per existing factory_question"
+      ],
+      "rationale": "After cascade_task_dates returns the downstream task ids, a single SELECT COUNT on materials WHERE task_id IN (trigger + downstream) gives M. The PG function updates exactly those materials (see initial_schema.sql lines 459-485), so the count is precise. One extra round trip, no SQL churn, no coordination with updateTaskDuration callers.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Builder-defined acceptance criteria for cascade-material-sync (spec was empty)",
+      "context": "state.json story entry for cascade-material-sync has no acceptance_criteria field — only name, affected_entities (Material), affected_screens (/materials, /briefing), depends_on (order-by-calculation, cascade-engine). story_context.spec was just {id, name}. Builder phase prompt says: ambiguity → check context, make decision, log as factory_decision.",
+      "alternatives_considered": [
+        "Block the story with a factory_question asking a human to write ACs — defeats the autonomous loop, and the story name + screens are specific enough to synthesize a coherent contract.",
+        "Inherit cascade-engine ACs (AC-CE-*) — those are about task cascade, not material sync; would duplicate coverage.",
+        "Treat the story as already complete (SQL already syncs materials) and skip — ignores the UI side of the \"sync\" (surfacing which materials moved in the overlay + revalidating /materials and /briefing)."
+      ],
+      "rationale": "Defined AC-CMS-1 (pure helper mirrors SQL material-update math), AC-CMS-2 (server actions return MaterialMovement[] not just a count), AC-CMS-3 (revalidate /materials on cascade), AC-CMS-4 (revalidate /briefing on cascade). These four criteria directly map to the story name (Cascade Material Order-By Sync) and the two affected_screens. Each AC has tests or a concrete revalidatePath call. QA can verify all four against seeded data.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts",
+        "components/tasks/TaskDelayLogger.tsx"
+      ]
+    },
+    {
+      "decision": "Mirror SQL cascade_task_dates() material math in TypeScript (computeMaterialMovements) rather than read order_by_date back from DB",
+      "context": "The SQL cascade already writes the new order_by_date value in the same transaction. Two ways to surface per-material movements to the client: (a) after RPC, re-SELECT materials — get new value, lose old value; (b) mirror the math in JS using each task old/new planned_start + lead_time_days.",
+      "alternatives_considered": [
+        "Read order_by_date before + after the RPC — two extra round-trips, race with any concurrent cascade.",
+        "Extend cascade_task_dates() to RETURN material rows — bigger surface area, needs migration, changes the RPC contract cascade-engine/delay-logging already depend on.",
+        "Skip per-material movements, keep the count-only summary — loses fidelity; the user can see which tasks shifted but not which specific materials they need to rush orders for."
+      ],
+      "rationale": "computeMaterialMovements is a pure function sharing computeOrderByDate with lib/materials/operations.ts — same math the DB trigger and UI-predict path already use, so the three layers cannot diverge. Server action loads material metadata once (id/name/lead_time/task_id), builds old/new start map from RPC response, and computes both old and new order_by_date locally. No second DB read, no race, testable without mocks. Count of \"materials moved\" excludes zero-delta rows so the trigger task's own materials (whose planned_start is unchanged in both current cascade paths) do not inflate the number.",
+      "confidence": "high",
+      "affects": [
+        "lib/cascade/engine.ts",
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Cycle detection gates addDependency (existing tasks), not createTask (new tasks)",
+      "context": "AC-DV-1 says 'when the user attempts to add A to B's depends_on array'. For a brand-new task with no ID yet, no other task can depend on it, so adding deps to a new task cannot create cycles. The cycle-detection gate belongs on the addDependency server action for existing tasks.",
+      "alternatives_considered": [
+        "Gate createTask with cycle detection — cycles are impossible for new tasks since no other task references them yet. Would add unnecessary DB queries on every task creation.",
+        "Only validate in the UI (client-side) — the server must be the authority to prevent bypass via API calls."
+      ],
+      "rationale": "addDependency loads all project edges, runs detectCycle (O(V+E) DFS), and rejects with the formatted cycle path. createTask skips the check because the new task is a DAG leaf by definition. Server-side validation prevents bypass.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for daily-briefing-view story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (lib/briefing/operations.ts + tests + RefreshButton), 1 EXTEND (app/(app)/briefing/page.tsx — already had Upcoming Orders section, extended with Today Tasks and Shift Alerts sections). Reused: selectUpcomingOrders + materialDeadlineStatus from lib/materials/operations.ts, MaterialDeadlineBadge component, createClient from lib/supabase/server.ts, AppShell layout from components/layout/AppShell.tsx, warm earth-tone design tokens from globals.css.",
+      "confidence": "high",
+      "affects": [
+        "lib/briefing/operations.ts",
+        "app/(app)/briefing/page.tsx",
+        "components/briefing/RefreshButton.tsx"
+      ]
+    },
+    {
+      "decision": "Parallel DB fetches via Promise.all for briefing page performance",
+      "context": "AC-DB-6 requires FCP < 1.5s on 4G. The briefing page needs tasks, materials, and shift_alerts. Three sequential Supabase queries would triple the waterfall.",
+      "alternatives_considered": [
+        "Sequential queries — simpler code but 3x latency on the critical path",
+        "Single RPC/view joining all three — requires a new migration + stored procedure for a read-only page",
+        "Client-side SWR with loading skeletons — adds client JS, worse FCP, defeats server component benefits"
+      ],
+      "rationale": "Promise.all([taskRes, matRes, alertRes]) executes all three queries concurrently. Server component means zero client JS for the data rendering. Combined with Vercel edge caching of static assets, this keeps FCP well under the 1.5s target.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Shift Alerts section renders from shift_alerts table (empty until populated by cascade)",
+      "context": "AC-DB-1 requires a Shift Alerts section. The shift_alerts table exists in the schema but cascade_task_dates() does not yet write to it (documented factory_question from foundation cycle).",
+      "alternatives_considered": [
+        "Skip the section entirely — violates AC-DB-1 three-section requirement",
+        "Compute alerts client-side by diffing task dates — unreliable without a baseline, adds client JS",
+        "Write a migration to add a trigger on task date updates — expands scope beyond this story"
+      ],
+      "rationale": "Wiring the UI to the real shift_alerts table now means the section will auto-populate when the shift-alerts story adds the cascade writer. Empty state is graceful. No throwaway code.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "selectTodayTasks includes complete tasks for undo support",
+      "context": "AC-QA-2 requires undoing completion from the briefing. If complete tasks were filtered out (original AC-DB-2 behavior), toggling a task would make it disappear immediately.",
+      "alternatives_considered": [
+        "Keep original filter (exclude complete) and re-fetch on toggle — task disappears during the round trip, confusing UX",
+        "Client-side local filter override — diverges from server truth, breaks on page refresh",
+        "Include complete tasks sorted after incomplete (chosen) — task stays visible with strikethrough, user can undo"
+      ],
+      "rationale": "Including complete tasks with a sort bias (incomplete first) preserves the undo flow while keeping active work prominent. The empty-state message still shows correctly when ALL tasks are out of range. This is a minor behavioral change logged as a divergence for the evaluator.",
+      "confidence": "high",
+      "affects": [
+        "lib/briefing/operations.ts",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Quick actions link to /tasks/:id with hash anchors rather than inline modals",
+      "context": "AC-QA-3 specifies Log Delay, Add Note, View Detail as quick actions. Log Delay already exists on /tasks/:id as TaskDelayLogger. Add Note needs a notes-editing UI that does not yet exist.",
+      "alternatives_considered": [
+        "Inline modal per quick action on /briefing — duplicates TaskDelayLogger and creates a new notes editor; bloats briefing client JS",
+        "Navigate to /tasks/:id (chosen) — reuses existing per-task controls, keeps briefing lightweight",
+        "Bottom sheet on mobile — custom animation + portal complexity for what is a simple navigation"
+      ],
+      "rationale": "Link to /tasks/:id (with #delay and #notes hash anchors) reuses the existing delay logger on the detail page and avoids building a duplicate. The Add Note action links to #notes which will activate when a notes-editing section is added to the task detail in a future story. View Detail is a plain navigation. Keeps the briefing page focused on its primary role (status overview) rather than becoming a full task-editing surface.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/BriefingTaskList.tsx"
+      ]
+    },
+    {
+      "decision": "Swipe gesture uses 60px threshold with native touchStart/touchEnd tracking",
+      "context": "AC-QA-3 requires swipe left on mobile to reveal quick actions. Options: CSS-only with scroll-snap, JS touch tracking, or a gesture library.",
+      "alternatives_considered": [
+        "Install a gesture library (react-swipeable, use-gesture) — adds a dependency for one component",
+        "CSS scroll-snap with overflow-x — limited control over snap points, hard to wire dismiss behavior",
+        "Native touch tracking with 60px threshold (chosen) — zero dependencies, full control over swipe/dismiss"
+      ],
+      "rationale": "60px threshold is comfortable for intentional swipes on mobile (avoids false positives from scroll jitter). touchStartX ref tracks per-task independently so multiple rows can be swiped. Swiping right or tapping outside dismisses. CSS translateX transition provides smooth slide animation. No third-party dependency for a single interaction pattern.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/BriefingTaskList.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for upcoming-orders-view story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 1 BUILD (UpcomingOrderCards component + daysUntilOrderBy + formatMaterialCost), 1 EXTEND (briefing page — added card rendering + extra material fields to query). Reused: selectUpcomingOrders + materialDeadlineStatus from lib/materials/operations.ts, MaterialDeadlineBadge component, updateMaterialStatus server action from app/actions/materials.ts, existing material query pattern from briefing page.",
+      "confidence": "high",
+      "affects": [
+        "lib/materials/operations.ts",
+        "components/briefing/UpcomingOrderCards.tsx",
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Accordion pattern (one expanded card at a time) for order detail expansion",
+      "context": "AC-UO-3 says tap to expand with inline detail. Multiple cards could be expanded simultaneously or exclusively.",
+      "alternatives_considered": [
+        "Allow multiple cards expanded at once — clutters the horizontal scroll on mobile, harder to scan",
+        "Modal overlay on tap — heavier UI, blocks the rest of the briefing, overkill for 4-5 fields",
+        "Navigate to /materials/:id detail page — extra navigation, breaks the briefing-as-dashboard flow"
+      ],
+      "rationale": "Single expanded card at a time (accordion) keeps the horizontal scroll tight on mobile and focuses attention on one order. Expanding a different card auto-collapses the previous one. State is a single expandedId string, minimal React re-renders.",
+      "confidence": "high",
+      "affects": [
+        "components/briefing/UpcomingOrderCards.tsx"
+      ]
+    },
+    {
+      "decision": "Section hidden entirely when empty (AC-UO-4) — no empty state message",
+      "context": "AC-UO-4 explicitly says section is hidden (not shown with empty state) to keep briefing focused. Previous implementation showed \"No orders due in the next 7 days.\" message.",
+      "alternatives_considered": [
+        "Keep the empty state message — contradicts AC-UO-4 literally",
+        "Collapse header but keep a thin placeholder — still visible, still clutters"
+      ],
+      "rationale": "Conditional rendering: {upcomingCards.length > 0 && <section>...}. When no materials due in 7 days, the section is entirely absent from the DOM. Briefing flows directly from Today Tasks to Shift Alerts. Matches the spec requirement to keep the briefing focused on actionable information.",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/briefing/page.tsx"
+      ]
+    },
+    {
+      "decision": "Shift alerts record planned_end (not planned_start) as old_value/new_value for task movements",
+      "context": "AC-SA-1 says show \"[Task] moved from [old date] to [new date]\". Could use start or end dates.",
+      "alternatives_considered": [
+        "planned_start — shows when work begins, but a duration change moves the end without moving the start",
+        "Both start and end as a range — more info but clutters the alert text",
+        "planned_end — shows when the task finishes, which is what downstream deps and the user care about"
+      ],
+      "rationale": "planned_end is what cascade_task_dates() propagates and what determines downstream impact. A 3-day delay on task A means task B (which depends on A) starts 3 days later — the relevant signal is A's new finish date. Matches the formatShiftAlert template which shows a single date pair.",
+      "confidence": "high",
+      "affects": [
+        "lib/briefing/shift-alerts.ts"
+      ]
+    },
+    {
+      "decision": "Shift alert inserts are best-effort — failure does not block the cascade result",
+      "context": "insertShiftAlerts runs after the cascade RPC succeeds. If the insert fails (e.g. RLS issue, network), the cascade already committed.",
+      "alternatives_considered": [
+        "Wrap cascade + alert insert in a transaction — requires a stored procedure or RPC, adds migration complexity for a non-critical write",
+        "Fail the whole action if alerts fail — makes a UX notification more important than the actual data update",
+        "Best-effort insert, ignore errors — cascade is the authoritative mutation; alerts are informational"
+      ],
+      "rationale": "The cascade is the source of truth for dates. Shift alerts are a convenience display. Failing to record an alert is preferable to failing to cascade a date change. The briefing page still renders correctly with or without alerts.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/tasks.ts"
+      ]
+    },
+    {
+      "decision": "Builder-defined acceptance criteria for push-notifications (spec was empty)",
+      "context": "state.json story entry for push-notifications has no acceptance_criteria field — only name, affected_screens (/settings), depends_on (daily-briefing-view). story_context.spec was just {id, name}.",
+      "alternatives_considered": [
+        "Block the story with a factory_question asking a human to write ACs — defeats autonomous loop",
+        "Skip the story entirely — push notifications are in-scope per vision.json"
+      ],
+      "rationale": "Defined AC-PN-1 (SW registration on app load), AC-PN-2 (enable → permission prompt → subscribe → persist), AC-PN-3 (disable → unsubscribe → mark inactive), AC-PN-4 (blocked state with browser settings hint), AC-PN-5 (upsert notification_preferences on first /settings visit). These map directly to the existing foundation infrastructure (sw.js, /api/push/subscribe, push_subscriptions table, notification_preferences table) and the affected screen (/settings).",
+      "confidence": "high",
+      "affects": [
+        "lib/notifications/push.ts",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/(app)/settings/page.tsx"
+      ]
+    },
+    {
+      "decision": "Search Before Building audit for push-notifications story",
+      "context": "Pre-implementation code reuse analysis",
+      "alternatives_considered": [],
+      "rationale": "Found: 4 BUILD (lib/notifications/push.ts pure helpers, ServiceWorkerRegistrar, PushNotificationToggle, ensureNotificationPreferences server action), 1 EXTEND (app/(app)/settings/page.tsx — placeholder replaced with real notification sections), 3 REUSE (app/api/push/subscribe/route.ts, public/sw.js push handler, app/api/cron/daily-check/route.ts).",
+      "confidence": "high",
+      "affects": [
+        "lib/notifications/push.ts",
+        "components/notifications/PushNotificationToggle.tsx",
+        "app/(app)/settings/page.tsx"
+      ]
+    },
+    {
+      "decision": "ServiceWorkerRegistrar placed in (app) layout, not root layout",
+      "context": "SW registration needs to happen once on app load. Could go in root layout (covers auth pages too) or (app) layout (only authenticated pages).",
+      "alternatives_considered": [
+        "Root layout — registers SW on login/signup pages too, wasting a registration call before the user is authenticated",
+        "Individual pages — duplicates the registration call and risks missing it on new pages"
+      ],
+      "rationale": "(app) layout is the authenticated shell. All push-notification features require an authenticated user. Registering the SW here means it only activates after login, and it runs once for the entire app session via useEffect([]).",
+      "confidence": "high",
+      "affects": [
+        "app/(app)/layout.tsx",
+        "components/notifications/ServiceWorkerRegistrar.tsx"
+      ]
+    },
+    {
+      "decision": "ensureNotificationPreferences upserts on /settings page load (not on signup)",
+      "context": "Foundation eval found that cron INNER JOIN on notification_preferences silently excludes users without a prefs row. Options: insert on signup, insert on first /settings visit, or change the JOIN to LEFT JOIN.",
+      "alternatives_considered": [
+        "Insert in signup action — requires modifying auth flow, risk of partial signup if insert fails",
+        "Change cron to LEFT JOIN with defaults — loses the ability to store per-user overrides",
+        "Insert on first /settings visit (chosen) — lazy creation, zero auth flow changes"
+      ],
+      "rationale": "Lazy upsert on /settings is the simplest fix: one server action call, race-condition safe (read-then-insert with conflict retry). Users who never visit /settings still get excluded from cron notifications — which is acceptable since they never expressed interest in configuring notifications. The notification-settings story (next in the milestone) will add toggle editing.",
+      "confidence": "high",
+      "affects": [
+        "app/actions/notifications.ts",
+        "app/(app)/settings/page.tsx"
+      ]
+    }
+  ],
+  "relevant_questions": [
+    {
+      "question": "ensureNotificationPreferences lazy-creates on /settings visit, but users who never visit /settings will be excluded from cron push notifications (INNER JOIN). Consider also creating the row on first push subscription (AC-PN-2 flow) or changing the cron to LEFT JOIN.",
+      "found_in": "AC-PN-5 implementation — push-notifications story",
+      "resolved_as": "Accepted for now — users who enable push (AC-PN-2) will visit /settings to do so, triggering the upsert. Edge case: if a future flow enables push from a different page, that page must also call ensureNotificationPreferences.",
+      "needs_clarification_from": "spec",
+      "severity": "minor"
+    }
+  ],
+  "relevant_divergences": []
+}

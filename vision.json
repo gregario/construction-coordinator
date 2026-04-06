@@ -1,0 +1,78 @@
+{
+  "product": "construction-manager",
+  "name": "Construction Manager",
+  "one_liner": "Dynamic build scheduling for expert owner-builders",
+  "persona": "Expert owner-builder managing a single residential new construction project",
+  "problem": "Coordinating a house build across fragmented tools with no automatic cascade when things slip",
+  "killer_edge": "Material lead times + dependency cascade + mobile daily briefing — nobody else combines these for owner-builders",
+  "emotional_north_star": "From 'let me check three apps and recalculate what shifted' to 'I open one app and know exactly where my build stands'",
+  "scope": {
+    "in": [
+      "Hierarchical task tree (Stages → Tasks → Materials)",
+      "Rich template + AI-assisted project setup",
+      "Material tracking with lead times → order-by dates",
+      "Scheduling engine with dependency cascade recalculation",
+      "Daily briefing (mobile-first, tactical)",
+      "Interactive Gantt chart (desktop, weekly review)",
+      "Photo/document storage per task/stage",
+      "Push notifications (Web Push via PWA)",
+      "Trade contact association per task",
+      "Project data export (JSON, CSV, PDF Gantt)"
+    ],
+    "out": [
+      "Trade availability/conflict detection",
+      "Supplier ordering integration",
+      "Weather integration",
+      "Scenario modeling for delays",
+      "Email notifications",
+      "Native mobile app"
+    ],
+    "deferred_m2": [
+      "Budget dashboard (estimated vs actual spend by stage)",
+      "Sharing/collaboration (read-only link for bank, partner, inspector)",
+      "Constraint-aware cascade (weekends, inspector slots, weather windows)"
+    ]
+  },
+  "complexity_profile": {
+    "primary": "full-stack"
+  },
+  "infrastructure": {
+    "needs_database": true,
+    "needs_auth": true,
+    "needs_storage": true,
+    "needs_payments": false,
+    "deployment_target": "vercel",
+    "deploy_mode": "production",
+    "services": ["supabase"],
+    "framework": "next.js",
+    "pwa": true,
+    "push_notifications": "web-push-api"
+  },
+  "competition": {
+    "market_density": "contested (owner-builder niche: blue ocean)",
+    "advisory_verdict": "clear lane",
+    "reference_products": [
+      { "name": "Buildertrend", "url": "https://buildertrend.com", "dimensions": ["feature-completeness"] },
+      { "name": "BuildBook", "url": "https://buildbook.co", "dimensions": ["ux-tone", "simplicity"] },
+      { "name": "HBApp", "url": "https://homebuilding.app", "dimensions": ["audience-framing"] },
+      { "name": "TeamGantt", "url": "https://www.teamgantt.com", "dimensions": ["gantt-ux"] }
+    ]
+  },
+  "legal": {
+    "jurisdiction": "Ireland",
+    "data_baseline": "GDPR",
+    "regulated_domain": false,
+    "trademark_status": "clear",
+    "construction_disclaimer": true
+  },
+  "design": {
+    "color_palette": "warm earth tones (clay, sage, amber, warm off-white)",
+    "primary_color": "#8B5E3C",
+    "typography": "Inter",
+    "mobile_first_screens": ["/briefing"],
+    "desktop_first_screens": ["/schedule", "/setup"],
+    "navigation_mobile": "bottom tab bar",
+    "navigation_desktop": "sidebar",
+    "overall_score": 9
+  }
+}

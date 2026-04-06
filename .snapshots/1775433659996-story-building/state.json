@@ -1,0 +1,723 @@
+{
+  "project": "construction-manager",
+  "status": "ready",
+  "current_state": "story-building",
+  "current_milestone": "materials-scheduling",
+  "current_story": "dependency-validation",
+  "milestones": [
+    {
+      "name": "project-core",
+      "status": "complete",
+      "stories": [
+        {
+          "id": "project-creation",
+          "name": "Project Creation",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Project"
+          ],
+          "affected_screens": [
+            "/setup"
+          ],
+          "env_limitations": [],
+          "completed_at": "2026-04-05T20:07:17.099Z",
+          "files_changed": [
+            "app/(app)/setup/page.tsx",
+            "app/actions/projects.ts",
+            "components/setup/ProjectCreationForm.tsx",
+            "lib/projects/validate.ts",
+            "tests/projects-validate.test.ts"
+          ]
+        },
+        {
+          "id": "template-browser",
+          "name": "Template Browser",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "project-creation"
+          ],
+          "affected_entities": [
+            "Project",
+            "Stage",
+            "Task"
+          ],
+          "affected_screens": [
+            "/setup"
+          ],
+          "env_limitations": [],
+          "completed_at": "2026-04-05T20:15:45.245Z",
+          "files_changed": [
+            "app/(app)/setup/page.tsx",
+            "app/actions/templates.ts",
+            "components/setup/TemplateBrowser.tsx",
+            "lib/templates/apply.ts",
+            "tests/templates-apply.test.ts"
+          ]
+        },
+        {
+          "id": "template-customization",
+          "name": "Template Customization + AI Assist",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "template-browser"
+          ],
+          "affected_entities": [
+            "Project",
+            "Stage",
+            "Task",
+            "Material"
+          ],
+          "affected_screens": [
+            "/setup"
+          ],
+          "env_limitations": [
+            "Real LLM backend not wired up — AI assist uses deterministic keyword heuristics behind the same suggestFromMessage interface so the Claude/OpenAI call can be dropped in later without touching the UI. AC-TC-3/AC-TC-4 flow fully exercised; the quality of suggestions is limited to ICF/insulation/solar keywords until then."
+          ],
+          "completed_at": "2026-04-05T20:25:04.089Z",
+          "files_changed": [
+            "app/(app)/setup/page.tsx",
+            "app/actions/customization.ts",
+            "components/setup/CustomizationScreen.tsx",
+            "lib/customization/tree.ts",
+            "lib/customization/assistant.ts",
+            "tests/customization-tree.test.ts",
+            "tests/customization-assistant.test.ts"
+          ]
+        },
+        {
+          "id": "stage-management",
+          "name": "Stage Management",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "project-creation"
+          ],
+          "affected_entities": [
+            "Stage"
+          ],
+          "affected_screens": [
+            "/schedule",
+            "/stages/:id"
+          ],
+          "env_limitations": [
+            "Drag-to-reorder uses the native HTML5 drag-and-drop API. Touch devices (iOS Safari) do not fire drag events, so mobile users rely on the up/down arrow buttons next to each stage to reorder — same persistence path (reorderProjectStages), same reorderStages() pure function, just a different input modality."
+          ],
+          "completed_at": "2026-04-05T20:33:16.585Z",
+          "files_changed": [
+            "app/(app)/schedule/page.tsx",
+            "app/actions/stages.ts",
+            "components/schedule/StageManager.tsx",
+            "lib/stages/operations.ts",
+            "tests/stages-operations.test.ts"
+          ]
+        },
+        {
+          "id": "task-management",
+          "name": "Task Management + Dependencies",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "stage-management"
+          ],
+          "affected_entities": [
+            "Task"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/stages/:id",
+            "/schedule"
+          ],
+          "env_limitations": [
+            "cascade_task_dates() RPC path (AC-TM-5) wasn't exercised against the live DB — unit tests verify the pure date math and the action code path, but the downstream-update SQL runs server-side. A Supabase integration test (or QA pass) is the right place to verify that duration edits actually shift downstream planned_start/planned_end columns."
+          ],
+          "completed_at": "2026-04-05T20:42:21.040Z",
+          "files_changed": [
+            "lib/tasks/operations.ts",
+            "app/actions/tasks.ts",
+            "components/tasks/StageTasksManager.tsx",
+            "app/(app)/stages/[id]/page.tsx",
+            "components/schedule/StageManager.tsx",
+            "tests/tasks-operations.test.ts"
+          ]
+        },
+        {
+          "id": "trade-contacts",
+          "name": "Trade Contact Management",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "project-creation"
+          ],
+          "affected_entities": [
+            "Trade"
+          ],
+          "affected_screens": [
+            "/trades",
+            "/tasks/:id"
+          ],
+          "env_limitations": [
+            "tel: links (AC-TR-3) verified structurally via formatTelHref unit tests — actual tap-to-call dispatch only works on a real mobile device and was not exercised against iOS/Android. The href is constructed correctly per RFC 3966 (digits + leading +), so a mobile QA pass should just work."
+          ],
+          "completed_at": "2026-04-05T20:49:54.321Z",
+          "files_changed": [
+            "lib/trades/operations.ts",
+            "app/actions/trades.ts",
+            "components/trades/TradesManager.tsx",
+            "app/(app)/trades/page.tsx",
+            "components/tasks/TaskTradeAssigner.tsx",
+            "app/(app)/tasks/[id]/page.tsx",
+            "tests/trades-operations.test.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "materials-scheduling",
+      "status": "in-progress",
+      "stories": [
+        {
+          "id": "material-line-items",
+          "name": "Material Line Items",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Material"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/materials"
+          ],
+          "env_limitations": [
+            "Server action paths (createMaterial/updateMaterial/deleteMaterial) are covered by pure-logic unit tests for validation and order_by_date math, but the DB round-trip itself is not exercised in CI (no Supabase test harness). The project already accepts this trade-off for trades/tasks/stages actions."
+          ],
+          "completed_at": "2026-04-05T22:25:10.456Z",
+          "files_changed": [
+            "lib/materials/operations.ts",
+            "app/actions/materials.ts",
+            "components/materials/TaskMaterialsManager.tsx",
+            "app/(app)/tasks/[id]/page.tsx",
+            "tests/materials-operations.test.ts"
+          ]
+        },
+        {
+          "id": "order-by-calculation",
+          "name": "Order-By Date Calculation",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "material-line-items"
+          ],
+          "affected_entities": [
+            "Material"
+          ],
+          "affected_screens": [
+            "/materials",
+            "/briefing"
+          ],
+          "env_limitations": [
+            "Supabase read-path for /materials and /briefing is not exercised in CI (no Supabase test harness). Pure-logic materialDeadlineStatus + selectUpcomingOrders are unit-tested; the page RSCs rely on RLS + the same join patterns used by /schedule and /tasks/:id."
+          ],
+          "completed_at": "2026-04-05T22:31:15.883Z",
+          "files_changed": [
+            "lib/materials/operations.ts",
+            "tests/materials-operations.test.ts",
+            "components/materials/MaterialDeadlineBadge.tsx",
+            "app/(app)/materials/page.tsx",
+            "app/(app)/briefing/page.tsx"
+          ]
+        },
+        {
+          "id": "material-status",
+          "name": "Material Order Status Tracking",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "material-line-items"
+          ],
+          "affected_entities": [
+            "Material"
+          ],
+          "affected_screens": [
+            "/materials",
+            "/tasks/:id"
+          ],
+          "env_limitations": [
+            "updateMaterialStatus server action (Supabase round-trip) is not covered in CI — no Supabase test harness. Pure-logic nextStatusTransition + filterMaterialsByStatus + validation helpers are unit-tested. Same trade-off accepted for createMaterial/updateMaterial/deleteMaterial in the material-line-items story."
+          ],
+          "completed_at": "2026-04-05T22:38:50.266Z",
+          "files_changed": [
+            "lib/materials/operations.ts",
+            "app/actions/materials.ts",
+            "components/materials/MaterialDeadlineBadge.tsx",
+            "components/materials/MaterialsListView.tsx",
+            "components/materials/TaskMaterialsManager.tsx",
+            "app/(app)/materials/page.tsx",
+            "app/(app)/tasks/[id]/page.tsx",
+            "tests/materials-operations.test.ts"
+          ]
+        },
+        {
+          "id": "cascade-engine",
+          "name": "Dependency Cascade Engine",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Task",
+            "Material"
+          ],
+          "affected_screens": [
+            "/schedule",
+            "/briefing",
+            "/tasks/:id"
+          ],
+          "env_limitations": [
+            "AC-CE-5 (second cascade queues behind first, no race) and AC-CE-6 (under 2s for 500 tasks) rely on the cascade_task_dates() plpgsql function running inside a single Supabase transaction. No Supabase test harness exists in CI, so these guarantees are verified structurally (single plpgsql function = single transaction with row locks) rather than with a live DB smoke test. QA phase should exercise a live cascade against a seeded project.",
+            "The cascade SQL function is already deployed by the initial_schema migration; this story only added the TypeScript summary layer and wired it into updateTaskDuration."
+          ],
+          "completed_at": "2026-04-05T22:44:36.906Z",
+          "files_changed": [
+            "lib/cascade/engine.ts",
+            "tests/cascade-engine.test.ts",
+            "app/actions/tasks.ts"
+          ]
+        },
+        {
+          "id": "delay-logging",
+          "name": "Delay Logging + Cascade Trigger",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "cascade-engine"
+          ],
+          "affected_entities": [
+            "Task"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/briefing"
+          ],
+          "env_limitations": [
+            "AC-DL-4 (offline queue + Delay synced toast): no client-side offline action queue exists. A service worker is registered (components/sw-register.tsx -> /sw.js) but has no sync/replay infra. logTaskDelay is safe to replay but the client currently surfaces a fetch error if offline. Implementation deferred to a future offline-sync story; flagged as factory_question and noted in skipped[].",
+            "logTaskDelay server action (cascade_task_dates RPC round-trip) is covered structurally by pure-logic unit tests for validateDelayDate + formatCascadeSummaryMessage. The RPC itself is not exercised in CI (no Supabase test harness). QA phase should bump a date on a seeded task and verify the summary overlay renders the downstream tasks and material count."
+          ],
+          "completed_at": "2026-04-05T22:52:07.773Z",
+          "files_changed": [
+            "lib/tasks/delay.ts",
+            "tests/tasks-delay.test.ts",
+            "app/actions/tasks.ts",
+            "components/tasks/TaskDelayLogger.tsx",
+            "app/(app)/tasks/[id]/page.tsx"
+          ]
+        },
+        {
+          "id": "cascade-material-sync",
+          "name": "Cascade Material Order-By Sync",
+          "status": "done",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "order-by-calculation",
+            "cascade-engine"
+          ],
+          "affected_entities": [
+            "Material"
+          ],
+          "affected_screens": [
+            "/materials",
+            "/briefing"
+          ],
+          "env_limitations": [
+            "The SQL cascade_task_dates() UPDATE materials branch is covered structurally by the TypeScript computeMaterialMovements mirror (same planned_start − lead_time_days math as computeOrderByDate). The RPC round-trip itself is not exercised in CI (no Supabase test harness). QA phase should delay or resize a task with attached materials on seeded data and verify the overlay enumerates the moved materials and that /materials and /briefing reflect the new order_by_dates."
+          ],
+          "completed_at": "2026-04-05T23:01:21.913Z",
+          "files_changed": [
+            "lib/cascade/engine.ts",
+            "tests/cascade-engine.test.ts",
+            "app/actions/tasks.ts",
+            "components/tasks/TaskDelayLogger.tsx"
+          ]
+        },
+        {
+          "id": "dependency-validation",
+          "name": "Dependency Graph Validation",
+          "status": "in-progress",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "cascade-engine"
+          ],
+          "affected_entities": [
+            "Task"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/schedule"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        }
+      ]
+    },
+    {
+      "name": "daily-experience",
+      "status": "pending",
+      "stories": [
+        {
+          "id": "daily-briefing-view",
+          "name": "Daily Briefing View",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Task",
+            "Material"
+          ],
+          "affected_screens": [
+            "/briefing"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "task-quick-actions",
+          "name": "Task Quick Actions from Briefing",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "daily-briefing-view"
+          ],
+          "affected_entities": [
+            "Task"
+          ],
+          "affected_screens": [
+            "/briefing"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "upcoming-orders-view",
+          "name": "Upcoming Material Orders View",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "daily-briefing-view"
+          ],
+          "affected_entities": [
+            "Material"
+          ],
+          "affected_screens": [
+            "/briefing"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "shift-alerts",
+          "name": "Shift Alerts (What Changed)",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "daily-briefing-view"
+          ],
+          "affected_entities": [
+            "Task",
+            "Material"
+          ],
+          "affected_screens": [
+            "/briefing"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "push-notifications",
+          "name": "Push Notifications",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "daily-briefing-view"
+          ],
+          "affected_entities": [],
+          "affected_screens": [
+            "/settings"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "notification-settings",
+          "name": "Notification Preferences",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "push-notifications"
+          ],
+          "affected_entities": [],
+          "affected_screens": [
+            "/settings"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        }
+      ]
+    },
+    {
+      "name": "planning-tools",
+      "status": "pending",
+      "stories": [
+        {
+          "id": "gantt-chart-render",
+          "name": "Gantt Chart Rendering",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Stage",
+            "Task"
+          ],
+          "affected_screens": [
+            "/schedule"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "gantt-zoom-navigate",
+          "name": "Gantt Zoom & Navigation",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "gantt-chart-render"
+          ],
+          "affected_entities": [],
+          "affected_screens": [
+            "/schedule"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "gantt-inline-edit",
+          "name": "Gantt Inline Editing",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [
+            "gantt-chart-render"
+          ],
+          "affected_entities": [
+            "Task"
+          ],
+          "affected_screens": [
+            "/schedule"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "photo-storage",
+          "name": "Photo Capture & Storage",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Photo"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/stages/:id",
+            "/photos"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "document-storage",
+          "name": "Document Upload & Storage",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Document"
+          ],
+          "affected_screens": [
+            "/tasks/:id",
+            "/stages/:id"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        },
+        {
+          "id": "project-export",
+          "name": "Project Data Export",
+          "status": "pending",
+          "attempts": 0,
+          "blocked_by": null,
+          "depends_on": [],
+          "affected_entities": [
+            "Project",
+            "Stage",
+            "Task",
+            "Material",
+            "Trade"
+          ],
+          "affected_screens": [
+            "/settings"
+          ],
+          "env_limitations": [],
+          "completed_at": null,
+          "files_changed": []
+        }
+      ]
+    }
+  ],
+  "escalations": [
+    {
+      "id": "esc-deploy-failed-1775422381838",
+      "tier": 1,
+      "classification": "deploy-failure",
+      "summary": "Staging deploy failed 3 times",
+      "story_id": null,
+      "status": "resolved",
+      "created_at": "2026-04-05T20:53:01.838Z",
+      "resolved_at": "2026-04-05T22:15:00.000Z",
+      "resolution": "Manual recovery: new Vercel project construction-coordinator created, GitHub repo separated, env vars migrated, cycle_context.json scrubbed. Deploy verified at https://construction-coordinator.vercel.app (HTTP 307)."
+    }
+  ],
+  "fix_memory": {},
+  "foundation": {
+    "status": "complete",
+    "scope": [
+      "supabase-schema (7 entities with relationships and RLS)",
+      "supabase-auth (email/password with Next.js middleware)",
+      "supabase-storage (photos and documents buckets)",
+      "pwa-service-worker (installable PWA with offline shell)",
+      "web-push-setup (notification subscription and delivery)",
+      "shared-ui-shell (sidebar/bottom-tab nav, responsive layout, design tokens)"
+    ],
+    "completed_at": "2026-04-05T19:58:49.638Z"
+  },
+  "consecutive_failures": 0,
+  "milestone_learnings": [],
+  "detected_profile": "full-stack",
+  "seeded_at": "2026-04-05T16:30:00.000Z",
+  "seeded_by": "rouge-seeding-swarm",
+  "human_approved": true,
+  "timestamp": "2026-04-05T23:01:21.917Z",
+  "costs": {
+    "cumulative_tokens": 251474,
+    "cumulative_cost_usd": 10.23633,
+    "phase_tokens": 31034,
+    "phase_cost_usd": 1.39653
+  },
+  "last_build_delta": 0,
+  "stories_executed": [
+    {
+      "name": "Project Creation",
+      "delta": -354,
+      "duration_ms": 0
+    },
+    {
+      "name": "Template Browser",
+      "delta": 4,
+      "duration_ms": 0
+    },
+    {
+      "name": "Template Customization + AI Assist",
+      "delta": 6,
+      "duration_ms": 0
+    },
+    {
+      "name": "Stage Management",
+      "delta": -3,
+      "duration_ms": 0
+    },
+    {
+      "name": "Task Management + Dependencies",
+      "delta": 7,
+      "duration_ms": 0
+    },
+    {
+      "name": "Trade Contact Management",
+      "delta": 5,
+      "duration_ms": 0
+    },
+    {
+      "name": "Material Line Items",
+      "delta": 4,
+      "duration_ms": 0
+    },
+    {
+      "name": "Order-By Date Calculation",
+      "delta": 1,
+      "duration_ms": 0
+    },
+    {
+      "name": "Material Order Status Tracking",
+      "delta": 0,
+      "duration_ms": 0
+    },
+    {
+      "name": "Dependency Cascade Engine",
+      "delta": 2,
+      "duration_ms": 0
+    },
+    {
+      "name": "Delay Logging + Cascade Trigger",
+      "delta": 3,
+      "duration_ms": 0
+    },
+    {
+      "name": "Cascade Material Order-By Sync",
+      "delta": 0,
+      "duration_ms": 0
+    }
+  ],
+  "last_meaningful_progress_at": 1775429527773,
+  "_last_screenshots": [
+    "/Users/gregario/Projects/ClaudeCode/The-Rouge/projects/construction-coordinator/screenshots/loop-0/home.png"
+  ],
+  "promoted_milestones": [
+    "project-core"
+  ]
+}

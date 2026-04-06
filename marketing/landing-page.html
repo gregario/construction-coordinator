@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Construction Manager: dynamic build scheduling for expert owner-builders. Material lead times, dependency cascades, and a daily briefing in one app.">
+  <title>Construction Manager -- Your Entire Build. One Screen.</title>
+  <style>
+    :root {
+      --color-earth-900: #2C1810;
+      --color-earth-800: #3E2723;
+      --color-earth-700: #4E342E;
+      --color-earth-600: #5D4037;
+      --color-earth-500: #6D4C41;
+      --color-earth-400: #8D6E63;
+      --color-earth-300: #A1887F;
+      --color-earth-200: #BCAAA4;
+      --color-earth-100: #D7CCC8;
+      --color-earth-50: #EFEBE9;
+
+      --color-sand-50: #FAF8F5;
+      --color-sand-100: #F5F0EB;
+      --color-sand-200: #E8DFD5;
+
+      --color-clay: #C75B39;
+      --color-clay-dark: #A94425;
+      --color-clay-light: #E07A5A;
+
+      --color-forest: #2E7D32;
+      --color-forest-dark: #1B5E20;
+
+      --color-slate: #37474F;
+      --color-slate-light: #546E7A;
+
+      --color-text: var(--color-earth-900);
+      --color-text-secondary: var(--color-earth-600);
+      --color-bg: var(--color-sand-50);
+      --color-bg-alt: #FFFFFF;
+      --color-accent: var(--color-clay);
+      --color-accent-hover: var(--color-clay-dark);
+
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+      --font-heading: Georgia, "Times New Roman", serif;
+
+      --space-xs: 0.5rem;
+      --space-sm: 1rem;
+      --space-md: 1.5rem;
+      --space-lg: 3rem;
+      --space-xl: 5rem;
+
+      --max-width: 72rem;
+      --max-width-narrow: 48rem;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      color: var(--color-text);
+      background: var(--color-bg);
+      line-height: 1.6;
+    }
+
+    /* --- Typography --- */
+    h1, h2, h3 {
+      font-family: var(--font-heading);
+      line-height: 1.2;
+    }
+
+    h1 { font-size: 2.5rem; }
+    h2 { font-size: 1.75rem; }
+    h3 { font-size: 1.25rem; }
+
+    @media (min-width: 768px) {
+      h1 { font-size: 3.5rem; }
+      h2 { font-size: 2.25rem; }
+      h3 { font-size: 1.5rem; }
+    }
+
+    p {
+      max-width: 65ch;
+    }
+
+    /* --- Layout --- */
+    .container {
+      width: 100%;
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--space-md);
+    }
+
+    .container--narrow {
+      max-width: var(--max-width-narrow);
+    }
+
+    section {
+      padding: var(--space-lg) 0;
+    }
+
+    @media (min-width: 768px) {
+      section {
+        padding: var(--space-xl) 0;
+      }
+    }
+
+    /* --- Nav --- */
+    nav {
+      position: sticky;
+      top: 0;
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-sand-200);
+      z-index: 100;
+      padding: var(--space-sm) 0;
+    }
+
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-brand {
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-earth-800);
+      text-decoration: none;
+    }
+
+    .nav-cta {
+      display: inline-block;
+      padding: var(--space-xs) var(--space-sm);
+      background: var(--color-accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: background 0.15s;
+    }
+
+    .nav-cta:hover {
+      background: var(--color-accent-hover);
+    }
+
+    /* --- Buttons --- */
+    .btn {
+      display: inline-block;
+      padding: 0.875rem 2rem;
+      background: var(--color-accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 1.125rem;
+      transition: background 0.15s;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background: var(--color-accent-hover);
+    }
+
+    .btn--outline {
+      background: transparent;
+      color: var(--color-accent);
+      border: 2px solid var(--color-accent);
+    }
+
+    .btn--outline:hover {
+      background: var(--color-accent);
+      color: #fff;
+    }
+
+    /* --- Hero --- */
+    .hero {
+      padding: var(--space-xl) 0;
+      text-align: center;
+      background: linear-gradient(180deg, var(--color-sand-50) 0%, var(--color-sand-100) 100%);
+    }
+
+    .hero h1 {
+      margin-bottom: var(--space-sm);
+      color: var(--color-earth-800);
+    }
+
+    .hero p {
+      margin: 0 auto var(--space-md);
+      font-size: 1.125rem;
+      color: var(--color-text-secondary);
+      max-width: 42rem;
+    }
+
+    @media (min-width: 768px) {
+      .hero {
+        padding: 6rem 0;
+      }
+      .hero p {
+        font-size: 1.25rem;
+      }
+    }
+
+    /* --- Problem --- */
+    .problem {
+      background: var(--color-earth-800);
+      color: var(--color-sand-100);
+    }
+
+    .problem h2 {
+      color: var(--color-sand-50);
+      margin-bottom: var(--space-md);
+    }
+
+    .problem p {
+      color: var(--color-earth-200);
+      margin-bottom: var(--space-sm);
+      font-size: 1.0625rem;
+    }
+
+    /* --- Solution --- */
+    .solution {
+      background: var(--color-bg-alt);
+    }
+
+    .solution h2 {
+      margin-bottom: var(--space-sm);
+    }
+
+    .solution p {
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-sm);
+      font-size: 1.0625rem;
+    }
+
+    .solution-highlight {
+      display: inline-block;
+      margin-top: var(--space-sm);
+      padding: var(--space-xs) var(--space-sm);
+      background: var(--color-sand-100);
+      border-left: 4px solid var(--color-clay);
+      font-weight: 600;
+      color: var(--color-earth-700);
+    }
+
+    /* --- Features --- */
+    .features {
+      background: var(--color-bg);
+    }
+
+    .features h2 {
+      text-align: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .features-grid {
+      display: grid;
+      gap: var(--space-md);
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 600px) {
+      .features-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (min-width: 960px) {
+      .features-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+
+    .feature-card {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-sand-200);
+      border-radius: 8px;
+      padding: var(--space-md);
+    }
+
+    .feature-card h3 {
+      margin-bottom: var(--space-xs);
+      color: var(--color-earth-700);
+      font-family: var(--font-body);
+      font-size: 1.125rem;
+    }
+
+    .feature-card p {
+      color: var(--color-text-secondary);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+
+    .feature-icon {
+      display: block;
+      width: 2.5rem;
+      height: 2.5rem;
+      margin-bottom: var(--space-xs);
+      background: var(--color-sand-100);
+      border-radius: 6px;
+      line-height: 2.5rem;
+      text-align: center;
+      font-size: 1.25rem;
+    }
+
+    /* --- Social Proof --- */
+    .social-proof {
+      background: var(--color-bg-alt);
+    }
+
+    .social-proof h2 {
+      text-align: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .testimonials {
+      display: grid;
+      gap: var(--space-md);
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+      .testimonials {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .testimonial {
+      border-left: 3px solid var(--color-earth-300);
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .testimonial blockquote {
+      font-style: italic;
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .testimonial cite {
+      font-style: normal;
+      font-weight: 600;
+      color: var(--color-earth-600);
+      font-size: 0.875rem;
+    }
+
+    /* --- Pricing --- */
+    .pricing {
+      background: var(--color-bg);
+      text-align: center;
+    }
+
+    .pricing h2 {
+      margin-bottom: var(--space-sm);
+    }
+
+    .pricing > .container > p {
+      margin: 0 auto var(--space-md);
+      color: var(--color-text-secondary);
+    }
+
+    .pricing-card {
+      display: inline-block;
+      background: var(--color-bg-alt);
+      border: 2px solid var(--color-sand-200);
+      border-radius: 8px;
+      padding: var(--space-md) var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+
+    .pricing-card .price-note {
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-sm);
+    }
+
+    .pricing-compare {
+      font-size: 0.9375rem;
+      color: var(--color-text-secondary);
+    }
+
+    /* --- FAQ --- */
+    .faq {
+      background: var(--color-bg-alt);
+    }
+
+    .faq h2 {
+      text-align: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .faq-list {
+      list-style: none;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid var(--color-sand-200);
+      padding: var(--space-sm) 0;
+    }
+
+    .faq-item:first-child {
+      border-top: 1px solid var(--color-sand-200);
+    }
+
+    .faq-item h3 {
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 1.0625rem;
+      margin-bottom: var(--space-xs);
+      color: var(--color-earth-800);
+    }
+
+    .faq-item p {
+      color: var(--color-text-secondary);
+      font-size: 0.9375rem;
+    }
+
+    /* --- Footer CTA --- */
+    .footer-cta {
+      background: var(--color-earth-800);
+      color: var(--color-sand-50);
+      text-align: center;
+      padding: var(--space-xl) 0;
+    }
+
+    .footer-cta h2 {
+      color: var(--color-sand-50);
+      margin-bottom: var(--space-md);
+    }
+
+    /* --- Footer --- */
+    footer {
+      background: var(--color-earth-900);
+      color: var(--color-earth-300);
+      text-align: center;
+      padding: var(--space-md) 0;
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--color-earth-200);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="container nav-inner">
+      <a href="/" class="nav-brand">Construction Manager</a>
+      <a href="#get-started" class="nav-cta">Start your project</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero" id="get-started">
+    <div class="container container--narrow">
+      <h1>Your entire build. One screen.</h1>
+      <p>Construction Manager replaces the spreadsheet Gantt, the task app, and the mental math. Material lead times, dependency cascades, and a daily briefing -- built for owner-builders who already know what they're doing.</p>
+      <a href="#" class="btn">Start your project free</a>
+    </div>
+  </section>
+
+  <!-- Problem -->
+  <section class="problem">
+    <div class="container container--narrow">
+      <h2>You know how to build a house. The hard part is tracking it all.</h2>
+      <p>You've got 47 trades, 200+ tasks, and a drywall delivery that just slipped two weeks. Now everything downstream needs to shift -- electrical rough-in, insulation, framing inspection -- and you're recalculating across three different apps.</p>
+      <p>Your Gantt lives in Google Sheets. Your tasks live in Google Tasks. Your trade contacts are scattered across your phone. Every morning starts the same way: open three apps, cross-reference, recalculate, hope you didn't miss something.</p>
+      <p>You don't need a tool that teaches you construction sequencing. You need one that keeps up with you.</p>
+    </div>
+  </section>
+
+  <!-- Solution -->
+  <section class="solution">
+    <div class="container container--narrow">
+      <h2>Material intelligence meets cascade scheduling.</h2>
+      <p>Construction Manager tracks every material lead time in your build and works backward to "order by" dates. When something slips, the scheduling engine recalculates every downstream dependency automatically.</p>
+      <p>You open the app and see exactly what changed, what's at risk, and what needs your attention today.</p>
+      <span class="solution-highlight">No $339/month enterprise pricing. Just the coordination layer your build needs.</span>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div class="container">
+      <h2>What you get</h2>
+      <div class="features-grid">
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#9634;</span>
+          <h3>Rich project templates</h3>
+          <p>Start with a proven residential construction template, customize with AI assistance. Your project structure is ready in minutes.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#9776;</span>
+          <h3>Hierarchical task tree</h3>
+          <p>Stages break into tasks. Tasks link to materials, trades, and documents. See the whole build or drill into a single pour.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#9201;</span>
+          <h3>Material lead time tracking</h3>
+          <p>Enter lead times, get automatic "order by" dates. Catch late orders before they delay your build.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#8644;</span>
+          <h3>Cascade scheduling engine</h3>
+          <p>When a task slips, every downstream dependency recalculates instantly. The schedule stays accurate because the math is always current.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#9788;</span>
+          <h3>Daily briefing</h3>
+          <p>Every morning: what's due today, what's at risk this week, which materials need ordering. Built for the job site.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#9866;</span>
+          <h3>Interactive Gantt chart</h3>
+          <p>See your full timeline on desktop. Drag to adjust, click to drill in. Dependencies render as visual links.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#128247;</span>
+          <h3>Photos and documents</h3>
+          <p>Attach progress photos, inspection reports, and spec sheets directly to their task. Everything stays connected.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#128276;</span>
+          <h3>Push notifications</h3>
+          <p>Get notified before material order deadlines, inspection windows, and task due dates. Catch problems before they become delays.</p>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">&#128194;</span>
+          <h3>Your data stays yours</h3>
+          <p>Export your entire project as JSON, CSV, or PDF at any time. No vendor lock-in. Your build data belongs to you.</p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Social Proof -->
+  <section class="social-proof">
+    <div class="container container--narrow">
+      <h2>From owner-builders</h2>
+      <div class="testimonials">
+        <div class="testimonial">
+          <blockquote>"[Placeholder -- real testimonial from beta user: owner-builder who replaced spreadsheet workflow]"</blockquote>
+          <cite>-- [Name], owner-builder</cite>
+        </div>
+        <div class="testimonial">
+          <blockquote>"[Placeholder -- real testimonial from beta user: owner-builder who caught a cascade delay early]"</blockquote>
+          <cite>-- [Name], owner-builder</cite>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="pricing" id="pricing">
+    <div class="container container--narrow">
+      <h2>Pricing built for individuals, not firms.</h2>
+      <p>Construction Manager is priced for the person building one home -- not the general contractor managing fifty.</p>
+      <div class="pricing-card">
+        <p class="price-note">[Pricing details coming soon -- expected range: $15-30/month]</p>
+        <a href="#" class="btn">Start your project free</a>
+      </div>
+      <p class="pricing-compare">Compare: Buildertrend starts at $339+/month. Procore starts at $10,000+/year.<br>Those tools are built for commercial GC firms. This one is built for you.</p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="faq">
+    <div class="container container--narrow">
+      <h2>Questions</h2>
+      <ul class="faq-list">
+        <li class="faq-item">
+          <h3>Is this for general contractors or owner-builders?</h3>
+          <p>Owner-builders managing their own residential new construction. If you're coordinating trades and materials on a single build and you already understand construction sequencing, this is built for your workflow.</p>
+        </li>
+        <li class="faq-item">
+          <h3>Do I need to install anything?</h3>
+          <p>No. Construction Manager is a web app that installs to your phone's home screen like a native app. Works on any modern browser -- desktop for planning, mobile for the job site.</p>
+        </li>
+        <li class="faq-item">
+          <h3>What happens to my data if I cancel?</h3>
+          <p>Export your full project as JSON, CSV, or PDF at any time, including after cancellation. Your data is never held hostage.</p>
+        </li>
+        <li class="faq-item">
+          <h3>How does the cascade scheduling work?</h3>
+          <p>Every task has dependencies and durations. When you adjust a date or update a material lead time, the engine recalculates every downstream task automatically. You see the new timeline immediately.</p>
+        </li>
+        <li class="faq-item">
+          <h3>Can I import my existing schedule?</h3>
+          <p>Launch includes CSV import. If your schedule lives in a spreadsheet, you can bring it over. Custom import from other tools is on the roadmap.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Footer CTA -->
+  <section class="footer-cta">
+    <div class="container container--narrow">
+      <h2>Your build is too complex for spreadsheets. Start coordinating it properly.</h2>
+      <a href="#" class="btn">Start your project free</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>Construction Manager &copy; 2026. <a href="#">Privacy</a> &middot; <a href="#">Terms</a></p>
+    </div>
+  </footer>
+
+</body>
+</html>

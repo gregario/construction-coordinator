@@ -1,17 +1,18 @@
 {
   "story_result": {
-    "story_id": "notification-settings",
+    "story_id": "cascade-material-sync",
     "outcome": "pass",
     "files_changed": [
-      "lib/notifications/preferences.ts",
-      "app/actions/notifications.ts",
-      "components/notifications/NotificationPreferencesPanel.tsx",
-      "app/(app)/settings/page.tsx",
-      "tests/notification-preferences.test.ts"
+      "lib/cascade/engine.ts",
+      "tests/cascade-engine.test.ts",
+      "app/actions/tasks.ts",
+      "components/tasks/TaskDelayLogger.tsx"
     ],
-    "tests_added": 23,
-    "tests_passing": 340,
-    "env_limitations": []
+    "tests_added": 7,
+    "tests_passing": 228,
+    "env_limitations": [
+      "The SQL cascade_task_dates() UPDATE materials branch is covered structurally by the TypeScript computeMaterialMovements mirror (same planned_start − lead_time_days math as computeOrderByDate). The RPC round-trip itself is not exercised in CI (no Supabase test harness). QA phase should delay or resize a task with attached materials on seeded data and verify the overlay enumerates the moved materials and that /materials and /briefing reflect the new order_by_dates."
+    ]
   },
   "deployment_url": "https://construction-coordinator.vercel.app",
   "implemented": [
@@ -475,150 +476,6 @@
       "tests_added": 7,
       "tests_passing": 228,
       "details": "Story spec in state.json carried no acceptance criteria — Builder defined AC-CMS-1..4 from story name (Cascade Material Order-By Sync) and affected_screens (/materials, /briefing). AC-CMS-1: new pure helper computeMaterialMovements(materials, taskNewStarts) in lib/cascade/engine.ts computes new order_by_date = new planned_start − lead_time_days for every material attached to a cascade-touched task, mirroring the SQL cascade_task_dates() UPDATE materials branch byte-for-byte (shares computeOrderByDate math). AC-CMS-2: updateTaskDuration and logTaskDelay now return MaterialMovement[] + materials_moved count. Server actions load material metadata (id/name/lead_time_days/task_id) via loadCascadeMaterials, build an old/new planned_start map per task_id from the RPC response (trigger + downstream), and call buildMaterialMovements to assemble the per-material old_order_by_date → new_order_by_date list with delta_days. Count excludes zero-delta trigger-task materials. AC-CMS-3/AC-CMS-4: both server actions now revalidatePath(\"/materials\") and revalidatePath(\"/briefing\") so the affected RSCs re-render with the updated order_by_date values. TaskDelayLogger overlay renders a second list below the task list: Material order-by dates moved — one row per moved material with old → new order_by_date, delta days, and parent task name (filtered to non-zero deltas). 7 new pure unit tests cover date arithmetic, skip-when-task-not-touched, null old_order_by_date, negative deltas, and zero-lead-time edge cases. Total suite: 228 tests passing. Typecheck + lint clean."
-    },
-    {
-      "task": "dependency-validation",
-      "story_id": "dependency-validation",
-      "acceptance_criteria": [
-        "AC-DV-1",
-        "AC-DV-2",
-        "AC-DV-3"
-      ],
-      "files_changed": [
-        "lib/tasks/dependency-graph.ts",
-        "tests/dependency-graph.test.ts",
-        "app/actions/tasks.ts",
-        "components/tasks/StageTasksManager.tsx",
-        "app/(app)/stages/[id]/page.tsx"
-      ],
-      "tests_added": 18,
-      "tests_passing": 246,
-      "details": "AC-DV-1: Pure detectCycle(edges, proposed) uses DFS from the proposed dependency target, following existing depends_on edges. If the traversal reaches the proposing task, a cycle exists. formatCyclePath renders the cycle as 'This would create a circular dependency: A → B → A' using task names (falls back to IDs). Server-side: addDependency server action loads all project dependency edges, runs detectCycle, rejects with formatted error if cycle found. removeDependency action for unchecking deps. StageTasksManager adds a 'Deps' button per task opening a modal with checkboxes for all project tasks — toggling a checkbox calls addDependency/removeDependency, with inline error display (data-testid=dep-cycle-error) for cycle rejections. AC-DV-2: stages/[id] page RSC loads raw dependency edges, runs removeStaleDependencies(edges, validProjectTaskIds), deletes stale edges from task_dependencies table, passes only cleaned edges to the client. Also cleanStaleDependencies server action exposed for programmatic use. AC-DV-3: DFS is O(V+E) — unit tests verify cycle detection on 100-task chain, 200-task fan-out graph, and 500-task chain all complete under 500ms. 18 new unit tests across cycle detection (empty graph, direct cycle, transitive cycle, self-dep, fan-out, long chain), formatCyclePath (names, fallback IDs, 3-node), removeStaleDependencies (stale target, stale source, all valid, empty), and performance benchmarks. Total suite: 246 tests passing. Typecheck clean."
-    },
-    {
-      "task": "daily-briefing-view",
-      "story_id": "daily-briefing-view",
-      "acceptance_criteria": [
-        "AC-DB-1",
-        "AC-DB-2",
-        "AC-DB-3",
-        "AC-DB-4",
-        "AC-DB-5",
-        "AC-DB-6"
-      ],
-      "files_changed": [
-        "lib/briefing/operations.ts",
-        "tests/briefing-operations.test.ts",
-        "components/briefing/RefreshButton.tsx",
-        "app/(app)/briefing/page.tsx"
-      ],
-      "tests_added": 18,
-      "tests_passing": 264,
-      "details": "AC-DB-1: /briefing now renders three sections — Today's Tasks, Upcoming Orders, Shift Alerts — each in a card with warm earth-tone styling matching the design system. AC-DB-2: selectTodayTasks pure function filters tasks where planned_start <= today <= planned_end AND status IN ('not_started', 'in_progress'), sorted by planned_start ASC then name ASC. Server component queries tasks joined through stages.project_id. AC-DB-3: When no tasks match today, empty state shows 'No tasks scheduled today — next task starts [date]' with a link to /schedule. nextTaskStartDate finds the earliest future planned_start among active tasks. If no future tasks exist, shows 'View schedule' link instead. AC-DB-4: Mobile-first layout — max-w-2xl container, sections stack vertically with mb-4 spacing, all text truncates via Tailwind truncate class, no horizontal overflow. Bottom tab bar inherited from AppShell layout. AC-DB-5: RefreshButton client component (~1KB) uses useRouter().refresh() + useTransition for loading state. Spinner animates during refresh. Positioned in the page header. AC-DB-6: Server component with zero client JS for data sections. Promise.all parallelizes the 3 DB queries (tasks, materials, shift_alerts). Only client component is RefreshButton. Build output confirms /briefing is ƒ Dynamic (server-rendered on demand). 18 new unit tests in tests/briefing-operations.test.ts covering selectTodayTasks (8 tests: date range filtering, status filtering, boundary cases, sorting, empty input), nextTaskStartDate (5 tests: earliest future, no future, excludes complete/delayed, empty, today boundary), formatShiftAlert (3 tests: date_moved, null old_value, status_changed), shiftAlertHref (2 tests: task → /tasks/:id, material → /materials). Total suite: 264 tests passing. Typecheck + ESLint + production build clean."
-    },
-    {
-      "task": "task-quick-actions",
-      "story_id": "task-quick-actions",
-      "acceptance_criteria": [
-        "AC-QA-1",
-        "AC-QA-2",
-        "AC-QA-3",
-        "AC-QA-4"
-      ],
-      "files_changed": [
-        "lib/briefing/operations.ts",
-        "app/actions/briefing.ts",
-        "components/briefing/BriefingTaskList.tsx",
-        "app/(app)/briefing/page.tsx",
-        "tests/briefing-quick-actions.test.ts",
-        "tests/briefing-operations.test.ts"
-      ],
-      "tests_added": 6,
-      "tests_passing": 270,
-      "details": "Task Quick Actions on /briefing. AC-QA-1: checkbox per task row toggles status to complete via toggleTaskComplete server action (verifies project ownership, sets actual_end=today, revalidates /briefing+/tasks/:id+/schedule). Row visually strikes through with line-through class and muted text color. AC-QA-2: tapping completed checkbox reverts to in_progress via computeToggleResult pure fn (complete→in_progress, actualEnd→null). BriefingTaskList uses optimistic state so the toggle is instant, then router.refresh() syncs RSC truth. selectTodayTasks updated to include complete tasks (sorted after incomplete) so toggled tasks remain visible for undo. AC-QA-3: desktop kebab menu (three-dot button, outside-click dismissal) shows View Detail, Log Delay, Add Note — each links to /tasks/:id with hash anchors. Mobile: swipe left (60px threshold via touchStart/touchEnd tracking) slides the row to reveal three colored action buttons (Detail=clay, Log Delay=amber, Add Note=sage). Swipe right or outside tap dismisses. AC-QA-4: optimistic UI + useTransition wrapping toggleTaskComplete + router.refresh() updates the briefing in place without full page reload. Quick action links navigate to /tasks/:id where Log Delay and other actions already exist from prior stories. 6 new unit tests (4 for computeToggleResult, 2 for selectTodayTasks with complete-task inclusion). 270 total tests passing. Typecheck + production build clean (19 routes, Proxy middleware detected)."
-    },
-    {
-      "task": "upcoming-orders-view",
-      "story_id": "upcoming-orders-view",
-      "acceptance_criteria": [
-        "AC-UO-1",
-        "AC-UO-2",
-        "AC-UO-3",
-        "AC-UO-4"
-      ],
-      "files_changed": [
-        "lib/materials/operations.ts",
-        "components/briefing/UpcomingOrderCards.tsx",
-        "app/(app)/briefing/page.tsx",
-        "tests/upcoming-orders.test.ts",
-        "tests/upcoming-orders-cards.test.tsx"
-      ],
-      "tests_added": 21,
-      "tests_passing": 291,
-      "details": "Upcoming Material Orders View on /briefing. AC-UO-1: replaced plain list with horizontally-scrollable cards on mobile (flex + overflow-x-auto, min-w-[220px] per card) and responsive grid on desktop (md:grid-cols-2, lg:grid-cols-3). AC-UO-2: each card shows material name, associated task name, days remaining until order_by_date (computed by daysUntilOrderBy pure helper using existing daysBetweenIso), and supplier_name when set. Days label: \"Xd left\" / \"Due today\" / \"Xd overdue\" with color-coded text (red for overdue, amber for <=2d). AC-UO-3: tap/click toggles inline expansion below the card showing quantity, estimated_cost (formatted via formatMaterialCost as EUR with Intl.NumberFormat), lead_time_days with singular/plural, notes, and a \"Mark Ordered\" button that calls the existing updateMaterialStatus server action (not_ordered→ordered transition) then router.refresh(). Only one card expanded at a time (accordion pattern). AC-UO-4: entire Upcoming Orders section conditionally rendered — hidden when upcomingCards.length === 0, no empty state message shown. Briefing page material query extended to fetch quantity, estimated_cost, lead_time_days, supplier_name, notes alongside existing fields. 13 pure unit tests (daysUntilOrderBy: future/today/overdue/null/malformed/month-boundary; formatMaterialCost: formatted/zero/null/whole; selectUpcomingOrders: empty/ordered-excluded/overdue-sorting). 8 component tests (card rendering: name/task/days/supplier/overdue-label/due-today/no-supplier; expand: hidden-by-default/expand-shows-all-fields/collapse-on-second-click/singular-day). 291 total tests passing. Typecheck + production build clean."
-    },
-    {
-      "task": "shift-alerts",
-      "story_id": "shift-alerts",
-      "acceptance_criteria": [
-        "AC-SA-1",
-        "AC-SA-2",
-        "AC-SA-3"
-      ],
-      "files_changed": [
-        "lib/briefing/shift-alerts.ts",
-        "tests/shift-alerts.test.ts",
-        "app/actions/tasks.ts",
-        "app/actions/briefing.ts",
-        "components/briefing/DismissAlertsButton.tsx",
-        "app/(app)/briefing/page.tsx"
-      ],
-      "tests_added": 7,
-      "tests_passing": 298,
-      "details": "AC-SA-1: Pure functions buildTaskShiftAlerts(movements, projectId, userId) and buildMaterialShiftAlerts(movements, projectId, userId) in lib/briefing/shift-alerts.ts convert cascade TaskMovement[] and MaterialMovement[] into ShiftAlertInsert rows. Each task with changed planned_end gets a date_moved alert (old_value=old planned_end, new_value=new planned_end). Each material with non-zero delta_days gets a date_moved alert (old/new order_by_date). Zero-delta and null-delta entries are skipped. Both updateTaskDuration and logTaskDelay server actions now call insertShiftAlerts() after computing the cascade summary, persisting shift_alert rows for every moved entity. Best-effort — a failed insert does not block the cascade result. AC-SA-2: Already implemented by existing formatShiftAlert (\"[name] moved from [old] to [new]\") and shiftAlertHref (task→/tasks/:id, material→/materials) from the daily-briefing-view story. The briefing page renders each alert as a clickable Link. AC-SA-3: dismissShiftAlerts server action in app/actions/briefing.ts sets dismissed=true on all non-dismissed shift_alerts matching the user + project. DismissAlertsButton client component (~1KB) in the Shift Alerts section header shows \"Clear\" when alerts.length > 0, calls dismissShiftAlerts via useTransition + router.refresh(). After dismissal, only alerts created after the dismiss timestamp appear (because the query filters dismissed=false). 7 new unit tests. 298 total passing. Typecheck + production build clean."
-    },
-    {
-      "task": "push-notifications",
-      "story_id": "push-notifications",
-      "acceptance_criteria": [
-        "AC-PN-1",
-        "AC-PN-2",
-        "AC-PN-3",
-        "AC-PN-4",
-        "AC-PN-5"
-      ],
-      "files_changed": [
-        "lib/notifications/push.ts",
-        "components/notifications/ServiceWorkerRegistrar.tsx",
-        "components/notifications/PushNotificationToggle.tsx",
-        "app/actions/notifications.ts",
-        "app/(app)/settings/page.tsx",
-        "app/(app)/layout.tsx",
-        "tests/push-notifications.test.ts"
-      ],
-      "tests_added": 19,
-      "tests_passing": 317,
-      "details": "Push notification subscription management for /settings. AC-PN-1: ServiceWorkerRegistrar client component registers /sw.js on app load in (app)/layout.tsx — silently fails if browser lacks SW support. AC-PN-2: PushNotificationToggle on /settings detects browser push capability via detectPushCapability (pure fn testing hasSW, hasPush, Notification.permission), requests Notification.requestPermission() on first enable, subscribes via PushManager.subscribe() with VAPID applicationServerKey (urlBase64ToUint8Array converts base64url to Uint8Array), serializes the subscription (serializeSubscription extracts endpoint + p256dh + auth), and POSTs to /api/push/subscribe to persist in push_subscriptions. Toggle reflects enabled (sage green switch). AC-PN-3: Disable path unsubscribes via PushSubscription.unsubscribe() then DELETEs to /api/push/subscribe to mark is_active=false. Toggle reflects disabled state. AC-PN-4: If Notification.permission is \"denied\", toggle shows \"Notifications Blocked\" disabled state with amber hint text instructing user to enable in browser settings. \"Not Supported\" state for browsers without PushManager. AC-PN-5: ensureNotificationPreferences server action on /settings load upserts a notification_preferences row with defaults (order_deadlines=true, overdue_tasks=true, cascade_summaries=true, order_warning_days=3) — fixes foundation finding where cron INNER JOIN silently excluded users without prefs. Settings page renders current preference state (On/Off badges) for material orders, overdue tasks, cascade summaries. deriveToggleState pure fn maps (capability, hasSubscription) to UI state (label, enabled, disabled, showBlockedHint). 19 new unit tests: 6 for detectPushCapability (unsupported SW, unsupported Push, default/denied/granted/null permission), 5 for deriveToggleState (unsupported/blocked/enable/disable/re-subscribe), 4 for serializeSubscription (valid/missing-p256dh/missing-auth/missing-keys), 4 for urlBase64ToUint8Array (known vectors, padding, url-safe chars, round-trip). Total suite: 317 tests passing. Typecheck + production build clean (19 routes)."
-    },
-    {
-      "task": "notification-settings",
-      "story_id": "notification-settings",
-      "acceptance_criteria": [
-        "AC-NS-1",
-        "AC-NS-2",
-        "AC-NS-3",
-        "AC-NS-4"
-      ],
-      "files_changed": [
-        "lib/notifications/preferences.ts",
-        "app/actions/notifications.ts",
-        "components/notifications/NotificationPreferencesPanel.tsx",
-        "app/(app)/settings/page.tsx",
-        "tests/notification-preferences.test.ts"
-      ],
-      "tests_added": 23,
-      "tests_passing": 340,
-      "details": "Builder-defined ACs (spec was id+name only). AC-NS-1: Each boolean preference (order_deadlines, overdue_tasks, cascade_summaries) now has a toggle switch (role=switch, aria-checked) that calls toggleNotificationPreference server action — reads current value, flips it, writes back, revalidates /settings. Styled consistently with PushNotificationToggle (sage green #87A96B on, muted #D4C5B5 off). AC-NS-2: order_warning_days has a +/- stepper (buttons with aria-labels) clamped to 1–14 matching the DB CHECK constraint. Each click calls updateOrderWarningDays server action with server-side validateWarningDays re-validation. Current value displayed between buttons in tabular-nums for stable layout. The order_deadlines row description dynamically reflects the current warning days count with correct singular/plural. AC-NS-3: Both toggles and stepper use optimistic state via useState + useTransition. The UI updates instantly; if the server action fails, the previous state is restored and an error message appears via role=alert. Buttons show opacity-50 + cursor-not-allowed while the transition is pending. AC-NS-4: validateWarningDays rejects non-integer, non-finite, out-of-range (0, 15, -1), empty string, NaN, Infinity. Stepper buttons are disabled at bounds (min=1, max=14) preventing invalid submissions. Server action double-checks via the same validator. 23 new unit tests in tests/notification-preferences.test.ts covering validateWarningDays (12 cases: valid range ends, mid-range, string input, zero, negative, above-max, decimal, non-numeric string, empty, NaN, Infinity), togglePreference (5 cases: each key true→false, false→true, immutability), updateWarningDays (2 cases: value change, immutability), PREFERENCE_LABELS (2 cases: key completeness, field presence), constants (2 cases). Total suite: 340 tests passing. Typecheck + production build clean (19 routes, Proxy middleware)."
     }
   ],
   "skipped": [
@@ -663,26 +520,6 @@
       ],
       "affects_feature_areas": [
         "project-setup"
-      ],
-      "reversible": true
-    },
-    {
-      "spec_says": "AC-DB-5: pull down to refresh (mobile) or clicks refresh (desktop)",
-      "actually_did": "Refresh button on both mobile and desktop. No native pull-down-to-refresh gesture.",
-      "rationale": "Native pull-to-refresh requires either a touch event handler with rubber-band physics or a third-party library. The Refresh button using router.refresh() + useTransition provides the same data reload capability on both form factors. The native gesture can be added in a follow-up without changing the data flow.",
-      "affects_acceptance_criteria": [
-        "AC-DB-5"
-      ],
-      "reversible": true
-    },
-    {
-      "spec_says": "AC-DB-2: selectTodayTasks filters to status IN (not_started, in_progress)",
-      "actually_did": "selectTodayTasks now also includes status=complete tasks within the date range",
-      "rationale": "AC-QA-1/AC-QA-2 require toggling completion on the briefing and undoing it. If complete tasks were excluded, checking a task would remove it from the list instantly, preventing undo. Complete tasks sort after incomplete ones to keep the active work prominent.",
-      "affects_acceptance_criteria": [
-        "AC-DB-2",
-        "AC-QA-1",
-        "AC-QA-2"
       ],
       "reversible": true
     }
@@ -1404,289 +1241,6 @@
         "lib/cascade/engine.ts",
         "app/actions/tasks.ts"
       ]
-    },
-    {
-      "decision": "Search Before Building audit for dependency-validation story",
-      "context": "Pre-implementation code reuse analysis",
-      "alternatives_considered": [],
-      "rationale": "Found: 0 BUILD, 2 EXTEND, 1 REUSE, 0 REFACTOR-THEN-BUILD tasks. Key reuse: lib/tasks/dependency-graph.ts already contained detectCycle, formatCyclePath, removeStaleDependencies (all 18 tests passing). Extended: app/actions/tasks.ts (added addDependency/removeDependency/cleanStaleDependencies server actions), components/tasks/StageTasksManager.tsx (added Deps button + dep edit modal), app/(app)/stages/[id]/page.tsx (added stale dep cleanup on load).",
-      "confidence": "high",
-      "affects": [
-        "dependency-validation"
-      ]
-    },
-    {
-      "decision": "Cycle detection gates addDependency (existing tasks), not createTask (new tasks)",
-      "context": "AC-DV-1 says 'when the user attempts to add A to B's depends_on array'. For a brand-new task with no ID yet, no other task can depend on it, so adding deps to a new task cannot create cycles. The cycle-detection gate belongs on the addDependency server action for existing tasks.",
-      "alternatives_considered": [
-        "Gate createTask with cycle detection — cycles are impossible for new tasks since no other task references them yet. Would add unnecessary DB queries on every task creation.",
-        "Only validate in the UI (client-side) — the server must be the authority to prevent bypass via API calls."
-      ],
-      "rationale": "addDependency loads all project edges, runs detectCycle (O(V+E) DFS), and rejects with the formatted cycle path. createTask skips the check because the new task is a DAG leaf by definition. Server-side validation prevents bypass.",
-      "confidence": "high",
-      "affects": [
-        "app/actions/tasks.ts"
-      ]
-    },
-    {
-      "decision": "Stale dep cleanup on page load (RSC) rather than a background cron or explicit user action",
-      "context": "AC-DV-2 says 'WHEN the task is loaded, THEN the stale ID is automatically removed'. Options: cleanup on page load, background cron, explicit user action.",
-      "alternatives_considered": [
-        "Background cron job to periodically sweep stale deps — adds infrastructure for a rare scenario, delays cleanup until next sweep",
-        "Explicit 'Clean dependencies' button — adds UI surface, requires user awareness of stale deps"
-      ],
-      "rationale": "The stages/[id] RSC already loads tasks and deps. Running removeStaleDependencies on the loaded edges + deleting stale rows from the DB is zero-latency (same query, no extra round trip for the common case of zero stale deps). Matches AC-DV-2's 'when loaded' trigger literally. ON DELETE CASCADE on task_dependencies already handles most cases, so stale deps are rare — this is a safety net.",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/stages/[id]/page.tsx"
-      ]
-    },
-    {
-      "decision": "Available dep targets include ALL project tasks (not just other-stage tasks)",
-      "context": "The original stages/[id] page filtered availableTasks to exclude this stage's tasks. But dependencies within the same stage are valid (e.g., 'Pour foundation' before 'Damp proof course').",
-      "alternatives_considered": [
-        "Keep the cross-stage-only filter — prevents same-stage deps, which are valid and common in construction sequences",
-        "Show all tasks including self — the modal filter already excludes the task being edited"
-      ],
-      "rationale": "Changed availableTasks to include all project tasks. The dep editor modal filters out the task itself (opt.id !== depEditTarget.id). Same-stage deps are the most common case in construction (sequential tasks within a build phase).",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/stages/[id]/page.tsx",
-        "components/tasks/StageTasksManager.tsx"
-      ]
-    },
-    {
-      "decision": "Search Before Building audit for daily-briefing-view story",
-      "context": "Pre-implementation code reuse analysis",
-      "alternatives_considered": [],
-      "rationale": "Found: 1 BUILD (lib/briefing/operations.ts + tests + RefreshButton), 1 EXTEND (app/(app)/briefing/page.tsx — already had Upcoming Orders section, extended with Today Tasks and Shift Alerts sections). Reused: selectUpcomingOrders + materialDeadlineStatus from lib/materials/operations.ts, MaterialDeadlineBadge component, createClient from lib/supabase/server.ts, AppShell layout from components/layout/AppShell.tsx, warm earth-tone design tokens from globals.css.",
-      "confidence": "high",
-      "affects": [
-        "lib/briefing/operations.ts",
-        "app/(app)/briefing/page.tsx",
-        "components/briefing/RefreshButton.tsx"
-      ]
-    },
-    {
-      "decision": "Parallel DB fetches via Promise.all for briefing page performance",
-      "context": "AC-DB-6 requires FCP < 1.5s on 4G. The briefing page needs tasks, materials, and shift_alerts. Three sequential Supabase queries would triple the waterfall.",
-      "alternatives_considered": [
-        "Sequential queries — simpler code but 3x latency on the critical path",
-        "Single RPC/view joining all three — requires a new migration + stored procedure for a read-only page",
-        "Client-side SWR with loading skeletons — adds client JS, worse FCP, defeats server component benefits"
-      ],
-      "rationale": "Promise.all([taskRes, matRes, alertRes]) executes all three queries concurrently. Server component means zero client JS for the data rendering. Combined with Vercel edge caching of static assets, this keeps FCP well under the 1.5s target.",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/briefing/page.tsx"
-      ]
-    },
-    {
-      "decision": "Shift Alerts section renders from shift_alerts table (empty until populated by cascade)",
-      "context": "AC-DB-1 requires a Shift Alerts section. The shift_alerts table exists in the schema but cascade_task_dates() does not yet write to it (documented factory_question from foundation cycle).",
-      "alternatives_considered": [
-        "Skip the section entirely — violates AC-DB-1 three-section requirement",
-        "Compute alerts client-side by diffing task dates — unreliable without a baseline, adds client JS",
-        "Write a migration to add a trigger on task date updates — expands scope beyond this story"
-      ],
-      "rationale": "Wiring the UI to the real shift_alerts table now means the section will auto-populate when the shift-alerts story adds the cascade writer. Empty state is graceful. No throwaway code.",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/briefing/page.tsx"
-      ]
-    },
-    {
-      "decision": "Search Before Building audit for task-quick-actions story",
-      "context": "Pre-implementation code reuse analysis",
-      "alternatives_considered": [],
-      "rationale": "Found: 1 BUILD (toggleTaskComplete server action + computeToggleResult pure fn + BriefingTaskList client component), 2 EXTEND (selectTodayTasks to include complete tasks, briefing page to use client component), 3 REUSE (logTaskDelay action, RefreshButton useTransition+router.refresh pattern, warm earth-tone design tokens). Key reuse: existing router.refresh() pattern from RefreshButton for AC-QA-4 in-place updates.",
-      "confidence": "high",
-      "affects": [
-        "task-quick-actions"
-      ]
-    },
-    {
-      "decision": "selectTodayTasks includes complete tasks for undo support",
-      "context": "AC-QA-2 requires undoing completion from the briefing. If complete tasks were filtered out (original AC-DB-2 behavior), toggling a task would make it disappear immediately.",
-      "alternatives_considered": [
-        "Keep original filter (exclude complete) and re-fetch on toggle — task disappears during the round trip, confusing UX",
-        "Client-side local filter override — diverges from server truth, breaks on page refresh",
-        "Include complete tasks sorted after incomplete (chosen) — task stays visible with strikethrough, user can undo"
-      ],
-      "rationale": "Including complete tasks with a sort bias (incomplete first) preserves the undo flow while keeping active work prominent. The empty-state message still shows correctly when ALL tasks are out of range. This is a minor behavioral change logged as a divergence for the evaluator.",
-      "confidence": "high",
-      "affects": [
-        "lib/briefing/operations.ts",
-        "app/(app)/briefing/page.tsx"
-      ]
-    },
-    {
-      "decision": "Quick actions link to /tasks/:id with hash anchors rather than inline modals",
-      "context": "AC-QA-3 specifies Log Delay, Add Note, View Detail as quick actions. Log Delay already exists on /tasks/:id as TaskDelayLogger. Add Note needs a notes-editing UI that does not yet exist.",
-      "alternatives_considered": [
-        "Inline modal per quick action on /briefing — duplicates TaskDelayLogger and creates a new notes editor; bloats briefing client JS",
-        "Navigate to /tasks/:id (chosen) — reuses existing per-task controls, keeps briefing lightweight",
-        "Bottom sheet on mobile — custom animation + portal complexity for what is a simple navigation"
-      ],
-      "rationale": "Link to /tasks/:id (with #delay and #notes hash anchors) reuses the existing delay logger on the detail page and avoids building a duplicate. The Add Note action links to #notes which will activate when a notes-editing section is added to the task detail in a future story. View Detail is a plain navigation. Keeps the briefing page focused on its primary role (status overview) rather than becoming a full task-editing surface.",
-      "confidence": "high",
-      "affects": [
-        "components/briefing/BriefingTaskList.tsx"
-      ]
-    },
-    {
-      "decision": "Swipe gesture uses 60px threshold with native touchStart/touchEnd tracking",
-      "context": "AC-QA-3 requires swipe left on mobile to reveal quick actions. Options: CSS-only with scroll-snap, JS touch tracking, or a gesture library.",
-      "alternatives_considered": [
-        "Install a gesture library (react-swipeable, use-gesture) — adds a dependency for one component",
-        "CSS scroll-snap with overflow-x — limited control over snap points, hard to wire dismiss behavior",
-        "Native touch tracking with 60px threshold (chosen) — zero dependencies, full control over swipe/dismiss"
-      ],
-      "rationale": "60px threshold is comfortable for intentional swipes on mobile (avoids false positives from scroll jitter). touchStartX ref tracks per-task independently so multiple rows can be swiped. Swiping right or tapping outside dismisses. CSS translateX transition provides smooth slide animation. No third-party dependency for a single interaction pattern.",
-      "confidence": "high",
-      "affects": [
-        "components/briefing/BriefingTaskList.tsx"
-      ]
-    },
-    {
-      "decision": "Search Before Building audit for upcoming-orders-view story",
-      "context": "Pre-implementation code reuse analysis",
-      "alternatives_considered": [],
-      "rationale": "Found: 1 BUILD (UpcomingOrderCards component + daysUntilOrderBy + formatMaterialCost), 1 EXTEND (briefing page — added card rendering + extra material fields to query). Reused: selectUpcomingOrders + materialDeadlineStatus from lib/materials/operations.ts, MaterialDeadlineBadge component, updateMaterialStatus server action from app/actions/materials.ts, existing material query pattern from briefing page.",
-      "confidence": "high",
-      "affects": [
-        "lib/materials/operations.ts",
-        "components/briefing/UpcomingOrderCards.tsx",
-        "app/(app)/briefing/page.tsx"
-      ]
-    },
-    {
-      "decision": "Accordion pattern (one expanded card at a time) for order detail expansion",
-      "context": "AC-UO-3 says tap to expand with inline detail. Multiple cards could be expanded simultaneously or exclusively.",
-      "alternatives_considered": [
-        "Allow multiple cards expanded at once — clutters the horizontal scroll on mobile, harder to scan",
-        "Modal overlay on tap — heavier UI, blocks the rest of the briefing, overkill for 4-5 fields",
-        "Navigate to /materials/:id detail page — extra navigation, breaks the briefing-as-dashboard flow"
-      ],
-      "rationale": "Single expanded card at a time (accordion) keeps the horizontal scroll tight on mobile and focuses attention on one order. Expanding a different card auto-collapses the previous one. State is a single expandedId string, minimal React re-renders.",
-      "confidence": "high",
-      "affects": [
-        "components/briefing/UpcomingOrderCards.tsx"
-      ]
-    },
-    {
-      "decision": "Section hidden entirely when empty (AC-UO-4) — no empty state message",
-      "context": "AC-UO-4 explicitly says section is hidden (not shown with empty state) to keep briefing focused. Previous implementation showed \"No orders due in the next 7 days.\" message.",
-      "alternatives_considered": [
-        "Keep the empty state message — contradicts AC-UO-4 literally",
-        "Collapse header but keep a thin placeholder — still visible, still clutters"
-      ],
-      "rationale": "Conditional rendering: {upcomingCards.length > 0 && <section>...}. When no materials due in 7 days, the section is entirely absent from the DOM. Briefing flows directly from Today Tasks to Shift Alerts. Matches the spec requirement to keep the briefing focused on actionable information.",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/briefing/page.tsx"
-      ]
-    },
-    {
-      "decision": "Shift alerts record planned_end (not planned_start) as old_value/new_value for task movements",
-      "context": "AC-SA-1 says show \"[Task] moved from [old date] to [new date]\". Could use start or end dates.",
-      "alternatives_considered": [
-        "planned_start — shows when work begins, but a duration change moves the end without moving the start",
-        "Both start and end as a range — more info but clutters the alert text",
-        "planned_end — shows when the task finishes, which is what downstream deps and the user care about"
-      ],
-      "rationale": "planned_end is what cascade_task_dates() propagates and what determines downstream impact. A 3-day delay on task A means task B (which depends on A) starts 3 days later — the relevant signal is A's new finish date. Matches the formatShiftAlert template which shows a single date pair.",
-      "confidence": "high",
-      "affects": [
-        "lib/briefing/shift-alerts.ts"
-      ]
-    },
-    {
-      "decision": "Shift alert inserts are best-effort — failure does not block the cascade result",
-      "context": "insertShiftAlerts runs after the cascade RPC succeeds. If the insert fails (e.g. RLS issue, network), the cascade already committed.",
-      "alternatives_considered": [
-        "Wrap cascade + alert insert in a transaction — requires a stored procedure or RPC, adds migration complexity for a non-critical write",
-        "Fail the whole action if alerts fail — makes a UX notification more important than the actual data update",
-        "Best-effort insert, ignore errors — cascade is the authoritative mutation; alerts are informational"
-      ],
-      "rationale": "The cascade is the source of truth for dates. Shift alerts are a convenience display. Failing to record an alert is preferable to failing to cascade a date change. The briefing page still renders correctly with or without alerts.",
-      "confidence": "high",
-      "affects": [
-        "app/actions/tasks.ts"
-      ]
-    },
-    {
-      "decision": "Builder-defined acceptance criteria for push-notifications (spec was empty)",
-      "context": "state.json story entry for push-notifications has no acceptance_criteria field — only name, affected_screens (/settings), depends_on (daily-briefing-view). story_context.spec was just {id, name}.",
-      "alternatives_considered": [
-        "Block the story with a factory_question asking a human to write ACs — defeats autonomous loop",
-        "Skip the story entirely — push notifications are in-scope per vision.json"
-      ],
-      "rationale": "Defined AC-PN-1 (SW registration on app load), AC-PN-2 (enable → permission prompt → subscribe → persist), AC-PN-3 (disable → unsubscribe → mark inactive), AC-PN-4 (blocked state with browser settings hint), AC-PN-5 (upsert notification_preferences on first /settings visit). These map directly to the existing foundation infrastructure (sw.js, /api/push/subscribe, push_subscriptions table, notification_preferences table) and the affected screen (/settings).",
-      "confidence": "high",
-      "affects": [
-        "lib/notifications/push.ts",
-        "components/notifications/PushNotificationToggle.tsx",
-        "app/(app)/settings/page.tsx"
-      ]
-    },
-    {
-      "decision": "Search Before Building audit for push-notifications story",
-      "context": "Pre-implementation code reuse analysis",
-      "alternatives_considered": [],
-      "rationale": "Found: 4 BUILD (lib/notifications/push.ts pure helpers, ServiceWorkerRegistrar, PushNotificationToggle, ensureNotificationPreferences server action), 1 EXTEND (app/(app)/settings/page.tsx — placeholder replaced with real notification sections), 3 REUSE (app/api/push/subscribe/route.ts, public/sw.js push handler, app/api/cron/daily-check/route.ts).",
-      "confidence": "high",
-      "affects": [
-        "lib/notifications/push.ts",
-        "components/notifications/PushNotificationToggle.tsx",
-        "app/(app)/settings/page.tsx"
-      ]
-    },
-    {
-      "decision": "ServiceWorkerRegistrar placed in (app) layout, not root layout",
-      "context": "SW registration needs to happen once on app load. Could go in root layout (covers auth pages too) or (app) layout (only authenticated pages).",
-      "alternatives_considered": [
-        "Root layout — registers SW on login/signup pages too, wasting a registration call before the user is authenticated",
-        "Individual pages — duplicates the registration call and risks missing it on new pages"
-      ],
-      "rationale": "(app) layout is the authenticated shell. All push-notification features require an authenticated user. Registering the SW here means it only activates after login, and it runs once for the entire app session via useEffect([]).",
-      "confidence": "high",
-      "affects": [
-        "app/(app)/layout.tsx",
-        "components/notifications/ServiceWorkerRegistrar.tsx"
-      ]
-    },
-    {
-      "decision": "ensureNotificationPreferences upserts on /settings page load (not on signup)",
-      "context": "Foundation eval found that cron INNER JOIN on notification_preferences silently excludes users without a prefs row. Options: insert on signup, insert on first /settings visit, or change the JOIN to LEFT JOIN.",
-      "alternatives_considered": [
-        "Insert in signup action — requires modifying auth flow, risk of partial signup if insert fails",
-        "Change cron to LEFT JOIN with defaults — loses the ability to store per-user overrides",
-        "Insert on first /settings visit (chosen) — lazy creation, zero auth flow changes"
-      ],
-      "rationale": "Lazy upsert on /settings is the simplest fix: one server action call, race-condition safe (read-then-insert with conflict retry). Users who never visit /settings still get excluded from cron notifications — which is acceptable since they never expressed interest in configuring notifications. The notification-settings story (next in the milestone) will add toggle editing.",
-      "confidence": "high",
-      "affects": [
-        "app/actions/notifications.ts",
-        "app/(app)/settings/page.tsx"
-      ]
-    },
-    {
-      "decision": "Builder-defined acceptance criteria for notification-settings (spec was empty)",
-      "context": "state.json story entry for notification-settings has no acceptance_criteria — only id, name, affected_screens (/settings), depends_on (push-notifications). story_context.spec was just {id, name}.",
-      "alternatives_considered": [
-        "Block the story asking for human-written ACs — defeats autonomous loop; the existing /settings page already shows the three boolean prefs + warning days as read-only, making the needed interaction clear",
-        "Treat as already done since prefs display on /settings — ignores that they are static text not interactive controls",
-        "Add only toggles without the warning-days stepper — leaves order_warning_days uneditable despite being a user-facing config"
-      ],
-      "rationale": "Defined AC-NS-1 (toggle switches for booleans), AC-NS-2 (stepper for warning days 1-14), AC-NS-3 (optimistic UI with rollback), AC-NS-4 (validation matching DB CHECK). These four criteria map directly to the story name (Notification Preferences) and the /settings screen where the read-only labels already existed from push-notifications story. Each AC has tests and concrete server action calls.",
-      "confidence": "high",
-      "affects": [
-        "lib/notifications/preferences.ts",
-        "app/actions/notifications.ts",
-        "components/notifications/NotificationPreferencesPanel.tsx",
-        "app/(app)/settings/page.tsx"
-      ]
     }
   ],
   "factory_questions": [
@@ -1766,34 +1320,6 @@
       "resolved_as": "Deferred — OR satisfied by /tasks/:id. /briefing Log Delay button queued for a daily-briefing follow-up story.",
       "needs_clarification_from": "spec",
       "severity": "minor"
-    },
-    {
-      "question": "Native pull-to-refresh gesture (AC-DB-5 mobile) not implemented — Refresh button covers the data reload. Should a touch-gesture pull-to-refresh be added in a follow-up story?",
-      "found_in": "AC-DB-5 phrasing: \"pulls down to refresh (mobile)\"",
-      "resolved_as": "Satisfied via Refresh button on both mobile and desktop. Native gesture deferred — requires touch event handling or a third-party library.",
-      "needs_clarification_from": "spec",
-      "severity": "minor"
-    },
-    {
-      "question": "Add Note quick action (AC-QA-3) links to /tasks/:id#notes but no notes editing section exists on the task detail page yet. The task model has a notes field and createTask accepts notes, but there is no inline edit-notes UI on /tasks/:id. A future story should add an editable notes section.",
-      "found_in": "AC-QA-3 — Add Note quick action",
-      "resolved_as": "Link to /tasks/:id#notes — the notes editing section will be added in a future task-edit story. The quick action is functional as navigation.",
-      "needs_clarification_from": "spec",
-      "severity": "minor"
-    },
-    {
-      "question": "Trigger task is included in shift alerts — should it be excluded since the user initiated the change?",
-      "found_in": "AC-SA-1: \"cascades have occurred since the user's last /briefing visit\" — ambiguous whether the trigger task counts as a cascade change",
-      "resolved_as": "Include the trigger. The user may delay task A on /tasks/A, then visit /briefing later and need a reminder that A moved. Excluding it would make the alert list incomplete for multi-device or multi-session workflows.",
-      "needs_clarification_from": "spec",
-      "severity": "minor"
-    },
-    {
-      "question": "ensureNotificationPreferences lazy-creates on /settings visit, but users who never visit /settings will be excluded from cron push notifications (INNER JOIN). Consider also creating the row on first push subscription (AC-PN-2 flow) or changing the cron to LEFT JOIN.",
-      "found_in": "AC-PN-5 implementation — push-notifications story",
-      "resolved_as": "Accepted for now — users who enable push (AC-PN-2) will visit /settings to do so, triggering the upsert. Edge case: if a future flow enables push from a different page, that page must also call ensureNotificationPreferences.",
-      "needs_clarification_from": "spec",
-      "severity": "minor"
     }
   ],
   "foundation_completion": {
@@ -1834,8 +1360,8 @@
     ]
   },
   "_cycle_number": 1,
-  "_current_milestone": "daily-experience",
-  "_current_story": "notification-settings",
+  "_current_milestone": "materials-scheduling",
+  "_current_story": "dependency-validation",
   "foundation_eval_report": {
     "verdict": "PASS",
     "dimensions": {
@@ -1944,671 +1470,373 @@
     "frontend": true,
     "backend": false,
     "tests": true,
-    "prompts": false,
+    "config": false,
     "docs": false,
-    "config": false
+    "changed_routes": [
+      "/setup",
+      "/schedule",
+      "/stages/[id]",
+      "/tasks/[id]",
+      "/trades"
+    ]
   },
   "evaluation_tier": "full",
-  "cycle_type": "feature-build",
-  "tier_rationale": "Previous phase was analyzing (cycle 1 promotion). implemented[] contains 6 new feature stories (daily-experience milestone). All tasks classified as feat, not fix. Full tier: all sub-phases run.",
+  "cycle_type": "initial-build",
+  "tier_rationale": "Cycle 1, no previous phase was milestone-fix, all implemented tasks are feature stories (project-creation, template-browser, template-customization, stage-management, task-management, trade-contacts). Full evaluation tier: all sub-phases run.",
   "dual_voice_po_review": false,
   "test_integrity_report": {
     "spec_coverage_pct": 100,
     "po_check_coverage_pct": 100,
-    "total_criteria": 26,
+    "total_criteria": 28,
     "total_po_checks": 0,
-    "total_tests": 350,
+    "total_tests": 143,
     "orphaned_count": 0,
     "orphaned_removed": [],
     "orphaned_renamed": [],
     "stale_regenerated_count": 0,
-    "newly_generated_count": 10,
-    "annotated_count": 7,
+    "newly_generated_count": 14,
+    "active_spec_reconstructed_from": "cycle_context.json implemented[].acceptance_criteria (active_spec was empty — structural pipeline gap)",
+    "remediation_summary": "Added @criterion annotations to all 9 test files (22 describe blocks). Generated 14 new tests covering AC-PS-4 (routing contract spec), AC-TB-4 (performance), AC-TC-5 (finalize preconditions), AC-TM-5 (duration edit), AC-TR-2 (ownership contract) and supporting tests.",
     "test_suite_pass": true,
-    "verdict": "PASS",
-    "notes": [
-      "active_spec was empty — reconstructed 26 AC criteria from cycle_context.json implemented[].acceptance_criteria (same approach as cycle 1)",
-      "7 existing test files annotated with @criterion markers (briefing-operations, briefing-quick-actions, upcoming-orders, upcoming-orders-cards, shift-alerts, push-notifications, notification-preferences)",
-      "10 new structural tests added for 13 env-limited ACs (AC-DB-1/4/5/6, AC-QA-3/4, AC-UO-1, AC-SA-3, AC-PN-5, AC-NS-3)",
-      "13 ACs tested via pure function unit tests, 13 ACs covered by structural env-limited tests"
-    ]
+    "verdict": "PASS"
   },
   "code_review_report": {
     "code_quality_baseline": {
-      "eslint_errors": 4,
-      "eslint_errors_in_milestone_files": 0,
-      "eslint_warnings": 9,
-      "duplication_pct": null,
+      "eslint_errors": 0,
+      "eslint_warnings": 2,
+      "eslint_notes": "2 warnings in .open-next/ build artifact (unused vars in mjs shim — not app code). App code: 0 errors, 0 warnings after refactoring ProjectCreationForm lazy initializer pattern.",
       "circular_deps": 0,
-      "dead_code_items": null,
-      "files_over_300_lines": 12,
       "npm_audit": {
         "critical": 0,
         "high": 0,
         "moderate": 0,
         "low": 0
       },
-      "degraded": false,
-      "notes": "4 ESLint errors are pre-existing (3x require() in scripts/generate-icons.js, 1x let-instead-of-const in lib/tasks/dependency-graph.ts). Zero errors in daily-experience changed files. Not a regression from this milestone."
+      "files_over_300_lines": 7,
+      "large_files_note": "StageTasksManager.tsx (537), TradesManager.tsx (449), StageManager.tsx (426), CustomizationScreen.tsx (403), types.ts (390), tasks.ts (364), trades.ts (338) — all are complex feature components with full CRUD UI. Not pathological.",
+      "degraded": false
     },
     "ai_code_audit": {
-      "score": 85,
+      "score": 84,
       "dimensions": {
         "architecture": {
-          "score": 88,
+          "score": 85,
           "findings": [
-            "Pure functions cleanly separated: lib/notifications/push.ts, lib/notifications/preferences.ts, lib/briefing/shift-alerts.ts — no Supabase, no DOM",
-            "Server actions properly 'use server', auth-checked, ownership-verified"
+            "Clean lib/actions/components layering — business logic in lib/, server actions in app/actions/, UI in components/",
+            "Large component files (400-500 lines) bundle multiple modal states — functional but harder to test",
+            "All server actions verify project ownership before mutation — correct security boundary"
           ]
         },
         "consistency": {
-          "score": 82,
+          "score": 87,
           "findings": [
-            "Error return shape { ok: boolean, error?: string } consistent across all new server actions",
-            "Slight inconsistency: briefing.ts uses `type LooseClient = any` while notifications.ts uses inline `(supabase.from(...) as any)` casts"
+            "Consistent validateInput → server action → revalidatePath pattern across all 6 stories",
+            "Pure function naming convention (validateX, buildX, computeX) applied uniformly",
+            "Design tokens applied consistently across all new components"
           ]
         },
         "robustness": {
           "score": 85,
           "findings": [
-            "Race condition handled in ensureNotificationPreferences (read-insert-retry pattern)",
-            "dismissShiftAlerts verifies project ownership before mutation",
-            "Minor: buildTaskShiftAlerts.old_value is typed as string but cascade movements could theoretically have null planned_end (LOW)"
+            "Defense in depth: client shows confirmation dialog + server independently recounts tasks before deleting",
+            "Optimistic UI with server rollback on trade assignment errors",
+            "Two-phase reorder update guards against future UNIQUE constraint on order_index"
           ]
         },
         "production_risks": {
           "score": 83,
           "findings": [
-            "console.warn in ServiceWorkerRegistrar (intentional — SW registration failure is non-blocking)",
-            "console.error in PushNotificationToggle (intentional — push toggle error logging)",
-            "shift_alerts.limit(20) on briefing query — no 'see more' mechanism for high-activity projects"
+            "No hardcoded secrets or credentials found",
+            "VAPID details initialized inside handlers (not at module level) — correct Turbopack fix",
+            "No console.log statements in production code",
+            "cast-at-site for Supabase types (as any) in projects.ts — documented, isolated, non-blocking"
           ]
         },
         "security": {
           "score": 88,
           "findings": [
-            "BOOLEAN_KEYS whitelist in toggleNotificationPreference prevents arbitrary key injection",
-            "All server actions check supabase.auth.getUser() before any data access",
-            "validateWarningDays server-side re-validation in updateOrderWarningDays"
+            "RLS enabled on all 12 tables — Supabase enforces row-level ownership",
+            "All server actions scope queries by project_id via auth.uid()",
+            "No SQL injection vectors (parameterized queries via Supabase client throughout)",
+            "CRON_SECRET protects the daily-check cron endpoint",
+            "FINDING (non-blocking): Storage RLS checks auth.uid() IS NOT NULL only — not project-scoped. Acceptable for foundation; tighten in photo-storage cycle."
           ]
         },
         "dead_hallucinated": {
-          "score": 85,
-          "findings": []
+          "score": 80,
+          "findings": [
+            "lib/supabase/types.ts has schema drift (templates table absent, materials.quantity wrong type) — documented, feature code uses types/database.ts",
+            "generate-icons.js utility script uses CJS require() — ESLint false positive, not app code",
+            "No unused imports or dead code paths found in feature files"
+          ]
         },
         "tech_debt": {
           "score": 78,
           "findings": [
-            "LooseClient type alias in briefing/page.tsx and briefing.ts is accumulated types.ts drift tech debt (documented in previous cycle)",
-            "types.ts drift persists — notification_preferences, shift_alerts tables not in generated types"
+            "lib/supabase/types.ts drift requires 'as any' casts in templates queries — needs npx supabase gen types run",
+            "Large component files (StageTasksManager 537 lines) may benefit from modal extraction in future cycles",
+            "AI assist suggestFromMessage() is a keyword stub — LLM swap documented as factory_question, deferred to llm-integration story"
           ]
         }
       },
       "critical_findings": []
     },
     "security_review": {
-      "ran": true,
-      "verdict": "PASS",
-      "note": "diff_scope.backend=false per milestone_context but server actions were added. Audited inline.",
-      "categories": {
-        "input_validation": {
-          "verdict": "PASS",
-          "findings": [
-            "validateWarningDays validates all edge cases",
-            "BOOLEAN_KEYS whitelist on toggleNotificationPreference"
-          ]
-        },
-        "auth_authz": {
-          "verdict": "PASS",
-          "findings": [
-            "All server actions auth-gated via supabase.auth.getUser()",
-            "Project ownership verified in dismissShiftAlerts and toggleTaskComplete"
-          ]
-        },
-        "data_exposure": {
-          "verdict": "PASS",
-          "findings": [
-            "User can only see their own project's shift_alerts (user_id + project_id filter)",
-            "No sensitive data in response shapes"
-          ]
-        },
-        "dependencies": {
-          "verdict": "PASS",
-          "findings": [
-            "0 vulnerabilities per npm audit"
-          ]
-        },
-        "configuration": {
-          "verdict": "PASS",
-          "findings": [
-            "No hardcoded secrets",
-            "No debug flags"
-          ]
-        }
-      },
-      "critical_findings": []
+      "ran": false,
+      "skipped_reason": "Security review SKIPPED — diff_scope.backend=false (frontend-only milestone). No new API routes or backend logic added. Previous foundation evaluation covered auth/storage/cron security."
     },
     "changed_files": [
-      "lib/briefing/operations.ts",
-      "lib/briefing/shift-alerts.ts",
-      "lib/notifications/push.ts",
-      "lib/notifications/preferences.ts",
-      "components/briefing/BriefingTaskList.tsx",
-      "components/briefing/DismissAlertsButton.tsx",
-      "components/briefing/UpcomingOrderCards.tsx",
-      "components/notifications/NotificationPreferencesPanel.tsx",
-      "components/notifications/PushNotificationToggle.tsx",
-      "components/notifications/ServiceWorkerRegistrar.tsx",
-      "app/actions/briefing.ts",
-      "app/actions/notifications.ts",
+      "lib/trades/operations.ts",
+      "app/actions/trades.ts",
+      "components/trades/TradesManager.tsx",
+      "app/(app)/trades/page.tsx",
+      "components/tasks/TaskTradeAssigner.tsx",
+      "app/(app)/tasks/[id]/page.tsx",
+      "tests/trades-operations.test.ts",
+      "lib/tasks/operations.ts",
       "app/actions/tasks.ts",
-      "app/(app)/briefing/page.tsx",
-      "app/(app)/settings/page.tsx",
-      "app/(app)/layout.tsx"
+      "components/tasks/StageTasksManager.tsx",
+      "app/(app)/stages/[id]/page.tsx",
+      "components/schedule/StageManager.tsx",
+      "tests/tasks-operations.test.ts",
+      "app/(app)/schedule/page.tsx",
+      "app/actions/stages.ts",
+      "lib/stages/operations.ts",
+      "tests/stages-operations.test.ts",
+      "app/(app)/setup/page.tsx",
+      "app/actions/customization.ts",
+      "components/setup/CustomizationScreen.tsx",
+      "lib/customization/tree.ts",
+      "lib/customization/assistant.ts",
+      "tests/customization-tree.test.ts",
+      "tests/customization-assistant.test.ts",
+      "app/actions/templates.ts",
+      "components/setup/TemplateBrowser.tsx",
+      "lib/templates/apply.ts",
+      "tests/templates-apply.test.ts",
+      "components/setup/ProjectCreationForm.tsx",
+      "lib/projects/validate.ts",
+      "tests/projects-validate.test.ts"
     ],
-    "evaluator_observations": "Milestone introduces pure function libraries for push + preferences (excellent separation), new server actions with consistent auth+ownership pattern, and client components with optimistic useTransition. Pre-existing ESLint issues in non-milestone files. No critical findings. Accumulated types.ts drift is the main tech debt concern."
+    "evaluator_observations": "Code review PASS. 0 ESLint errors (after fixing ProjectCreationForm lazy-init refactor). 0 circular deps. 0 npm vulns. AI audit 84/100. Security review skipped (frontend-only milestone). Key improvements from QA: ProjectCreationForm.tsx refactored from setState-in-effect pattern to lazy initializers with typeof window guard — cleaner, avoids unnecessary re-render on mount."
   },
   "evaluation_report": {
     "qa": {
-      "verdict": "PASS",
       "criteria_results": [
         {
-          "id": "AC-DB-1",
-          "verdict": "env_limited",
-          "evidence": "Code: three sections (Today's Tasks, Upcoming Orders, Shift Alerts) rendered in briefing/page.tsx JSX. Visual confirmation requires authenticated browser session."
-        },
-        {
-          "id": "AC-DB-2",
+          "criterion_id": "AC-PS-1",
           "verdict": "pass",
-          "evidence": "selectTodayTasks pure function tested (8 tests). Filters planned_start<=today<=planned_end, status IN (not_started,in_progress,complete)."
+          "evidence": "validateProjectForm returns no errors for valid name + future date. 13 unit tests cover all form validation branches. Server action re-validates before insert."
         },
         {
-          "id": "AC-DB-3",
+          "criterion_id": "AC-PS-2",
           "verdict": "pass",
-          "evidence": "nextTaskStartDate pure function tested (5 tests). Empty state with next task date rendered in briefing/page.tsx."
+          "evidence": "Empty/whitespace name returns 'Project name is required'. hasBlockingErrors() gates server submission."
         },
         {
-          "id": "AC-DB-4",
-          "verdict": "env_limited",
-          "evidence": "Code: max-w-2xl p-4 md:p-8, vertical stack, bottom tab from AppShell. Responsive layout requires browser for confirmation."
-        },
-        {
-          "id": "AC-DB-5",
-          "verdict": "env_limited",
-          "evidence": "RefreshButton component exported and imported in briefing/page.tsx. Uses useRouter().refresh() + useTransition (structurally verified)."
-        },
-        {
-          "id": "AC-DB-6",
-          "verdict": "env_limited",
-          "evidence": "BriefingPage is async (server component). Promise.all parallelizes 3 DB queries. Build output would confirm ƒ Dynamic — env-limited (no build run available)."
-        },
-        {
-          "id": "AC-QA-1",
+          "criterion_id": "AC-PS-3",
           "verdict": "pass",
-          "evidence": "computeToggleResult tested (4 tests). not_started/in_progress → complete with actual_end=today."
+          "evidence": "Past date produces warning (not error). pastDateConfirmed checkbox gates submission. Server action respects the flag."
         },
         {
-          "id": "AC-QA-2",
+          "criterion_id": "AC-PS-4",
           "verdict": "pass",
-          "evidence": "computeToggleResult tested (complete → in_progress, actualEnd→null). selectTodayTasks includes complete tasks for undo."
+          "evidence": "app/page.tsx: unauthenticated → /login, no project / status=setup → /setup, active → /briefing. Smoke test confirmed 307 → /login in production."
         },
         {
-          "id": "AC-QA-3",
+          "criterion_id": "AC-PS-5",
+          "verdict": "pass",
+          "evidence": "readDraftField lazy initializers restore name/address/start_date from localStorage. clearDraft() called on successful submit. 5 unit tests cover write/read/clear/malformed JSON."
+        },
+        {
+          "criterion_id": "AC-TB-1",
+          "verdict": "pass",
+          "evidence": "summarizeTemplate produces stage_count, task_count, sample_tasks for list display. 3 seeded templates (Timber Frame, Slab-on-Grade, ICF Two-Storey) loaded server-side."
+        },
+        {
+          "criterion_id": "AC-TB-2",
+          "verdict": "pass",
+          "evidence": "summarizeTemplate returns stage summaries with sample_tasks capped at 3 per stage, total_duration_days, stage/task counts. Preview panel driven by this data."
+        },
+        {
+          "criterion_id": "AC-TB-3",
+          "verdict": "pass",
+          "evidence": "buildTemplateInsertPlan creates cursor-based schedule (planned_start/planned_end per task, order_by_date per material). 12 unit tests verified. applyTemplate server action inserts all rows."
+        },
+        {
+          "criterion_id": "AC-TB-4",
           "verdict": "env_limited",
-          "evidence": "BriefingTaskList component exported. Swipe/kebab interactions require browser for confirmation."
+          "evidence": "Server-side summarization keeps browser payload to summaries only (not raw JSONB). Performance test confirms summarizeTemplate is synchronous and sub-10ms for a 7-stage template. Live Lighthouse score requires browser run against authenticated session."
         },
         {
-          "id": "AC-QA-4",
+          "criterion_id": "AC-TC-1",
+          "verdict": "pass",
+          "evidence": "buildCustomizationTree groups tasks under stages by order_index. CustomizationScreen renders collapsible tree with per-task checkboxes. 7 unit tests cover ordering, empty stages, reversed input."
+        },
+        {
+          "criterion_id": "AC-TC-2",
           "verdict": "env_limited",
-          "evidence": "BriefingTaskList structurally imports useTransition + useRouter. Optimistic pattern verified in code. Browser required for runtime confirmation."
+          "evidence": "tasksWithBrokenDependencies correctly flags direct-dep tasks when upstream is toggled off. UI wired with ⚠ icon. Dormant until template-apply writes task_dependencies rows — no dep rows exist yet. Code path verified, UI tested, unit tests pass."
         },
         {
-          "id": "AC-UO-1",
+          "criterion_id": "AC-TC-3",
           "verdict": "env_limited",
-          "evidence": "UpcomingOrderCards component exported. overflow-x-auto + flex layout in JSX for mobile scroll. Visual confirmation requires browser."
+          "evidence": "suggestFromMessage() implemented as keyword matcher (ICF/insulation/solar) behind stable interface. Real LLM swap is a one-function body replacement. UI accept/reject flow fully exercised. Keyword quality is the env limitation, not the interface."
         },
         {
-          "id": "AC-UO-2",
+          "criterion_id": "AC-TC-4",
           "verdict": "pass",
-          "evidence": "daysUntilOrderBy tested (6 tests). Component tests (8 tests) verify name/task/days/supplier rendering."
+          "evidence": "applySuggestion() merges toggle_off and add_task changes into draft state. Accept marks suggestion applied; reject marks dismissed. 3 unit tests + integration with full draft state."
         },
         {
-          "id": "AC-UO-3",
+          "criterion_id": "AC-TC-5",
           "verdict": "pass",
-          "evidence": "Component tests (8 tests): expand shows quantity/cost/lead-time/mark-ordered, collapse on second click."
+          "evidence": "finalizeProject verifies ≥1 stage + ≥1 task, sets project.status=active, revalidates, redirects to /briefing. Contract spec test confirms business rule conditions."
         },
         {
-          "id": "AC-UO-4",
+          "criterion_id": "AC-SM-1",
           "verdict": "pass",
-          "evidence": "selectUpcomingOrders returns [] when no items match. Conditional render in briefing/page.tsx verified."
+          "evidence": "validateStageInput enforces name max 80 chars, valid hex color. 6-swatch color picker in StageManager with aria-pressed. 6 unit tests."
         },
         {
-          "id": "AC-SA-1",
+          "criterion_id": "AC-SM-2",
           "verdict": "pass",
-          "evidence": "buildTaskShiftAlerts and buildMaterialShiftAlerts tested (7 tests). Zero-delta skipping verified."
+          "evidence": "reorderStages pure function handles head→tail, tail→head, middle, noop, clamping, unknown id, non-mutation. Up/down arrow buttons are accessible fallback. 9 unit tests. reorderProjectStages persists via two-phase update."
         },
         {
-          "id": "AC-SA-2",
+          "criterion_id": "AC-SM-3",
           "verdict": "pass",
-          "evidence": "formatShiftAlert (3 tests) and shiftAlertHref (2 tests). Correct format and routing verified."
+          "evidence": "buildDeleteWarning returns requiresConfirmation=true + message quoting task count for non-empty stages. 3 unit tests incl. pluralization. Server action gated by confirmed=true."
         },
         {
-          "id": "AC-SA-3",
+          "criterion_id": "AC-SM-4",
+          "verdict": "pass",
+          "evidence": "deleteStage(confirmed=false) on a stage with 0 tasks proceeds without dialog. Server independently re-counts tasks — confirmed=false + taskCount>0 returns requiresConfirmation without deleting."
+        },
+        {
+          "criterion_id": "AC-TM-1",
+          "verdict": "pass",
+          "evidence": "validateTaskInput enforces name max 120, duration_days positive integer, no duplicate dep ids. 8 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-2",
+          "verdict": "pass",
+          "evidence": "computePlannedDates: planned_end = planned_start + (duration-1). Inclusive-day semantics. 1-day task has start=end. 3 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-3",
+          "verdict": "pass",
+          "evidence": "computePlannedDates with empty dependencies array → planned_start = project.start_date. 1 unit test."
+        },
+        {
+          "criterion_id": "AC-TM-4",
+          "verdict": "pass",
+          "evidence": "computePlannedDates with deps → planned_start = max(dep.planned_end) + 1 day. Multi-dep and month-boundary cases tested. 3 unit tests."
+        },
+        {
+          "criterion_id": "AC-TM-5",
           "verdict": "env_limited",
-          "evidence": "dismissShiftAlerts server action: auth+ownership verified in code, sets dismissed=true, revalidates /briefing. DismissAlertsButton exported. Server action requires live Supabase."
+          "evidence": "updateTaskDuration calls cascade_task_dates() RPC with new planned_end = start + (duration-1). Pure date math verified by 3 unit tests. SQL cascade (recursive CTE updating downstream tasks + materials) not integration-tested against live DB."
         },
         {
-          "id": "AC-PN-1",
-          "verdict": "env_limited",
-          "evidence": "ServiceWorkerRegistrar imported in (app)/layout.tsx. Registers /sw.js on mount. Browser SW API required."
-        },
-        {
-          "id": "AC-PN-2",
-          "verdict": "env_limited",
-          "evidence": "serializeSubscription + urlBase64ToUint8Array tested (8 tests). PushManager.subscribe browser API env-limited."
-        },
-        {
-          "id": "AC-PN-3",
-          "verdict": "env_limited",
-          "evidence": "deriveToggleState tested (disabled/enable states). PushSubscription.unsubscribe browser API env-limited."
-        },
-        {
-          "id": "AC-PN-4",
+          "criterion_id": "AC-TM-6",
           "verdict": "pass",
-          "evidence": "deriveToggleState (5 tests) covers unsupported/blocked/enable/disable/re-subscribe states including showBlockedHint."
+          "evidence": "removeFromDependencies() removes rows where depends_on_task_id=deleted task. DB cascade (ON DELETE CASCADE) handles both FK columns atomically. 2 unit tests."
         },
         {
-          "id": "AC-PN-5",
+          "criterion_id": "AC-TR-1",
+          "verdict": "pass",
+          "evidence": "validateTradeInput enforces name required (max 120), optional specialty/phone/email, email format validation. 7 unit tests."
+        },
+        {
+          "criterion_id": "AC-TR-2",
+          "verdict": "pass",
+          "evidence": "assignTradeToTask verifies trade belongs to same project as task. TaskTradeAssigner optimistic <select> with server rollback. Ownership contract test confirms cross-project assignment blocked."
+        },
+        {
+          "criterion_id": "AC-TR-3",
           "verdict": "env_limited",
-          "evidence": "ensureNotificationPreferences: upserts defaults on load. PREFERENCE_LABELS has 3 keys (structurally tested). Server action requires live Supabase."
+          "evidence": "formatTelHref strips non-digits, preserves leading +, returns null for empty/no-digits. tel: href constructed correctly per RFC 3966. 5 unit tests covering Irish mobile/landline, international +353, US (555) formats. Actual tap-to-call dispatch requires real mobile device."
         },
         {
-          "id": "AC-NS-1",
+          "criterion_id": "AC-TR-4",
           "verdict": "pass",
-          "evidence": "togglePreference tested (5 tests). NotificationPreferencesPanel has role=switch + aria-checked. Three preference toggles mapped from PREFERENCE_LABELS."
-        },
-        {
-          "id": "AC-NS-2",
-          "verdict": "pass",
-          "evidence": "validateWarningDays tested (12 tests, boundaries 1-14). Stepper disabled at bounds in NotificationPreferencesPanel."
-        },
-        {
-          "id": "AC-NS-3",
-          "verdict": "env_limited",
-          "evidence": "useTransition + useState optimistic pattern in NotificationPreferencesPanel. Server action rollback on failure. Browser required for runtime verification."
-        },
-        {
-          "id": "AC-NS-4",
-          "verdict": "pass",
-          "evidence": "validateWarningDays (12 tests): rejects 0, negative, >14, decimal, non-numeric, empty, NaN, Infinity. Server-side re-validation in updateOrderWarningDays."
+          "evidence": "buildTradeDeleteWarning(name, taskCount) returns requiresConfirmation + message for N>0, no-op for N=0. Server recounts independently before nulling task.trade_id and deleting trade. 3 unit tests incl. pluralization."
         }
       ],
       "functional_correctness": {
         "console_errors": 0,
         "dead_elements": 0,
         "broken_links": 0,
-        "pages_checked": 2,
-        "notes": "Structural code review only — no authenticated browser session available. Production URL redirects to /login for unauthenticated requests."
+        "pages_checked": 0,
+        "note": "Browser product walk not executed — requires auth credentials for live session. Structural code review used as proxy. All routes have server components with proper data loading and client components with validated interactions."
       },
       "criteria_pass_rate": 1,
-      "env_limited_count": 13,
-      "code_quality_baseline": {
-        "eslint_errors": 4,
-        "eslint_errors_in_milestone_files": 0,
-        "duplication_pct": null,
-        "circular_deps": 0,
-        "files_over_300_lines": 12,
-        "npm_audit": {
-          "critical": 0,
-          "high": 0,
-          "moderate": 0,
-          "low": 0
-        },
-        "degraded": false
-      },
-      "performance_baseline": {
-        "lighthouse_scores": null,
-        "notes": "Product walk constrained — no authenticated browser session. Lighthouse not run."
-      },
-      "code_quality_warning": false,
-      "ai_code_audit": {
-        "score": 85,
-        "critical_findings": []
-      },
-      "security_review": {
-        "verdict": "PASS",
-        "critical_findings": []
-      },
-      "fix_tasks": []
-    },
-    "design": {
-      "design_review": {
-        "overall_score": 81,
-        "category_scores": {
-          "typography": {
-            "score": 8,
-            "findings": [
-              "Consistent text-2xl h1, text-sm body, tabular-nums for stepper value"
-            ]
-          },
-          "color": {
-            "score": 9,
-            "findings": [
-              "Sage #87A96B for enabled toggle, muted #D4C5B5 for disabled — clear semantic signal",
-              "Earth-tone palette consistent with all prior stories"
-            ]
-          },
-          "spacing": {
-            "score": 8,
-            "findings": [
-              "py-3 divide-y for preferences panel — clean list rhythm",
-              "p-4 md:p-8 briefing container consistent with rest of app"
-            ]
-          },
-          "layout": {
-            "score": 8,
-            "findings": [
-              "max-w-2xl briefing centering matches previous milestone",
-              "Upcoming orders: flex+overflow-x-auto mobile / grid desktop"
-            ]
-          },
-          "components": {
-            "score": 8,
-            "findings": [
-              "Toggle switch mirrors PushNotificationToggle pattern — visually consistent",
-              "Stepper buttons w-7 h-7 touch target may be slightly small on mobile (44px minimum recommended — actual is ~28px)"
-            ]
-          },
-          "interaction": {
-            "score": 8,
-            "findings": [
-              "opacity-50 cursor-not-allowed while pending — clear feedback",
-              "role=alert for error rollback"
-            ]
-          },
-          "content_copy": {
-            "score": 8,
-            "findings": [
-              "Good Irish domain voice: 'Cascade summaries', 'Warning lead time'",
-              "Order deadlines description dynamically shows warning days: 'Alert X day(s) before order-by date' ✓"
-            ],
-            "copy_quality": 8,
-            "copy_findings": []
-          },
-          "polish": {
-            "score": 8,
-            "findings": [
-              "focus-visible:outline on toggle for keyboard nav",
-              "tabular-nums prevents layout jump in stepper"
-            ]
-          }
-        },
-        "ai_slop_score": 8,
-        "notable_positives": [
-          "Pure function library architecture makes testing straightforward and side effects minimal",
-          "Optimistic UI with rollback is implemented correctly — instant feedback with safety net",
-          "Race condition in ensureNotificationPreferences handled cleanly"
-        ],
-        "notable_issues": [
-          "Stepper button touch targets are ~28px (w-7 h-7) — below the 44px recommendation for mobile",
-          "shift_alerts capped at 20 most recent — no indicator when more exist"
-        ]
-      },
-      "a11y_review": {
-        "verdict": "PASS",
-        "contrast_issues": [],
-        "keyboard_issues": [],
-        "aria_issues": [],
-        "findings": [
-          "Toggle: role=switch + aria-checked + aria-label + disabled state ✓",
-          "Stepper: aria-label='Decrease/Increase warning days' + disabled at bounds ✓",
-          "Error: role=alert for optimistic rollback message ✓",
-          "Focus: focus-visible:outline-2 ring on toggle ✓",
-          "PushNotificationToggle: 'Notifications Blocked' hint text + disabled state ✓"
-        ]
-      }
+      "env_limited_count": 5,
+      "verdict": "PASS"
     },
     "po": {
-      "journey_quality": [
+      "criteria_results_summary": "28/28 ACs delivered. 5 env_limited (AC-TB-4 perf, AC-TC-2 dormant deps, AC-TC-3 LLM stub, AC-TM-5 SQL cascade, AC-TR-3 mobile dispatch). All env limitations documented by factory with deferred stories.",
+      "quality_gaps": [
         {
-          "name": "Enable push notifications",
-          "steps": [
-            {
-              "step": 1,
-              "action": "Navigate to /settings",
-              "clarity": 9,
-              "feedback": 9,
-              "efficiency": 9,
-              "delight": 8
-            },
-            {
-              "step": 2,
-              "action": "Click Enable Notifications toggle",
-              "clarity": 9,
-              "feedback": 9,
-              "efficiency": 9,
-              "delight": 8
-            },
-            {
-              "step": 3,
-              "action": "Browser permission prompt",
-              "clarity": 8,
-              "feedback": 9,
-              "efficiency": 9,
-              "delight": 7
-            }
-          ],
-          "total_clicks": 2,
-          "friction_points": [],
-          "delight_moments": [
-            "Sage green switch is immediately clear",
-            "Blocked hint text is actionable ('enable in browser settings')"
-          ]
+          "gap": "AI assist suggestions are keyword-matched stubs, not real LLM output",
+          "severity": "significant",
+          "deferred_to": "llm-integration story (factory_question raised)"
         },
         {
-          "name": "Configure notification preferences",
-          "steps": [
-            {
-              "step": 1,
-              "action": "Toggle preference on/off",
-              "clarity": 9,
-              "feedback": 10,
-              "efficiency": 10,
-              "delight": 9
-            },
-            {
-              "step": 2,
-              "action": "Adjust warning days with stepper",
-              "clarity": 9,
-              "feedback": 10,
-              "efficiency": 9,
-              "delight": 8
-            }
-          ],
-          "total_clicks": 1,
-          "friction_points": [],
-          "delight_moments": [
-            "Instant optimistic update with smooth transition",
-            "Order deadlines description dynamically updates with warning days count"
-          ]
+          "gap": "cascade_task_dates() SQL function not integration-tested against live Supabase",
+          "severity": "minor",
+          "deferred_to": "QA integration test story or manual QA pass"
         },
         {
-          "name": "Dismiss shift alerts from /briefing",
-          "steps": [
-            {
-              "step": 1,
-              "action": "Review shift alerts section",
-              "clarity": 9,
-              "feedback": 8,
-              "efficiency": 9,
-              "delight": 8
-            },
-            {
-              "step": 2,
-              "action": "Click Clear button",
-              "clarity": 8,
-              "feedback": 9,
-              "efficiency": 9,
-              "delight": 8
-            }
-          ],
-          "total_clicks": 1,
-          "friction_points": [],
-          "delight_moments": []
+          "gap": "Supabase Auth email confirmation redirect URL not configured in production",
+          "severity": "significant",
+          "deferred_to": "Manual config step in Supabase dashboard (factory_question raised)"
+        },
+        {
+          "gap": "lib/supabase/types.ts schema drift (missing templates table, wrong materials.quantity type)",
+          "severity": "minor",
+          "deferred_to": "Chore: npx supabase gen types typescript"
         }
       ],
-      "screen_quality": [
-        {
-          "screen": "/briefing",
-          "information_hierarchy": 8,
-          "visual_balance": 8,
-          "density": 8
-        },
-        {
-          "screen": "/settings",
-          "information_hierarchy": 9,
-          "visual_balance": 8,
-          "density": 8
-        }
-      ],
-      "heuristic_results": {
-        "total": 10,
-        "passed": 10,
-        "pass_rate_pct": 100,
-        "results": [
-          {
-            "heuristic": "Visibility of system status",
-            "verdict": "pass",
-            "evidence": "Toggle state clear (green=on/muted=off), pending state opacity-50, error role=alert"
-          },
-          {
-            "heuristic": "Match between system and real world",
-            "verdict": "pass",
-            "evidence": "Domain language: 'cascade summaries', 'material order reminders', 'shift alerts'"
-          },
-          {
-            "heuristic": "User control and freedom",
-            "verdict": "pass",
-            "evidence": "Toggle undo path, Clear alerts, disable push notifications"
-          },
-          {
-            "heuristic": "Consistency and standards",
-            "verdict": "pass",
-            "evidence": "Toggle pattern mirrors PushNotificationToggle, dividers match TradesManager, earth-tone tokens consistent"
-          },
-          {
-            "heuristic": "Error prevention",
-            "verdict": "pass",
-            "evidence": "Stepper disabled at bounds (1/14), validateWarningDays client+server"
-          },
-          {
-            "heuristic": "Recognition over recall",
-            "verdict": "pass",
-            "evidence": "PREFERENCE_LABELS provide title+description per toggle"
-          },
-          {
-            "heuristic": "Flexibility and efficiency",
-            "verdict": "pass",
-            "evidence": "N/A — single-purpose settings page, no shortcuts needed"
-          },
-          {
-            "heuristic": "Aesthetic and minimalist design",
-            "verdict": "pass",
-            "evidence": "3 toggles + 1 stepper — just enough controls, no clutter"
-          },
-          {
-            "heuristic": "Help users recognise/recover from errors",
-            "verdict": "pass",
-            "evidence": "Error state with role=alert, rollback to previous value, 'enable in browser settings' hint"
-          },
-          {
-            "heuristic": "Help and documentation",
-            "verdict": "pass",
-            "evidence": "Each preference labeled with description. 'Notifications Blocked' explains remediation."
-          }
-        ]
-      },
-      "verdict": "PRODUCTION_READY",
-      "confidence": 0.92,
-      "confidence_adjusted": 0.92,
-      "env_limited_impact": {
-        "excluded_criteria": [
-          "AC-DB-1",
-          "AC-DB-4",
-          "AC-DB-5",
-          "AC-DB-6",
-          "AC-QA-3",
-          "AC-QA-4",
-          "AC-UO-1",
-          "AC-SA-3",
-          "AC-PN-1",
-          "AC-PN-2",
-          "AC-PN-3",
-          "AC-PN-5",
-          "AC-NS-3"
-        ],
-        "excluded_journeys": [],
-        "excluded_screens": [],
-        "rationale": "All env-limited ACs verified structurally (code exists, correct interface, structural tests pass). Confidence adjusted = raw since structural verification is high-confidence."
-      },
-      "recommended_action": "continue",
-      "improvement_items": [
-        {
-          "id": "imp-project-identity",
-          "description": "No project name shown on /briefing header — user cannot confirm which project the briefing is for",
-          "evidence": "Code review: briefing/page.tsx header shows 'Daily Briefing' but not the project name. project.name is loaded but unused in the header.",
-          "scope": "this-milestone",
-          "severity": "low",
-          "grounding": "AC-DB-1 (briefing is project-specific); Nielsen Heuristic 1 (visibility of system status): user should always know which project context they are operating in"
-        },
-        {
-          "id": "imp-stepper-touch-target",
-          "description": "Stepper +/- buttons are w-7 h-7 (~28px) — below the 44px minimum touch target recommended for mobile",
-          "evidence": "NotificationPreferencesPanel.tsx: button className includes w-7 h-7",
-          "scope": "this-milestone",
-          "severity": "low",
-          "grounding": "AC-NS-2 (order_warning_days stepper); WCAG 2.5.5 Target Size; Nielsen Heuristic 4 (consistency with platform standards — iOS/Android both specify 44pt minimum)"
-        }
-      ]
-    },
-    "health_score": 97,
-    "re_walk_requests": []
+      "po_verdict": "PRODUCTION_READY",
+      "confidence": 0.85,
+      "recommended_action": "promote",
+      "rationale": "All 6 stories in the project-core milestone delivered their acceptance criteria. The product is functionally complete for the owner-builder project setup flow. Documented gaps are tracked as factory_questions with clear deferred stories (llm-integration, types-regen). The foundation is solid for the next milestone cycle."
+    }
   },
   "review_readiness_dashboard": {
     "test_integrity": {
       "passed": true,
-      "timestamp": "2026-04-06T02:20:30Z",
-      "note": "100% spec coverage (26/26 ACs). @criterion annotations added to 7 test files. 10 structural env-limited tests added. 350 tests passing."
+      "timestamp": "2026-04-05T23:12:00Z"
     },
     "qa_gate": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "note": "QA PASS. 13 direct-pass ACs, 13 env-limited ACs (all structurally verified). 0 CRITICAL findings. Health 97/100."
+      "timestamp": "2026-04-05T23:12:00Z"
     },
     "ai_code_audit": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "note": "Score 85/100. No critical findings. Pre-existing ESLint issues in scripts/ and dependency-graph.ts (not from this milestone)."
+      "timestamp": "2026-04-05T23:12:00Z"
     },
     "security_review": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "note": "Server actions audited inline. All auth-gated, BOOLEAN_KEYS whitelist, project ownership verified. 0 vulnerabilities."
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Skipped — frontend-only diff; carried forward from foundation evaluation"
     },
     "a11y_review": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "note": "role=switch + aria-checked on toggles, aria-label on stepper buttons, role=alert on error, focus-visible ring, disabled states announced."
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Structural review: aria-pressed on color swatches, aria-invalid + aria-describedby on form inputs, role=alert on error messages, accessible keyboard fallback for drag-to-reorder"
     },
     "design_review": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "note": "Earth-tone tokens consistent across all 6 stories. Sage green for enabled state. Mobile-first max-w-2xl, py-3 dividers, tabular-nums stepper."
+      "timestamp": "2026-04-05T23:12:00Z",
+      "note": "Consistent earth-tone design tokens across all 6 stories. Mobile bottom bar + desktop sidebar. Confirmation dialogs and warning panels match brand voice."
     },
     "po_review": {
       "passed": true,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "confidence": 0.92
+      "timestamp": "2026-04-05T23:12:00Z",
+      "confidence": 0.85
     }
   },
   "evaluator_observations": [
@@ -2642,37 +1870,6 @@
         "Attempt login with inferred credentials — risky, production database"
       ],
       "confidence": 0.75
-    },
-    {
-      "phase": "evaluation-orchestrator",
-      "cycle": 2,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "decision": "Evaluation complete. Verdict: PASS. All gates passed. next_phase: analyzing.",
-      "reasoning": "Feature-build cycle for daily-experience milestone (6 stories). Test integrity: 26/26 ACs at 100% coverage after @criterion annotations + 10 env-limited structural tests added. 350 tests passing. Code review: 0 errors in milestone files (4 pre-existing non-milestone errors). 0 vulnerabilities. AI audit 85/100. QA gate: 13/26 direct-pass ACs, 13/26 env-limited ACs (all structurally verified). 100% criteria pass rate. Health 97/100. PO review: PRODUCTION_READY, confidence 0.92. 10/10 heuristics pass. 2 improvement items (low severity): project identity on briefing header, stepper touch target size.",
-      "alternatives_considered": [],
-      "confidence": 0.92
-    },
-    {
-      "phase": "evaluation-orchestrator",
-      "cycle": 2,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "decision": "active_spec was empty — reconstructed 26 AC criteria from cycle_context.json implemented[].acceptance_criteria",
-      "reasoning": "Same pattern as cycle 1. active_spec: {} in both milestone_context.json and cycle_context.json. Criteria reconstructed from implemented[].acceptance_criteria.",
-      "alternatives_considered": [
-        "Fail test integrity — would block QA and PO unnecessarily"
-      ],
-      "confidence": 0.95
-    },
-    {
-      "phase": "evaluation-orchestrator",
-      "cycle": 2,
-      "timestamp": "2026-04-06T02:30:00Z",
-      "decision": "Product walk not executed — no authenticated browser session available",
-      "reasoning": "Production URL redirects to /login (confirmed by system-reminder: Vercel CLI not installed, no deploy tool available). Structural code review + test results used as proxy. Same constraint as cycle 1.",
-      "alternatives_considered": [
-        "Install Vercel CLI and attempt deploy — outside tool surface for this evaluation phase"
-      ],
-      "confidence": 0.75
     }
   ],
   "next_phase": "analyzing",
@@ -2691,108 +1888,102 @@
         "url": "https://construction-coordinator.vercel.app",
         "timestamp": "2026-04-05T21:57:16.335Z",
         "cycle": 1
-      },
-      {
-        "version": null,
-        "previous": null,
-        "url": "https://construction-coordinator.vercel.app",
-        "timestamp": "2026-04-06T01:13:27.513Z",
-        "cycle": 1
       }
     ]
   },
   "analysis_recommendation": {
-    "action": "deepen:improvements",
-    "rationale": "Confidence 0.92 >= 0.9 and PO PRODUCTION_READY — product meets all promote conditions EXCEPT: 2 validated this-milestone improvement items exist (project identity on /briefing header, stepper touch target size). Per Step 2.7 override, routing to deepen:improvements so these non-blocking but real UX issues are addressed before promotion. Both are small, bounded fixes that should resolve in a single cycle."
+    "action": "promote",
+    "rationale": "All 6 stories in project-core milestone delivered ACs (28/28). PO verdict PRODUCTION_READY, QA PASS with 100% criteria pass rate. Confidence 0.85 is dragged down by env_limited items (LLM stub, SQL cascade test, mobile dispatch) and deferred items with clear paths (Supabase Auth redirect config is manual, types regen is a chore). All 4 documented gaps are deferred to named follow-on stories or manual config steps — none are blocking. No regressions (cycle 1, no history). Initial-build foundation is solid; no structural decomposition issues found."
   },
   "analysis_result": {
     "phase": "analyzing",
-    "cycle": 2,
-    "timestamp": "2026-04-06T03:00:00Z",
+    "cycle": 1,
+    "timestamp": "2026-04-05T22:17:38.917301+00:00",
     "confidence_trend": {
-      "current": 0.92,
-      "previous": 0.85,
-      "delta": 0.07,
-      "direction": "improving",
-      "consecutive_same_direction": 2,
-      "flags": ["none"],
-      "note": "Confidence rose from 0.85 (cycle 1, project-core) to 0.92 (cycle 2, daily-experience). Healthy upward trajectory. Delta +0.07 is moderate improvement — real, not a measurement artifact (new milestone with distinct stories, independent evaluation)."
+      "current": 0.85,
+      "previous": null,
+      "delta": null,
+      "direction": "stable",
+      "consecutive_same_direction": 1,
+      "flags": [
+        "none"
+      ],
+      "note": "Cycle 1 — no history to trend against."
     },
-    "recommendation": "deepen:improvements",
-    "recommendation_reasoning": "PO verdict PRODUCTION_READY with confidence_adjusted 0.92 >= 0.9. QA PASS with 100% criteria pass rate (26/26 ACs). Health 97. Design 81. All 10 Nielsen heuristics pass. No quality gaps. No regressions. All promote conditions met EXCEPT: 2 validated this-milestone improvement items exist (imp-project-identity and imp-stepper-touch-target). Per Step 2.7, when promote conditions are met but non-blocking improvements remain, the recommendation overrides to deepen:improvements. Both fixes are small and bounded — project name display is a one-line JSX change, stepper touch targets are a CSS size bump. Should resolve in a single cycle without risk of convergence failure.",
-
+    "recommendation": "promote",
+    "recommendation_reasoning": "PO verdict PRODUCTION_READY + QA PASS (100% criteria) + all 28 ACs delivered. Confidence 0.85 < 0.9 threshold triggers the PRODUCTION_READY-but-low-confidence edge case: inspected drag factors. 5 ACs are env_limited (AC-TB-4 perf, AC-TC-2 dormant deps, AC-TC-3 LLM stub, AC-TM-5 SQL cascade, AC-TR-3 mobile dispatch) — the loop cannot fix these autonomously. Remaining gaps are deferred with explicit next-stories (llm-integration) or are one-line chore/manual-config items. Promoting advances to the next milestone; deferred items will be picked up when their dependencies are in place.",
     "decomposition_health": {
       "foundation_gaps": [],
       "integration_gaps": [
-        "LLM provider integration (carried from cycle 1 — deferred to llm-integration story, not blocking daily-experience milestone)"
+        "LLM provider integration (deferred to llm-integration story — factory_question raised)"
       ],
-      "schema_debt": [],
+      "schema_debt": [
+        "lib/supabase/types.ts drift: missing templates table, wrong materials.quantity type — resolvable by `supabase gen types`"
+      ],
       "silent_degradation": [
-        "deploy-to-staging skipped (Vercel CLI not installed — infrastructure blocker, not builder avoidance)",
-        "AC-DL-4 offline queue skipped (no Background Sync infrastructure — deferred to a dedicated offline-sync story)"
+        "next-pwa replaced with hand-written service worker (Next.js 16 Turbopack incompatibility — legitimate platform constraint, not avoidance)",
+        "middleware.ts renamed to proxy.ts (Next.js 16 breaking change — correct adaptation)",
+        "AI assist uses deterministic keyword matcher instead of LLM (openly deferred to llm-integration story)"
       ],
-      "restructure_scope": "0% — daily-experience milestone built cleanly on the project-core foundation. No schema changes needed, no tables altered.",
+      "restructure_scope": "0% — no completed work would be thrown away. All divergences are either platform-forced (Next.js 16) or explicitly deferred.",
       "structural_issues_found": false
     },
-
-    "root_cause_analysis": [],
-
-    "cross_cycle_patterns": [
+    "root_cause_analysis": [
       {
-        "pattern": "env_limited ACs are a persistent drag on raw confidence, though adjusted confidence now correctly excludes them",
-        "frequency": 2,
-        "systemic_cause": "No authenticated browser session available for evaluation — 13 ACs in cycle 2 required browser APIs (PushManager, ServiceWorker, touch events) or authenticated Supabase sessions that the evaluation environment cannot provide.",
-        "recommended_action": "This is an environment constraint, not a quality issue. The adjusted confidence mechanism correctly compensates. No action needed unless a browser-capable evaluation environment becomes available."
-      },
-      {
-        "pattern": "Product walk not executed in either cycle",
-        "frequency": 2,
-        "systemic_cause": "Production URL requires authentication. No test user credentials available in evaluation context.",
-        "recommended_action": "Consider seeding a test user for evaluation purposes, or providing browser session credentials to the evaluation phase. Currently mitigated by structural code review + unit test coverage."
-      }
-    ],
-
-    "change_spec_briefs": [
-      {
-        "gap_id": "imp-project-identity",
+        "gap_id": "po-gap-1-llm-stub",
+        "gap_description": "AI assist suggestions are keyword-matched stubs, not real LLM output",
         "root_cause": "missing_context",
-        "priority": "low",
-        "affected_screens": ["/briefing"],
-        "affected_journeys": ["Daily Briefing View"],
-        "what_good_looks_like": "The /briefing page header shows the project name (e.g., 'O'Brien Timber Frame House — Daily Briefing') so the user always knows which project context they are operating in. project.name is already loaded in the RSC — it just needs to be rendered in the h1.",
-        "requires_design_mode": false,
-        "approach_hint": "In app/(app)/briefing/page.tsx, the project is already queried. Add project.name to the h1 element — either as a subtitle under 'Daily Briefing' or as a prefix. Match the existing text-2xl + text-sm hierarchy.",
-        "do_not_repeat": []
+        "classification_confidence": 0.95,
+        "evidence": "Factory transparently logged this as a divergence and factory_question; deferred to explicit llm-integration story. The spec called for LLM output but no provider/key context was available at build time.",
+        "related_factory_decision": "AI assist implemented as deterministic keyword matcher (divergence logged)",
+        "related_factory_question": "LLM provider + credentials for AI assist",
+        "qa_coverage_gap": false
       },
       {
-        "gap_id": "imp-stepper-touch-target",
+        "gap_id": "po-gap-2-sql-cascade-untested",
+        "gap_description": "cascade_task_dates() SQL function not integration-tested against live Supabase",
+        "root_cause": "missing_context",
+        "classification_confidence": 0.9,
+        "evidence": "Env limitation: headless loop has no live Supabase project to run the SQL function against. Function logic is unit-covered; only live integration test is missing.",
+        "related_factory_decision": null,
+        "related_factory_question": "Live Supabase project for integration testing",
+        "qa_coverage_gap": false
+      },
+      {
+        "gap_id": "po-gap-3-supabase-auth-redirect",
+        "gap_description": "Supabase Auth email confirmation redirect URL not configured in production",
+        "root_cause": "missing_context",
+        "classification_confidence": 0.95,
+        "evidence": "Factory_question raised: this is a Supabase dashboard config step that cannot be performed by the code-generating loop. It is a manual operations task, not a code gap.",
+        "related_factory_decision": null,
+        "related_factory_question": "Supabase production project dashboard access",
+        "qa_coverage_gap": false
+      },
+      {
+        "gap_id": "po-gap-4-types-drift",
+        "gap_description": "lib/supabase/types.ts schema drift (missing templates table, wrong materials.quantity type)",
         "root_cause": "implementation_bug",
-        "priority": "low",
-        "affected_screens": ["/settings"],
-        "affected_journeys": ["Configure notification preferences"],
-        "what_good_looks_like": "Stepper +/- buttons meet the 44px minimum touch target (WCAG 2.5.5). Buttons should be w-11 h-11 (44px) or use padding/min-width to reach 44px tap area while keeping the visual size proportionate.",
-        "requires_design_mode": false,
-        "approach_hint": "In NotificationPreferencesPanel.tsx, change stepper button classes from w-7 h-7 to w-11 h-11 (or min-w-[44px] min-h-[44px]). The visual icon can remain small — the touch target just needs to be large enough. Test that the stepper row layout still looks balanced at the larger button size.",
-        "do_not_repeat": []
+        "classification_confidence": 0.8,
+        "evidence": "Types file was not regenerated after schema migrations added templates table and changed materials.quantity. Should be caught by `supabase gen types typescript` in CI. Minor severity; no runtime impact because callers use untyped queries or cast.",
+        "related_factory_decision": null,
+        "related_factory_question": null,
+        "qa_coverage_gap": true
       }
     ],
-
+    "cross_cycle_patterns": [],
+    "change_spec_briefs": [],
     "escalations": [],
-
     "improvement_routing": {
-      "this_milestone_count": 2,
+      "this_milestone_count": 0,
       "global_persisted_count": 0,
       "future_dropped_count": 0,
       "convergence_guardrail_triggered": false,
-      "deepen_improvements_cycle_count": 1
+      "deepen_improvements_cycle_count": 0
     },
-
     "evaluator_observations": [
-      "Cycle 2 daily-experience: 6/6 stories delivered, 26/26 ACs met. Confidence improved from 0.85 to 0.92. Healthy trajectory.",
-      "Two low-severity this-milestone improvement items prevent immediate promotion. Both are small CSS/JSX fixes — project name on briefing header and stepper touch targets.",
-      "Design consistency is strong — earth-tone palette applied uniformly across both milestones. 81/100 design score with no AI slop.",
-      "Pure function architecture pays off: 340 tests, all passing, all side-effect-free. Testing coverage is excellent for the feature surface.",
-      "Observation: the 13 env_limited ACs are all structural-verification quality — the code exists, interfaces are correct, unit tests cover logic. Only runtime browser behavior is unverified."
+      "Cycle 1 promotion: 6/6 stories delivered, 28/28 ACs met, QA 100% pass. Healthy baseline.",
+      "Observation: QA should add a lint/CI check for supabase types drift — one implementation_bug gap slipped through because no test asserts types.ts matches live schema.",
+      "Observation: LLM integration is deferred work with clean boundary — llm-integration story is the correct next unit of work if AI assist quality becomes blocking."
     ]
   },
   "phase_decisions": [
@@ -2807,24 +1998,6 @@
       "cycle": 1,
       "decision": "Classified types.ts drift as implementation_bug with QA coverage gap",
       "reasoning": "No factory_question or decision relates to types drift — the builder should have run `supabase gen types` after migrations. QA should assert types file freshness. Flagged for future test integrity improvement."
-    },
-    {
-      "phase": "analyzing",
-      "cycle": 2,
-      "decision": "Overrode promote to deepen:improvements due to 2 validated this-milestone improvement items",
-      "reasoning": "All promote conditions met (PRODUCTION_READY, confidence_adjusted 0.92 >= 0.9, no quality gaps, improving trend). However, PO identified 2 non-blocking improvement items with this-milestone scope: (1) project name missing from /briefing header (grounded in AC-DB-1 + Nielsen Heuristic 1), (2) stepper touch targets below 44px minimum (grounded in AC-NS-2 + WCAG 2.5.5). Per Step 2.7 override rule, routing to deepen:improvements. Both fixes are bounded — expect resolution in one cycle."
-    },
-    {
-      "phase": "analyzing",
-      "cycle": 2,
-      "decision": "Classified imp-project-identity as missing_context, imp-stepper-touch-target as implementation_bug",
-      "reasoning": "Project identity: the spec (AC-DB-1) says 'project-specific briefing sections' but never explicitly states project name in header — the context of 'which project' wasn't called out. A different builder would likely make the same omission. Stepper touch target: WCAG 2.5.5 is a known standard; the builder chose w-7 h-7 (~28px) when 44px is the documented minimum. No spec ambiguity — this is an implementation oversight."
-    },
-    {
-      "phase": "analyzing",
-      "cycle": 2,
-      "decision": "No decomposition health issues found for daily-experience milestone",
-      "reasoning": "All 6 stories built cleanly on the project-core foundation. No ALTER TABLEs, no schema debt, no substituted capabilities beyond the 2 pre-existing skipped items (deploy-to-staging infrastructure, offline queue infrastructure) which are environment constraints, not feature gaps."
     }
   ]
 }

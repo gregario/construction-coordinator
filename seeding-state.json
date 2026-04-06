@@ -1,0 +1,14 @@
+{
+  "session_id": "8529d64e-1e8b-41e2-bb57-13537c7e90fa",
+  "status": "complete",
+  "started_at": "2026-04-05T15:22:57.689Z",
+  "last_activity": "2026-04-05T18:12:56.781Z",
+  "disciplines_complete": [
+    "brainstorming",
+    "competition",
+    "taste",
+    "spec",
+    "infrastructure"
+  ],
+  "seeding_complete": true
+}
