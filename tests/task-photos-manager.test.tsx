@@ -7,6 +7,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }))
 
+// Mock next/image to render a plain <img> for testing
+vi.mock('next/image', () => ({
+  default: (props: Record<string, unknown>) => {
+    const { fill, sizes, ...rest } = props
+    return <img {...rest} data-fill={fill ? 'true' : undefined} data-sizes={sizes as string} />
+  },
+}))
+
 // Mock server actions
 vi.mock('@/app/actions/photos', () => ({
   uploadPhoto: vi.fn(),
@@ -75,7 +83,7 @@ describe('TaskPhotosManager', () => {
     expect(screen.getByText('No preview')).toBeInTheDocument()
   })
 
-  it('renders image when signed URL is available', () => {
+  it('renders next/image with fill prop when signed URL is available', () => {
     const photos = [mkPhoto({ id: 'p1', file_name: 'site.jpg' })]
     render(
       <TaskPhotosManager
@@ -87,6 +95,20 @@ describe('TaskPhotosManager', () => {
     const img = screen.getByAltText('site.jpg')
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', 'https://example.com/signed.jpg')
+    expect(img).toHaveAttribute('data-fill', 'true')
+  })
+
+  it('preserves object-cover styling on next/image', () => {
+    const photos = [mkPhoto({ id: 'p1', file_name: 'site.jpg' })]
+    render(
+      <TaskPhotosManager
+        {...defaultProps}
+        initialPhotos={photos}
+        signedUrls={{ p1: 'https://example.com/signed.jpg' }}
+      />
+    )
+    const img = screen.getByAltText('site.jpg')
+    expect(img.className).toContain('object-cover')
   })
 
   it('renders delete buttons for each photo', () => {

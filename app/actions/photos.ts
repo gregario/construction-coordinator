@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { buildStoragePath } from '@/lib/photos/operations'
+import { buildStoragePath, validatePhotoFile } from '@/lib/photos/operations'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LooseClient = any
@@ -63,6 +63,12 @@ export async function uploadPhoto(formData: FormData): Promise<UploadPhotoResult
 
   const isOwner = await verifyProjectOwnership(supabase, projectId, user.id)
   if (!isOwner) return { ok: false, error: 'Not authorized' }
+
+  // Server-side file validation (mirrors client-side validatePhotoFile)
+  const validation = validatePhotoFile({ type: file.type, size: file.size, name: file.name })
+  if (!validation.valid) {
+    return { ok: false, error: validation.error.message }
+  }
 
   // Build storage path using entity context
   const entityId = taskId ?? stageId ?? 'project'
