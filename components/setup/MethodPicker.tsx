@@ -18,9 +18,10 @@ interface MethodPickerProps {
   projectId: string
   blocks: BlockRow[]
   startDate: string
+  onComplete?: (selections: Record<string, SchemeSelection>) => void
 }
 
-export function MethodPicker({ projectId, blocks, startDate }: MethodPickerProps) {
+export function MethodPicker({ projectId, blocks, startDate, onComplete }: MethodPickerProps) {
   const router = useRouter()
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0)
   const [categoryIndex, setCategoryIndex] = useState(0)
@@ -129,6 +130,12 @@ export function MethodPicker({ projectId, blocks, startDate }: MethodPickerProps
   }
 
   function applyAllSchemes() {
+    if (onComplete) {
+      // Return selections to parent wizard for review step
+      onComplete(selections)
+      return
+    }
+    // Fallback: apply directly (if used without wizard)
     setPhase('applying')
     startTransition(async () => {
       for (const block of blocks) {
@@ -142,7 +149,6 @@ export function MethodPicker({ projectId, blocks, startDate }: MethodPickerProps
           return
         }
       }
-      // Activate the project and go to schedule
       await activateProject(projectId)
       router.push('/schedule')
       router.refresh()
