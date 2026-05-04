@@ -21,6 +21,8 @@ Built with [The Rouge](https://github.com/gregario/the-rouge) — an autonomous 
 ## Setup
 
 ```bash
+git clone https://github.com/gregario/construction-coordinator.git
+cd construction-coordinator
 npm install
 cp .env.example .env
 # Fill in your Supabase credentials and VAPID keys in .env
